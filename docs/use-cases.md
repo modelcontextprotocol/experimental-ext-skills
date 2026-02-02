@@ -8,7 +8,7 @@ Skills that teach agents how to perform multi-step workflows that they wouldn't 
 
 **Community input:**
 
-> "Skills may define how to use tools, possibly from different servers, to accomplish complex workflows requiring contextual reasoning that could not be coded with MCP tools." — [Daniele M.](https://github.com/dmartinol)
+> "Skills may define how to use tools, possibly from different servers, to accomplish complex workflows requiring contextual reasoning that could not be coded with MCP tools." — [Daniele Martinoli](https://github.com/dmartinol)
 
 ## 2. Conditional Workflows
 
@@ -24,7 +24,7 @@ Skills that leverage tools from multiple off-the-shelf servers where you can't (
 
 > "I think there might also be a subtle difference between the kind of skill that allows you to orchestrate a set of tools, possibly from different servers, to do something the agent wouldn't have necessarily known how to do without the skill (more of a skill registry issue), and the 'you're pretty much going to need this skill to make use of this server at all' (an MCP server registry issue, maybe)." — [Bob Dickinson](https://github.com/TeamSparkAI)
 
-> "The ecosystem has been too focused on the server being the main deliverable in some ways, and actually there's a lot that can be done in terms of composition that we miss by people generally imagining their code as being the server boundary and not providing functionality more as a library." — [SamMorrowDrums](https://github.com/SamMorrowDrums)
+> "The ecosystem has been too focused on the server being the main deliverable in some ways, and actually there's a lot that can be done in terms of composition that we miss by people generally imagining their code as being the server boundary and not providing functionality more as a library." — [Sam Morrow](https://github.com/SamMorrowDrums)
 
 ## 4. Progressive Disclosure
 
@@ -32,7 +32,7 @@ Skills broken into linked sets of files for effective context management, loaded
 
 **Community input:**
 
-> "Especially mimicking progressive disclosure via resources and dynamically adding new ones as the agent reads pieces of the skill has been quite handy!" — [Ozz](https://github.com/JAORMX)
+> "Especially mimicking progressive disclosure via resources and dynamically adding new ones as the agent reads pieces of the skill has been quite handy!" — [Ozz / Juan Antonio Osorio](https://github.com/JAORMX)
 
 **Related:** [Anthropic's guidance on progressive disclosure](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
 
