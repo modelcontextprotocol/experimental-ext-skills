@@ -2,6 +2,12 @@
 
 > These are not mutually exclusive solutions.
 
+## Design Principles
+
+Whatever approach is adopted, community members have highlighted several principles:
+
+> "There should be intentional focus on making it easy for server authors to create and expose skills... client hosts are strongly incentivized to have a relatively uniform way to discover and consume them — at least from the point of view of a server author — while also leaving room for client host innovation." — [Peder Holdgaard Pedersen](https://github.com/PederHP)
+
 ## 1. Skills as MCP Primitives
 
 Add Agent Skills as a first-class, discoverable primitive in MCP. A skill is a named bundle of instructions plus references to tools, prompts, and resources that together teach an agent how to perform a domain-specific workflow.
@@ -19,6 +25,10 @@ Add skill references to MCP registry entries so users know to install associated
 - NimbleBrain has implemented this via a `skill` field in registry `_meta`, supporting `.skill` artifact bundles (ZIP containing SKILL.md + manifest.json).
     - https://github.com/NimbleBrainInc/skills
     - [registry.nimbletools.ai](https://registry.nimbletools.ai/)
+
+**Community input:**
+
+> "We view skills as an opportunity to use them as both a standalone (general-purpose capabilities) & MCP-paired (tool-specific guidance). For the main registry, the binding could be softer: optional fields like suggestedSkills or recommendedSkills rather than definitive pairing, since skill authorship is often decoupled from server authorship." — [Mat Goldsborough](https://github.com/mgoldsborough)
 
 ## 3. Skills as Tools
 

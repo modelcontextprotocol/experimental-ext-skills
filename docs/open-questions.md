@@ -85,3 +85,11 @@ Note: Some apps like Claude Code have started to indicate in the skill frontmatt
 **Core Maintainer input:**
 
 > "Why not just resources? That feels like the obvious implementation since skills are just files and resources already exist to expose files. i.e. just expose skills as resources the same as they're currently exposed on the filesystem and then just use the existing Agent Skills specification — client can find skills using resources/list to find SKILL.md files." — [Peter Alexander](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076#discussion_r2736299627)
+
+## 13. What is the optimal relationship between skills and MCP?
+
+Skills already work as simple files that agents load directly. Adding MCP to the process should provide clear value beyond what standalone skills already offer.
+
+**Community input:**
+
+> "Skills are simple files that agents can load directly even if they don't have any MCP servers connected. Adding MCP to the process only for that would be over complicating something that already works well... the question becomes 'what is the optimal relationship between skills and MCP?'" — [Cliff Hall](https://github.com/cliffhall)

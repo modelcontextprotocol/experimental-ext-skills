@@ -53,3 +53,13 @@ Skills that evolve over time and need version-aware distribution.
 **Community input:**
 
 > "I'd like for skills over MCP to enable the client to make use of the version attribute... If a skill stored locally has an older version than the skill seen on the MCP server, the client can download the latest skill on the spot." — [woweow](https://github.com/woweow)
+
+## 7. Enterprise Integration
+
+Organizations building official MCP servers for established platforms are looking to skills as a distribution mechanism for domain-specific workflow guidance.
+
+**Community input:**
+
+> "As part of Apache Airflow community, we are planning to build our official MCP Server... and I am specifically interested in integrating Skills as part of the MCP protocol." — [Kaxil Naik](https://github.com/kaxil)
+
+**Related:** [Apache Airflow AIP-91 (MCP integration)](https://cwiki.apache.org/confluence/display/AIRFLOW/AIP-91+-+MCP)
