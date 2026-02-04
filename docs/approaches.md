@@ -16,6 +16,20 @@ Add Agent Skills as a first-class, discoverable primitive in MCP. A skill is a n
 
 **Author:** [Yu Yi](https://github.com/erain)
 
+**Key elements:**
+
+- New protocol methods: `skills/list` and `skills/get`
+- A `skills` server capability
+- A `notifications/skills/list_changed` notification
+- Progressive disclosure: clients load skill summaries at startup, fetch full instructions on demand
+- Mapping to existing SKILL.md format
+
+**Status:** Draft, seeking sponsor.
+
+**Community input:**
+
+> "My main motivation is: we have so many MCP servers already available, how can we leverage them to distribute Skills?" — [Yu Yi](https://github.com/erain)
+
 ## 2. Skills as Registry Metadata
 
 Add skill references to MCP registry entries so users know to install associated skills alongside servers.
@@ -38,6 +52,10 @@ Expose skills via tools like `list_skills` and `read_skills`. Server instruction
 
 - [skilljack-mcp](https://github.com/olaservo/skilljack-mcp)
 - [skills-over-mcp](https://github.com/keithagroves/skills-over-mcp)
+
+**Community input:**
+
+> "I wonder if a better way to approach this with existing primitives is by implementing a Skill() tool and establishing this as a standard recommendation for servers and clients, rather than adding a new primitive to MCP." — [Ola Hungerford](https://github.com/olaservo)
 
 This approach may also:
 
@@ -80,3 +98,10 @@ A documented "MCP Skills Convention" as a middle path between ad-hoc experiments
 - Allow data gathering on adoption before considering protocol-level changes
 
 This mirrors how other ecosystems (e.g., Kubernetes) graduate patterns: start as convention, prove value, then formalize. Could be a concrete IG deliverable: "MCP Skills Convention v0.1."
+
+**Advantages of the convention approach:**
+
+- Since MCP supports dynamically updating tools, the latest skills manifest can be included in tool descriptions
+- Skills can also be modeled as Resources (using `skill://` URI) for application-controlled access
+- Prompts could support explicit skill invocation
+- The convention and protocol extension approaches are not mutually exclusive — convention can prove patterns before standardization

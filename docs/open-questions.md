@@ -86,6 +86,12 @@ Note: Some apps like Claude Code have started to indicate in the skill frontmatt
 
 > "Why not just resources? That feels like the obvious implementation since skills are just files and resources already exist to expose files. i.e. just expose skills as resources the same as they're currently exposed on the filesystem and then just use the existing Agent Skills specification — client can find skills using resources/list to find SKILL.md files." — [Peter Alexander](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076#discussion_r2736299627)
 
+**Community input:**
+
+> "I'd like Skills to be 'more official' than generic resources — which could be ANYTHING. More specifically, skill as a separate spec may advance in the near future, e.g. versioning etc., so having MCP as an official distribution mechanism and support it in the current and future form is important." — [Yu Yi](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076#discussion_r2747846895)
+
+> "If the conclusion is 'just use resources', I am fine with that direction too — but then we should standardize a way to identify and list workflow resources as 'skills' so clients can reliably surface them (otherwise we are back to out-of-band conventions)." — [sebthom](https://github.com/modelcontextprotocol/modelcontextprotocol/issues/2167#issuecomment-3824771018)
+
 ## 13. What is the optimal relationship between skills and MCP?
 
 Skills already work as simple files that agents load directly. Adding MCP to the process should provide clear value beyond what standalone skills already offer.
