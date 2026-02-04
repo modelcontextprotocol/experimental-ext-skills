@@ -8,6 +8,10 @@ Whatever approach is adopted, community members have highlighted several princip
 
 > "There should be intentional focus on making it easy for server authors to create and expose skills... client hosts are strongly incentivized to have a relatively uniform way to discover and consume them — at least from the point of view of a server author — while also leaving room for client host innovation." — [Peder Holdgaard Pedersen](https://github.com/PederHP)
 
+## Central Tension: Convention vs. Protocol Extension
+
+The approaches below span a spectrum. At one end, skills become a first-class MCP primitive with dedicated protocol methods (Approach 1). At the other, existing primitives are used with documented conventions (Approach 6). A key question for this IG is whether convention can prove patterns before standardization — or whether the ecosystem needs protocol-level support to achieve reliable interoperability. These are not mutually exclusive; convention work can inform and de-risk a future protocol extension.
+
 ## 1. Skills as MCP Primitives
 
 Add Agent Skills as a first-class, discoverable primitive in MCP. A skill is a named bundle of instructions plus references to tools, prompts, and resources that together teach an agent how to perform a domain-specific workflow.
