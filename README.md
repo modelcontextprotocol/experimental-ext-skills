@@ -58,7 +58,7 @@ See [problem-statement.md](problem-statement.md) for full details.
 | :--- | :--- | :--- | :--- |
 | Maintainer | Ola Hungerford | Nordstrom / MCP Maintainer | [@olaservo](https://github.com/olaservo) |
 | Facilitator | Bob Dickinson | TeamSpark.ai | [@TeamSparkAI](https://github.com/TeamSparkAI) |
-| Facilitator | Rado | Stacklok / MCP Maintainer | |
+| Facilitator | Rado | Stacklok / MCP Maintainer | [@rdimitrov](https://github.com/rdimitrov) |
 | Facilitator | Yu Yi | Google | [@erain](https://github.com/erain) |
 | Facilitator | Ozz | Stacklok | [@JAORMX](https://github.com/JAORMX) |
 | Facilitator | Kaxil Naik | Astronomer / Apache Airflow PMC | [@kaxil](https://github.com/kaxil) |
