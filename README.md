@@ -30,18 +30,18 @@ Native "skills" support in host applications demonstrates demand for rich workfl
 - **No discovery mechanism** — users installing MCP servers don't know if there's a corresponding skill they should also install
 - **Multi-server orchestration** — skills may need to coordinate tools from multiple servers
 
-See [problem-statement.md](problem-statement.md) for full details.
+See [problem-statement.md](docs/problem-statement.md) for full details.
 
 ## Repository Contents
 
 | Document | Description |
 | :--- | :--- |
-| [Problem Statement](problem-statement.md) | Current limitations and gaps |
-| [Use Cases](use-cases.md) | Key use cases driving this work |
-| [Approaches](approaches.md) | Approaches being explored (not mutually exclusive) |
-| [Open Questions](open-questions.md) | Unresolved questions with community input |
-| [Experimental Findings](experimental-findings.md) | Results from implementations and testing |
-| [Related Work](related-work.md) | SEPs, implementations, and external resources |
+| [Problem Statement](docs/problem-statement.md) | Current limitations and gaps |
+| [Use Cases](docs/use-cases.md) | Key use cases driving this work |
+| [Approaches](docs/approaches.md) | Approaches being explored (not mutually exclusive) |
+| [Open Questions](docs/open-questions.md) | Unresolved questions with community input |
+| [Experimental Findings](docs/experimental-findings.md) | Results from implementations and testing |
+| [Related Work](docs/related-work.md) | SEPs, implementations, and external resources |
 | [Contributing](CONTRIBUTING.md) | How to participate |
 
 ## Stakeholder Groups
