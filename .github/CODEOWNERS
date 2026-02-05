@@ -1,0 +1,12 @@
+# CODEOWNERS file for the experimental-ext-skills repository
+# This file defines code review assignments for pull requests.
+# 
+# For more information about CODEOWNERS, see:
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Team mappings are configured in the access repository:
+# https://github.com/modelcontextprotocol/access
+
+# Default owners for all files in the repository
+# These teams will be automatically requested as reviewers for all PRs
+* @modelcontextprotocol/skills-over-mcp-ig @modelcontextprotocol/core-maintainers
