@@ -13,7 +13,7 @@
 
 Skills discoverability is a specific instance of a more general MCP challenge: context-as-resources discoverability and standardization of client host behavior around non-tool primitives. The ecosystem has largely optimized for tools, and patterns for how clients discover and consume other forms of context — including skills — remain underdeveloped. Solutions in this space are likely to have implications beyond skills alone.
 
-MCP's value for skills isn't just distribution, it's the interaction model. MCP defines app, human, and assistant roles, giving skills a built-in framework for control model decisions (who sees the content, who decides when it loads). This makes MCP a natural complement to skills as a delivery channel for workflow instructions.
+MCP's value for skills goes beyond distribution; it provides an interaction model. MCP defines app, human, and assistant roles, giving skills a built-in framework for control model decisions (who sees the content, who decides when it loads). This makes MCP a natural complement to skills as a delivery channel for workflow instructions.
 
 ## Key Use Cases
 
