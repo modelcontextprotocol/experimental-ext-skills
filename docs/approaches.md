@@ -10,7 +10,7 @@ Whatever approach is adopted, community members have highlighted several princip
 >
 > I also don't like creating dichotomy between first-class skills and skills as context, because pretty much everything an MCP server exposes is context. Skills-as-resources is much more accurate." — [Peder Holdgaard Pedersen](https://github.com/PederHP)
 
-Additional design considerations raised by community members:
+Building on this, several design considerations are emerging from community discussion:
 
 - **MCP is fundamentally about context, not just tools.** Skills are part of a broader challenge around context-as-resources discoverability and standardization of client host behavior. Framing skills as context-as-resources avoids creating artificial hierarchies between skills and other MCP primitives.
 - **Don't be too prescriptive about client host behavior.** Client hosts may want to innovate on how skills are utilized (e.g., progressive disclosure) and what they can even *be*. The goal is uniform discovery and consumption patterns from the server author's perspective, while leaving room for client-side innovation.
