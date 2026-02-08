@@ -4,18 +4,13 @@
 
 ## Design Principles
 
-Whatever approach is adopted, community members have highlighted several principles:
-
-> "There should be intentional focus on making it easy for server authors to create and expose skills... client hosts are strongly incentivized to have a relatively uniform way to discover and consume them — at least from the point of view of a server author — while also leaving room for client host innovation.
->
-> I also don't like creating dichotomy between first-class skills and skills as context, because pretty much everything an MCP server exposes is context. Skills-as-resources is much more accurate." — [Peder Holdgaard Pedersen](https://github.com/PederHP)
-
-Building on this, several design considerations are emerging from community discussion:
+Several design considerations are emerging from community discussion:
 
 - **MCP is fundamentally about context, not just tools.** Skills are part of a broader challenge around context-as-resources discoverability and standardization of client host behavior. Framing skills as context-as-resources avoids creating artificial hierarchies between skills and other MCP primitives.
 - **Don't be too prescriptive about client host behavior.** Client hosts may want to innovate on how skills are utilized (e.g., progressive disclosure) and what they can even *be*. The goal is uniform discovery and consumption patterns from the server author's perspective, while leaving room for client-side innovation.
 - **Don't assume how tool paradigms will evolve.** The conceptual surface of skills shouldn't bake in assumptions about how tools develop. That doesn't preclude skills being implemented as a well-known tool, but the design should not couple skills to any particular tool evolution path.
 - **Let the primitive choice follow from the use case.** The answer may not be "resources" or "new primitive" — it may be both, depending on the interaction pattern. Some skills are context for the model. Some are context for the human. Some are both. The delivery mechanism should support that range. ([See related thread on SEP 2076](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076#discussion_r2736299627))
+- **Minimize ecosystem complexity.** The broader AI tooling ecosystem is experiencing complexity fatigue — too many overlapping concepts (servers, skills, plugins, hooks, agents) erode credibility and adoption. Whatever approach the IG recommends should reuse existing MCP primitives where possible and only introduce new surface area when there's a clear case that existing primitives can't serve the need. ([See related issue](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/14))
 
 ## Central Tension: Convention vs. Protocol Extension
 
@@ -75,9 +70,13 @@ Examples:
 
 > "I wonder if a better way to approach this with existing primitives is by implementing a Skill() tool and establishing this as a standard recommendation for servers and clients, rather than adding a new primitive to MCP." — [Ola Hungerford](https://github.com/olaservo)
 
+> "There should be intentional focus on making it easy for server authors to create and expose skills... client hosts are strongly incentivized to have a relatively uniform way to discover and consume them — at least from the point of view of a server author — while also leaving room for client host innovation.
+>
+> I also don't like creating dichotomy between first-class skills and skills as context, because pretty much everything an MCP server exposes is context. Skills-as-resources is much more accurate." — [Peder Holdgaard Pedersen](https://github.com/PederHP)
+
 This approach may also:
 
-- Expose skills as MCP resources
+- Use resource templates for parameterized skill discovery
 - Use Prompts for explicit skill invocation
 - Use `tools/listChanged` and other notifications for dynamic updates without server re-initialization
 
