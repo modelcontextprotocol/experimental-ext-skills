@@ -9,11 +9,13 @@
 
 ## Implementations
 
+Original implementations from external repositories (example implementations in this repo will be added to `examples` folder):
+
 | Implementation | Author | URL | Notes |
 | :--- | :--- | :--- | :--- |
-| skilljack-mcp | Ola Hungerford | [github.com/olaservo/skilljack-mcp](https://github.com/olaservo/skilljack-mcp) | Skills as tools with dynamic updates |
-| mcpGraph skill | Bob Dickinson | [github.com/TeamSparkAI/mcpGraph](https://github.com/TeamSparkAI/mcpGraph) | 875+ line skill for graph orchestration |
-| skills-over-mcp | Keith Groves | [github.com/keithagroves/skills-over-mcp](https://github.com/keithagroves/skills-over-mcp) | Example using skills with current MCP primitives |
+| skilljack-mcp | Ola Hungerford | [github.com/olaservo/skilljack-mcp](https://github.com/olaservo/skilljack-mcp) | Skills as MCP tools, resources, prompts with dynamic updates |
+| mcpGraph skill | Bob Dickinson | [github.com/TeamSparkAI/mcpGraph](https://github.com/TeamSparkAI/mcpGraph) | Complex skill example for graph orchestration |
+| skills-over-mcp | Keith Groves | [github.com/keithagroves/skills-over-mcp](https://github.com/keithagroves/skills-over-mcp) | Example using skills as MCP resources with current MCP primitives |
 | chrome-devtools-mcp | Anthropic | [github.com/anthropics/anthropic-quickstarts/…/chrome-devtools-mcp](https://github.com/anthropics/anthropic-quickstarts/tree/main/mcp-servers/chrome-devtools-mcp) | Real-world example: `skills/` folder requires separate install path |
 | NimbleBrain skills repo | NimbleBrain | [github.com/NimbleBrainInc/skills](https://github.com/NimbleBrainInc/skills) | Monorepo with `.skill` artifact format |
 | NimbleBrain registry | NimbleBrain | [registry.nimbletools.ai](https://registry.nimbletools.ai/) | Registry with skill metadata support |
