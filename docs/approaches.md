@@ -74,6 +74,8 @@ Examples:
 >
 > I also don't like creating dichotomy between first-class skills and skills as context, because pretty much everything an MCP server exposes is context. Skills-as-resources is much more accurate." — [Peder Holdgaard Pedersen](https://github.com/PederHP)
 
+> "The only slight concern I have is the idea that there are still 'first class skills' (skills that agents recognize as skills, can be presented as skills through the user agent, can be bundled with subagents, etc) and these sort of 'skills as context' approaches where the agent can certainly discover and ingest the skills data, but possibly with some differences compared to how they would apply first class skills." — [Bob Dickinson](https://github.com/TeamSparkAI)
+
 This approach may also:
 
 - Use resource templates for parameterized skill discovery
