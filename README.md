@@ -42,6 +42,7 @@ See [problem-statement.md](docs/problem-statement.md) for full details.
 | [Open Questions](docs/open-questions.md) | Unresolved questions with community input |
 | [Experimental Findings](docs/experimental-findings.md) | Results from implementations and testing |
 | [Related Work](docs/related-work.md) | SEPs, implementations, and external resources |
+| [Examples](examples/) | Reference implementations for pattern evaluation |
 | [Contributing](CONTRIBUTING.md) | How to participate |
 
 ## Stakeholder Groups
