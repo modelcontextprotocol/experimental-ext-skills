@@ -6,21 +6,13 @@ Should skills be discoverable through registry metadata ("if you install this se
 
 ## 2. How do "first-class" skills differ from "skills as context"?
 
-Native agent skills can be presented through the user agent, bundled with subagents, etc. Do MCP-surfaced skills lose capabilities compared to directly installed skills?
+'Native' agent skills can be presented through the user agent, bundled with subagents, etc. Do MCP-surfaced skills lose capabilities compared to directly installed skills? This question also ties into a more general topic about context-as-resources discoverability and standardization of client host behavior — it's not just a skills-specific framing question.
 
-**Community input:**
-
-> "The only slight concern I have is the idea that there are still 'first class skills' (skills that agents recognize as skills, can be presented as skills through the user agent, can be bundled with subagents, etc) and these sort of 'skills as context' approaches where the agent can certainly discover and ingest the skills data, but possibly with some differences compared to how they would apply first class skills." — [Bob Dickinson](https://github.com/TeamSparkAI)
-
-> "I don't like creating dichotomy between first-class skills and skills as context, because pretty much everything an MCP server exposes is context. Skills-as-resources is much more accurate." — [Peder Holdgaard Pedersen](https://github.com/PederHP)
+For more community input on this topic see: (approaches.md#design-principles)
 
 ## 3. Should server.instructions be extended for richer content?
 
 Or is the separation between "primitive server" and "skill that uses the primitive" the right abstraction?
-
-**Community input:**
-
-> "I would caution against seeing skills as too tightly coupled with tools. Not all skills need to be related to the tools on a server — or even client-side tool use at all. This is especially true for agents that use very broad tools or heavily reliant on code interpreter and similar meta-tools." — [Peder Holdgaard Pedersen](https://github.com/PederHP)
 
 ## 4. How should skills relate to multiple servers?
 

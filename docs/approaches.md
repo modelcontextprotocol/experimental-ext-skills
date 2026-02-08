@@ -6,7 +6,15 @@
 
 Whatever approach is adopted, community members have highlighted several principles:
 
-> "There should be intentional focus on making it easy for server authors to create and expose skills... client hosts are strongly incentivized to have a relatively uniform way to discover and consume them — at least from the point of view of a server author — while also leaving room for client host innovation." — [Peder Holdgaard Pedersen](https://github.com/PederHP)
+> "There should be intentional focus on making it easy for server authors to create and expose skills... client hosts are strongly incentivized to have a relatively uniform way to discover and consume them — at least from the point of view of a server author — while also leaving room for client host innovation.
+>
+> I also don't like creating dichotomy between first-class skills and skills as context, because pretty much everything an MCP server exposes is context. Skills-as-resources is much more accurate." — [Peder Holdgaard Pedersen](https://github.com/PederHP)
+
+Additional design considerations raised by community members:
+
+- **MCP is fundamentally about context, not just tools.** Skills are part of a broader challenge around context-as-resources discoverability and standardization of client host behavior. Framing skills as context-as-resources avoids creating artificial hierarchies between skills and other MCP primitives.
+- **Don't be too prescriptive about client host behavior.** Client hosts may want to innovate on how skills are utilized (e.g., progressive disclosure) and what they can even *be*. The goal is uniform discovery and consumption patterns from the server author's perspective, while leaving room for client-side innovation.
+- **Don't assume how tool paradigms will evolve.** The conceptual surface of skills shouldn't bake in assumptions about how tools develop. That doesn't preclude skills being implemented as a well-known tool, but the design should not couple skills to any particular tool evolution path.
 
 ## Central Tension: Convention vs. Protocol Extension
 
