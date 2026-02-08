@@ -1,1 +1,12 @@
 .claude/settings.local.json
+
+# Example build artifacts
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Reference repos (cloned for development)
+%TEMP%/
