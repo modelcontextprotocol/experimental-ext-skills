@@ -57,7 +57,7 @@ See [problem-statement.md](docs/problem-statement.md) for full details.
 | Role | Name | Organization | GitHub |
 | :--- | :--- | :--- | :--- |
 | Maintainer | Ola Hungerford | Nordstrom / MCP Maintainer | [@olaservo](https://github.com/olaservo) |
-| Facilitator | Bob Dickinson | TeamSpark.ai | [@TeamSparkAI](https://github.com/TeamSparkAI) |
+| Facilitator | Bob Dickinson | TeamSpark.ai | [@BobDickinson](https://github.com/BobDickinson) |
 | Facilitator | Rado | Stacklok / MCP Maintainer | [@rdimitrov](https://github.com/rdimitrov) |
 | Facilitator | Yu Yi | Google | [@erain](https://github.com/erain) |
 | Facilitator | Ozz | Stacklok | [@JAORMX](https://github.com/JAORMX) |
