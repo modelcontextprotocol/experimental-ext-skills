@@ -63,3 +63,23 @@ Organizations building official MCP servers for established platforms are lookin
 > "As part of Apache Airflow community, we are planning to build our official MCP Server... and I am specifically interested in integrating Skills as part of the MCP protocol." — [Kaxil Naik](https://github.com/kaxil)
 
 **Related:** [Apache Airflow AIP-91 (MCP integration)](https://cwiki.apache.org/confluence/display/AIRFLOW/AIP-91+-+MCP)
+
+## 8. Version-Adaptive Skill Content
+
+Skills whose instructions and examples dynamically adapt based on the platform or framework version in use, rather than versioning the skill artifact itself.
+
+**Example:** Apache Airflow 2.x and 3.x have substantially different APIs, operators, and recommended patterns. A version-adaptive skill detects which Airflow version is running and returns only the relevant guidance — e.g., `TaskFlow` decorators in 2.x vs. updated `Asset`-based patterns in 3.x — so the agent never suggests deprecated or unavailable APIs.
+
+**Community input:**
+
+> "As a SaaS company (Astronomer) building on Airflow, we need skills that adapt their content based on the Airflow version the customer is running. A skill that returns Airflow 2.x guidance to an Airflow 3.x user is worse than no skill at all. While skill reference files are valuable, a single version-aware skill that delivers tailored guidance is far more useful than hundreds of reference files where Airflow 2 and 3 diverge — best practices, recommended operators, and even DAG authoring patterns look fundamentally different between the two." — [Kaxil Naik](https://github.com/kaxil)
+
+## 9. Commercial Multi-Tenant Skills
+
+SaaS companies serving per-user skill content that varies by subscription tier, role, or tenant — with auditing, logging, and RBAC governing what each user can access.
+
+**Example:** A SaaS platform exposes the same MCP server endpoint to all customers, but a free-tier user receives basic workflow guidance while an enterprise user gets advanced optimization skills, custom operator libraries, and tenant-specific configuration — all controlled through RBAC policies and audit-logged per request.
+
+**Community input:**
+
+> "At Astronomer we need to serve different skill content to different customers based on their subscription tier and role, with full audit logging. This goes beyond enterprise adoption — it's about multi-tenant commercial delivery of skills with fine-grained access control." — [Kaxil Naik](https://github.com/kaxil)
