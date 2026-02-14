@@ -20,6 +20,7 @@ This Interest Group explores how "[agent skills](https://agentskills.io/)" (rich
 - **Approving spec changes:** This IG does not have authority to approve protocol changes; recommendations flow through the SEP process
 - **Registry schema decisions:** Coordinate with Registry WG; this IG explores requirements but doesn't own the schema
 - **Client implementation mandates:** We can document patterns but not require specific client behavior
+- **Plugin/bundle packaging:** Some use cases surface a broader need for installable bundles (skills + servers + subagents + configuration as a single artifact). How to solve for this is out of scope.
 
 ## Problem Statement
 
