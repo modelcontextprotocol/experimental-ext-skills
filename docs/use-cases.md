@@ -83,3 +83,36 @@ SaaS companies serving per-user skill content that varies by subscription tier, 
 **Community input:**
 
 > "At Astronomer we need to serve different skill content to different customers based on their subscription tier and role, with full audit logging. This goes beyond enterprise adoption — it's about multi-tenant commercial delivery of skills with fine-grained access control." — [Kaxil Naik](https://github.com/kaxil)
+
+## 10. Documentation as MCP Server
+
+MCP servers whose primary function is serving documentation through a small set of tools — typically a search tool (with a local or remote index) and a fetch tool (returning specific markdown pages). This pattern applies progressive disclosure to documentation: the model receives a list of available topics and selectively loads content as needed.
+
+**Examples:**
+
+- [Strands Agents MCP server](https://github.com/strands-agents/mcp-server/) uses a local TF-IDF index for search and on-demand fetching of individual doc pages
+- [AWS Knowledge MCP server](https://awslabs.github.io/mcp/servers/aws-knowledge-mcp-server) is a fully managed remote MCP server that indexes AWS documentation, code samples, and regional availability
+- [MCPDoc](https://github.com/langchain-ai/mcpdoc) serves documentation via the [llms.txt](https://llmstxt.org/) convention — listing titles so the model can selectively enable content
+- [Mintlify](https://mintlify.com/) auto-generates MCP endpoints for public documentation sites (e.g., [modelcontextprotocol.io/mcp](https://modelcontextprotocol.io/mcp), [agentclientprotocol.com/mcp](https://agentclientprotocol.com/mcp))
+
+**Skills connection:** These doc servers often pair with skill-like instruction files that provide quick code samples and direct the agent to use the MCP server for deeper information. For example, the [Strands Kiro powers](https://github.com/kirodotdev/powers/tree/main/strands) bundle starter instructions alongside the MCP server.
+
+**Community input:**
+
+> "I'm seeing a common pattern of MCP servers with two tools: `search_docs`, `fetch_doc`. `search_docs` has either a local index or a remote index, and `fetch_docs` generally is just a web fetch of a specific markdown documentation page." — [Clare Liguori](https://github.com/clareliguori) (AWS), via Discord
+
+## 11. Skills + MCP Server Plugins
+
+Coding assistants are converging on plugin capabilities that let users one-click install a combination of skills and MCP servers. The skill files within these plugins serve different roles — some describe how to use the remote MCP server, while others describe how to use local CLIs or tools — but they're bundled and distributed as a single installable unit.
+
+This is related to but distinct from [Server-Skill Pairing](#5-server-skill-pairing): that use case focuses on servers that *need* skills to function; this one focuses on the *distribution and composition* mechanism that bundles skills with servers (and other tools) into a cohesive plugin.
+
+**Examples:**
+
+- [Kiro](https://kiro.dev/) uses "powers" and "steering files" — functionally the same as plugins + skills
+- [Supabase Kiro powers](https://github.com/supabase-community/kiro-powers/) bundle skill files that describe both how to use the remote MCP server and how to use the Supabase CLI
+- The [AWS MCP server](https://docs.aws.amazon.com/aws-mcp/latest/userguide/understanding-mcp-server-tools.html) provides `retrieve_agent_sop` and `call_aws` tools — the [Agent SOPs](https://docs.aws.amazon.com/aws-mcp/latest/userguide/agent-sops.html) are effectively skills that guide multi-step workflows through the `call_aws` tool
+
+**Community input:**
+
+> "Several coding assistants incl Claude Code now have plugin capabilities that let you one-click install a combination of skills and MCP servers. Kiro calls them powers and steering files, but if you squint it's the same as plugins + skills." — [Clare Liguori](https://github.com/clareliguori) (AWS), via Discord
