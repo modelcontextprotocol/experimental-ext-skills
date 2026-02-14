@@ -5,7 +5,7 @@
 This Interest Group welcomes contributions from anyone interested in skills distribution over MCP. You can participate by:
 
 - Joining discussions in the [#skills-over-mcp-ig Discord channel](https://discord.com/channels/1358869848138059966/1464745826629976084) (info on joining the Discord server [here](https://modelcontextprotocol.io/community/communication#discord))
-- Opening or commenting on GitHub Discussions in this repo
+- Opening or commenting on [GitHub Discussions](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-ig) in the main MCP repo
 - Sharing experimental findings from your own implementations
 - Contributing to documentation and pattern evaluation
 
@@ -14,12 +14,12 @@ This Interest Group welcomes contributions from anyone interested in skills dist
 | Channel | Purpose | Response Expectation |
 | :--- | :--- | :--- |
 | [Discord #skills-over-mcp-ig](https://discord.com/channels/1358869848138059966/1464745826629976084) | Quick questions, coordination, async discussion | Best effort |
-| GitHub Discussions | Long-form technical proposals, experimental findings | Weekly triage |
+| [GitHub Discussions](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-ig) | Meeting notes, long-form technical proposals, experimental findings | Weekly triage |
 | This repository | Living reference for approaches, findings, and decisions | Updated after meetings |
 
 ## Meetings
 
-*To be scheduled* — likely biweekly working sessions once the group establishes momentum.
+[Meeting notes](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-ig) are published in the main MCP repo discussions. Future meetings will be scheduled and scheduling surveys posted in the [#skills-over-mcp-ig Discord channel](https://discord.com/channels/1358869848138059966/1464745826629976084).
 
 Meeting norms:
 
