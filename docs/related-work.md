@@ -20,6 +20,7 @@ Original implementations from external repositories (example implementations in 
 | NimbleBrain skills repo | NimbleBrain | [github.com/NimbleBrainInc/skills](https://github.com/NimbleBrainInc/skills) | Monorepo with `.skill` artifact format |
 | NimbleBrain registry | NimbleBrain | [registry.nimbletools.ai](https://registry.nimbletools.ai/) | Registry with skill metadata support |
 | FastMCP 3.0 Skills | FastMCP | [gofastmcp.com/servers/providers/skills](https://gofastmcp.com/servers/providers/skills) | Native skills provider ([#2694](https://github.com/jlowin/fastmcp/issues/2694)) |
+| skillsdotnet | Peder HP | [github.com/PederHP/skillsdotnet](https://github.com/PederHP/skillsdotnet) | Exploratory C# implementation compatible with FastMCP 3.0, includes interactive console chat client and sample server |
 | PydanticAI Skills | PydanticAI | [pydantic/pydantic-ai#3780](https://github.com/pydantic/pydantic-ai/pull/3780) | Agent skills with tools-based approach |
 | mcp-cli | philschmid | [github.com/philschmid/mcp-cli](https://github.com/philschmid/mcp-cli) | Wraps MCP servers as CLI for progressive disclosure |
 | mcp-execution | bug-ops | [github.com/bug-ops/mcp-execution](https://github.com/bug-ops/mcp-execution) | Compiles MCP servers into skill packages |
