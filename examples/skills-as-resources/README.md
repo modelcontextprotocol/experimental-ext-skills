@@ -41,8 +41,6 @@ This is a **hybrid** approach: resources provide **application-controlled** acce
 
 ## Implementations
 
-> **Note**: The TypeScript implementation has been updated with the new URI scheme, `_manifest` resource, and `load_skill` tool. The Python implementation still uses the previous URI scheme and will be updated in a follow-up.
-
 ### TypeScript
 
 **Prerequisites**: Node.js >= 18, npm
@@ -63,47 +61,15 @@ npx @modelcontextprotocol/inspector node dist/index.js ../sample-skills
 npm run dev -- ../sample-skills
 ```
 
-### Python
-
-**Prerequisites**: Python >= 3.10, pip (or uv)
-
-```bash
-cd python
-pip install -e .
-```
-
-**Run with MCP Inspector**:
-```bash
-npx @modelcontextprotocol/inspector -- python -m skills_as_resources.server ../sample-skills
-```
-
-> **Note**: The Python implementation uses the previous URI scheme (`skill://{name}`, `skill://{name}/documents`, `skill://{name}/document/{path}`). It will be updated to match the TypeScript implementation in a follow-up.
-
-### SDK Difference: Supporting File Path Encoding
-
-The TypeScript MCP SDK supports RFC 6570 reserved expansion (`{+path}`), so file URIs use natural paths:
-
-```
-skill://code-review/references/REFERENCE.md
-```
-
-The Python MCP SDK uses `[^/]+` regex for all template parameters, so forward slashes in paths must be URL-encoded:
-
-```
-skill://code-review/references%2FREFERENCE.md
-```
-
-The SDK automatically URL-decodes the path after matching, so the handler receives the natural path in both cases. This difference is transparent to the resource handler logic.
-
 ## Security Features
 
-Both implementations include:
+The implementation includes:
 
-- **Path traversal protection** — Resolved paths are checked against the skills directory boundary using `realpathSync` (TS) / `Path.resolve()` (Python). Symlink escapes are detected.
+- **Path traversal protection** — Resolved paths are checked against the skills directory boundary using `realpathSync`. Symlink escapes are detected.
 - **Skill name validation** — Resources and the `load_skill` tool look up names by key in the discovered skills map. User input is never used to construct file paths.
 - **File path validation** — Paths containing `..` are rejected. All paths are verified to be within the skills directory.
 - **File size limits** — Files larger than 1MB are skipped during discovery and rejected on read.
-- **Safe YAML parsing** — Python uses `yaml.safe_load()` to prevent code execution. TypeScript uses the `yaml` package which is safe by default.
+- **Safe YAML parsing** — Uses the `yaml` package which is safe by default.
 - **Content integrity** — The `_manifest` resource includes SHA256 hashes for all files, enabling clients to verify downloaded content.
 
 ## Sample Skills
