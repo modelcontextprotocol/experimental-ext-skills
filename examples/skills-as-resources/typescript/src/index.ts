@@ -29,8 +29,10 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { discoverSkills, loadSkillContent, loadDocument } from "./skill-discovery.js";
 import { generateSkillsXML, isTextMimeType } from "./resource-helpers.js";
+import { createSubscriptionManager } from "./subscriptions.js";
 
 // Resolve skills directory from CLI arg or default to ../sample-skills
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -54,7 +56,7 @@ for (const [name, skill] of skillMap) {
 // Create MCP server with resources and tools capabilities
 const server = new McpServer(
   { name: "skills-as-resources-example", version: "0.2.0" },
-  { capabilities: { resources: { listChanged: true }, tools: {} } }
+  { capabilities: { resources: { listChanged: true, subscribe: true }, tools: {} } }
 );
 
 // --- Static resources ---
@@ -269,6 +271,31 @@ server.registerTool(
     }
   }
 );
+
+// --- Resource subscriptions ---
+
+// Watch subscribed skill files and notify on changes.
+const subscriptions = createSubscriptionManager(
+  skillMap,
+  skillsDir,
+  (uri) => { server.server.sendResourceUpdated({ uri }); },
+);
+
+server.server.setRequestHandler(SubscribeRequestSchema, async (request) => {
+  subscriptions.subscribe(request.params.uri);
+  return {};
+});
+
+server.server.setRequestHandler(UnsubscribeRequestSchema, async (request) => {
+  subscriptions.unsubscribe(request.params.uri);
+  return {};
+});
+
+// Clean up watchers on exit
+process.on("SIGINT", () => {
+  subscriptions.close();
+  process.exit(0);
+});
 
 // Connect via stdio transport
 const transport = new StdioServerTransport();
