@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.0",
+    "chokidar": "^4.0.3",
     "yaml": "^2.7.0",
     "zod": "^3.23.0"
   },
