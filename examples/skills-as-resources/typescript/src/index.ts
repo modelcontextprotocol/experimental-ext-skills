@@ -2,31 +2,35 @@
 /**
  * Skills as Resources — MCP Server (TypeScript)
  *
- * A minimal reference implementation demonstrating the Resources approach
+ * A reference implementation demonstrating the Resources approach
  * from the Skills Over MCP Interest Group: exposing agent skills via
- * MCP resources using the skill:// URI scheme.
+ * MCP resources using the skill:// URI scheme, with a load_skill tool
+ * for model-controlled progressive disclosure.
  *
- * Exposes resources:
- *   - skill://index              — JSON index of all available skills
- *   - skill://prompt-xml         — XML for system prompt injection
- *   - skill://{name}             — Individual skill SKILL.md content
- *   - skill://{name}/documents   — List of supplementary files
- *   - skill://{name}/document/{+documentPath} — Individual document (template)
+ * URI scheme (aligned with skillsdotnet conventions):
+ *   - skill://{name}/SKILL.md   — Skill content (listed resource)
+ *   - skill://{name}/_manifest  — File inventory with SHA256 hashes (listed resource)
+ *   - skill://{name}/{+path}    — Supporting file (resource template, not listed)
+ *   - skill://prompt-xml        — XML for system prompt injection (optional)
+ *
+ * Tool:
+ *   - load_skill                — Model-controlled skill loading (progressive disclosure)
  *
  * Inspired by:
  * - skilljack-mcp by Ola Hungerford (https://github.com/olaservo/skilljack-mcp)
  * - skills-over-mcp by Keith Groves (https://github.com/keithagroves/skills-over-mcp)
+ * - SkillsDotNet by Brad Wilson (https://github.com/bradwilson/skillsdotnet)
  *
  * @license Apache-2.0
  */
 
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { z } from "zod";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { discoverSkills, loadSkillContent, loadDocument } from "./skill-discovery.js";
-import { generateSkillsXML } from "./resource-helpers.js";
-import type { SkillSummary } from "./types.js";
+import { generateSkillsXML, isTextMimeType } from "./resource-helpers.js";
 
 // Resolve skills directory from CLI arg or default to ../sample-skills
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -37,60 +41,25 @@ const skillsDir = process.argv[2]
 // Discover skills at startup
 const skillMap = discoverSkills(skillsDir);
 const skillNames = Array.from(skillMap.keys());
+const skillListStr = skillNames.join(", ") || "none";
 
 console.error(
-  `[skills-as-resources] Discovered ${skillMap.size} skill(s): ${skillNames.join(", ") || "none"}`
+  `[skills-as-resources] Discovered ${skillMap.size} skill(s): ${skillListStr}`
 );
 for (const [name, skill] of skillMap) {
-  if (skill.documents.length > 0) {
-    console.error(
-      `  - ${name}: ${skill.documents.length} document(s)`
-    );
-  }
+  const fileCount = skill.manifest.files.length;
+  console.error(`  - ${name}: ${fileCount} file(s) in manifest`);
 }
 
-// Create MCP server with resources.listChanged capability
+// Create MCP server with resources and tools capabilities
 const server = new McpServer(
-  { name: "skills-as-resources-example", version: "0.1.0" },
-  { capabilities: { resources: { listChanged: true } } }
+  { name: "skills-as-resources-example", version: "0.2.0" },
+  { capabilities: { resources: { listChanged: true }, tools: {} } }
 );
 
 // --- Static resources ---
 
-// Resource: skill://index — JSON index of all available skills
-server.registerResource(
-  "skills-index",
-  "skill://index",
-  {
-    description:
-      "Index of all available skills with their descriptions, URIs, and document counts. " +
-      `Currently available: ${skillNames.join(", ") || "none"}`,
-    mimeType: "application/json",
-  },
-  async (uri) => {
-    const index: SkillSummary[] = Array.from(skillMap.values()).map((s) => ({
-      name: s.name,
-      description: s.description,
-      uri: `skill://${s.name}`,
-      ...(s.documents.length > 0 && {
-        documentsUri: `skill://${s.name}/documents`,
-      }),
-      documentCount: s.documents.length,
-      ...(s.metadata && { metadata: s.metadata }),
-    }));
-
-    return {
-      contents: [
-        {
-          uri: uri.href,
-          text: JSON.stringify(index, null, 2),
-        },
-      ],
-    };
-  }
-);
-
-// Resource: skill://prompt-xml — XML for system prompt injection
+// Resource: skill://prompt-xml — XML for system prompt injection (optional convenience)
 server.registerResource(
   "skills-prompt-xml",
   "skill://prompt-xml",
@@ -111,10 +80,10 @@ server.registerResource(
 
 // Per-skill static resources
 for (const [name, skill] of skillMap) {
-  // Resource: skill://{name} — individual skill SKILL.md content
+  // Resource: skill://{name}/SKILL.md — skill content (listed)
   server.registerResource(
     `skill-${name}`,
-    `skill://${name}`,
+    `skill://${name}/SKILL.md`,
     {
       description: skill.description,
       mimeType: "text/markdown",
@@ -139,57 +108,34 @@ for (const [name, skill] of skillMap) {
     }
   );
 
-  // Resource: skill://{name}/documents — list of supplementary files
-  if (skill.documents.length > 0) {
-    server.registerResource(
-      `skill-${name}-documents`,
-      `skill://${name}/documents`,
-      {
-        description: `List of supplementary documents for the ${name} skill`,
-        mimeType: "application/json",
-      },
-      async (uri) => ({
-        contents: [
-          {
-            uri: uri.href,
-            text: JSON.stringify(
-              {
-                skill: name,
-                documents: skill.documents.map((doc) => ({
-                  path: doc.path,
-                  mimeType: doc.mimeType,
-                  size: doc.size,
-                  uri: `skill://${name}/document/${doc.path}`,
-                })),
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      })
-    );
-  }
+  // Resource: skill://{name}/_manifest — file inventory with SHA256 hashes (listed)
+  server.registerResource(
+    `skill-${name}-manifest`,
+    `skill://${name}/_manifest`,
+    {
+      description: `File manifest for skill '${name}' with content hashes`,
+      mimeType: "application/json",
+    },
+    async (uri) => ({
+      contents: [
+        {
+          uri: uri.href,
+          text: skill.manifestJson,
+        },
+      ],
+    })
+  );
 }
 
-// --- Dynamic resource template ---
+// --- Resource template for supporting files ---
 
-// Template: skill://{skillName}/document/{+documentPath}
-// The {+} prefix uses RFC 6570 reserved expansion, matching paths with slashes
+// Template: skill://{skillName}/{+path}
+// The {+} prefix uses RFC 6570 reserved expansion, matching paths with slashes.
+// NOT listed — supporting files are discoverable via the _manifest resource.
 server.registerResource(
-  "skill-document",
-  new ResourceTemplate("skill://{skillName}/document/{+documentPath}", {
-    list: async () => {
-      const resources = Array.from(skillMap.values()).flatMap((skill) =>
-        skill.documents.map((doc) => ({
-          uri: `skill://${skill.name}/document/${doc.path}`,
-          name: `${skill.name}/${doc.path}`,
-          description: `Document from ${skill.name} skill`,
-          mimeType: doc.mimeType,
-        }))
-      );
-      return { resources };
-    },
+  "skill-file",
+  new ResourceTemplate("skill://{skillName}/{+path}", {
+    list: undefined,
     complete: {
       skillName: (value) => {
         return Array.from(skillMap.values())
@@ -197,13 +143,14 @@ server.registerResource(
           .map((s) => s.name)
           .filter((name) => name.startsWith(value));
       },
-      documentPath: (value, context) => {
+      path: (value, context) => {
         const skillName = context?.arguments?.skillName;
         if (!skillName) return [];
 
         const skill = skillMap.get(skillName);
         if (!skill) return [];
 
+        // SDK's createCompletionResult handles truncation to 100 and sets total/hasMore
         return skill.documents
           .map((d) => d.path)
           .filter((p) => p.startsWith(value));
@@ -211,16 +158,16 @@ server.registerResource(
     },
   }),
   {
-    description: "Fetch a specific supplementary document from a skill",
+    description: "Fetch a supporting file from a skill directory",
     mimeType: "text/plain",
   },
   async (uri, variables) => {
     const skillName = Array.isArray(variables.skillName)
       ? variables.skillName[0]
       : variables.skillName;
-    const documentPath = Array.isArray(variables.documentPath)
-      ? variables.documentPath[0]
-      : variables.documentPath;
+    const filePath = Array.isArray(variables.path)
+      ? variables.path[0]
+      : variables.path;
 
     const skill = skillMap.get(skillName);
     if (!skill) {
@@ -228,33 +175,34 @@ server.registerResource(
         contents: [
           {
             uri: uri.href,
-            text: `# Error\n\nSkill "${skillName}" not found. Available: ${skillNames.join(", ") || "none"}`,
+            text: `# Error\n\nSkill "${skillName}" not found. Available: ${skillListStr}`,
           },
         ],
       };
     }
 
-    const doc = skill.documents.find((d) => d.path === documentPath);
+    const doc = skill.documents.find((d) => d.path === filePath);
     if (!doc) {
       const available = skill.documents.map((d) => `- ${d.path}`).join("\n");
       return {
         contents: [
           {
             uri: uri.href,
-            text: `# Error\n\nDocument "${documentPath}" not found in skill "${skillName}".\n\n## Available Documents\n\n${available || "No documents available."}`,
+            text: `# Error\n\nFile "${filePath}" not found in skill "${skillName}".\n\n## Available Files\n\n${available || "No supporting files available."}`,
           },
         ],
       };
     }
 
     try {
-      const content = loadDocument(skill, documentPath, skillsDir);
+      const isText = isTextMimeType(doc.mimeType);
+      const content = loadDocument(skill, filePath, skillsDir, isText);
       return {
         contents: [
           {
             uri: uri.href,
-            text: content,
             mimeType: doc.mimeType,
+            ...content,
           },
         ],
       };
@@ -264,9 +212,59 @@ server.registerResource(
         contents: [
           {
             uri: uri.href,
-            text: `# Error\n\nFailed to read document: ${message}`,
+            text: `# Error\n\nFailed to read file: ${message}`,
           },
         ],
+      };
+    }
+  }
+);
+
+// --- Tool for model-controlled progressive disclosure ---
+
+// Tool: load_skill — allows models to discover and load skills on demand.
+// Description dynamically lists available skill names, mirroring
+// skillsdotnet's SkillCatalog pattern but implemented server-side.
+server.registerTool(
+  "load_skill",
+  {
+    description:
+      `Load the full SKILL.md content for a named skill. ` +
+      `Use this when you need detailed instructions for performing a specific task. ` +
+      `Available skills: ${skillListStr}`,
+    inputSchema: {
+      skillName: z.string().describe("The name of the skill to load"),
+    },
+  },
+  async ({ skillName }) => {
+    const skill = skillMap.get(skillName);
+    if (!skill) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Skill "${skillName}" not found. Available skills: ${skillListStr}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    try {
+      const content = loadSkillContent(skill.path, skillsDir);
+      return {
+        content: [{ type: "text" as const, text: content }],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Failed to load skill "${skillName}": ${message}`,
+          },
+        ],
+        isError: true,
       };
     }
   }

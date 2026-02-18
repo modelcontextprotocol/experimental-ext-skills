@@ -44,6 +44,21 @@ export function getMimeType(filepath: string): string {
 }
 
 /**
+ * Check if a MIME type represents text content (as opposed to binary).
+ * Matches skillsdotnet's logic: text/* types, plus application/json,
+ * application/xml, application/javascript, and +json/+xml suffixes.
+ */
+export function isTextMimeType(mimeType: string): boolean {
+  if (mimeType.startsWith("text/")) return true;
+  if (mimeType === "application/json") return true;
+  if (mimeType === "application/xml") return true;
+  if (mimeType === "application/javascript") return true;
+  if (mimeType.endsWith("+json")) return true;
+  if (mimeType.endsWith("+xml")) return true;
+  return false;
+}
+
+/**
  * Escape XML special characters.
  */
 function escapeXml(text: string): string {
@@ -78,7 +93,7 @@ export function generateSkillsXML(
     lines.push("  <skill>");
     lines.push(`    <name>${escapeXml(skill.name)}</name>`);
     lines.push(`    <description>${escapeXml(skill.description)}</description>`);
-    lines.push(`    <uri>skill://${escapeXml(skill.name)}</uri>`);
+    lines.push(`    <uri>skill://${escapeXml(skill.name)}/SKILL.md</uri>`);
     lines.push("  </skill>");
   }
 

@@ -1,7 +1,7 @@
 {
   "name": "@skills-over-mcp-ig/skills-as-resources-example",
-  "version": "0.1.0",
-  "description": "Minimal reference implementation: Skills as MCP Resources",
+  "version": "0.2.0",
+  "description": "Reference implementation: Skills as MCP Resources with progressive disclosure",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.0",
-    "yaml": "^2.7.0"
+    "yaml": "^2.7.0",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
