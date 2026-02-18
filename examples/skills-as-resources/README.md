@@ -153,4 +153,4 @@ This reference implementation is original code inspired by patterns from:
 
 - **[skills-over-mcp](https://github.com/keithagroves/skills-over-mcp)** by [Keith Groves](https://github.com/keithagroves) — Resource-based skill exposure, `skill://` URI scheme, JSON index, XML prompt injection, document templates
 - **[skilljack-mcp](https://github.com/olaservo/skilljack-mcp)** by [Ola Hungerford](https://github.com/olaservo) — Resource template patterns, subscription architecture, path security
-- **[SkillsDotNet](https://github.com/bradwilson/skillsdotnet)** by [Brad Wilson](https://github.com/bradwilson) — `_manifest` resource with file hashes, `load_skill` tool, `SkillCatalog` client-side pattern, URI scheme conventions
+- **[skillsdotnet](https://github.com/PederHP/skillsdotnet)** by [Peder HP](https://github.com/PederHP) — `_manifest` resource with file hashes, `load_skill` tool, `SkillCatalog` client-side pattern, URI scheme conventions
