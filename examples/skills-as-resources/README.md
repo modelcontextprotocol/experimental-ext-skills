@@ -37,7 +37,8 @@ This is a **hybrid** approach: resources provide **application-controlled** acce
    - **Application-controlled** (via resources): `resources/list` → scan for `skill://*/SKILL.md` → read `skill://{name}/SKILL.md` on demand → read `skill://{name}/_manifest` for file inventory → read `skill://{name}/{path}` for supporting files
    - **Model-controlled** (via tool): `tools/list` → discover `load_skill` with available skill names in description → call `load_skill("code-review")` to get full content
 5. **System prompt injection**: `skill://prompt-xml` provides XML that hosts can inject into system prompts
-6. **Capability declaration**: Server declares `resources.listChanged` capability (dynamic updates could be wired to a file watcher in a full implementation)
+6. **Capability declaration**: Server declares `resources.listChanged` and `resources.subscribe` capabilities
+7. **Resource subscriptions**: Clients can call `resources/subscribe` on any `skill://` URI to receive `notifications/resources/updated` when the underlying file(s) change on disk. Watchers are created on-demand via [chokidar](https://github.com/paulmillr/chokidar) and cleaned up on unsubscribe.
 
 ## Implementations
 
@@ -104,8 +105,7 @@ Two sample skills are included in `sample-skills/` for testing:
 
 ## What This Example Intentionally Omits
 
-- File watching / resource subscriptions (capability is declared but not wired)
-- Dynamic updates (`resources.listChanged` is declared but not triggered)
+- Directory watching for new/removed skills (`resources.listChanged` is declared but not triggered)
 - MCP Prompts for explicit skill invocation
 - Client-side `SkillCatalog` for multi-server skill aggregation (see skillsdotnet for a reference implementation)
 - GitHub sync, configuration UI
