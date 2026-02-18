@@ -12,12 +12,23 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as crypto from "node:crypto";
 import { parse as parseYaml } from "yaml";
-import type { SkillMetadata, SkillDocument } from "./types.js";
+import type { SkillMetadata, SkillDocument, SkillManifest } from "./types.js";
 import { getMimeType } from "./resource-helpers.js";
 
 /** Maximum file size for skill files (1MB). */
 const MAX_FILE_SIZE = 1 * 1024 * 1024;
+
+/**
+ * Compute SHA256 hash of a file's contents.
+ * Returns a string in the format "sha256:<hex>".
+ */
+function computeFileHash(filePath: string): string {
+  const content = fs.readFileSync(filePath);
+  const hash = crypto.createHash("sha256").update(content).digest("hex");
+  return `sha256:${hash}`;
+}
 
 /**
  * Parse YAML frontmatter from SKILL.md content.
@@ -102,9 +113,10 @@ function scanDir(
           path: relativePath,
           mimeType: getMimeType(entry.name),
           size: stat.size,
+          hash: computeFileHash(fullPath),
         });
       } catch {
-        // Skip files we can't stat
+        // Skip files we can't stat or hash
       }
     } else if (entry.isDirectory()) {
       // Recurse into subdirectories
@@ -116,9 +128,10 @@ function scanDir(
 }
 
 /**
- * Scan a skill directory for supplementary documents.
- * Finds all files in subdirectories of the skill directory,
- * excluding SKILL.md itself.
+ * Scan a skill directory for all supplementary files.
+ * Finds all files in the skill directory (including root-level files
+ * and subdirectories), excluding SKILL.md / skill.md itself.
+ * This matches skillsdotnet's behavior of including all files recursively.
  */
 export function scanDocuments(
   skillDir: string,
@@ -133,10 +146,34 @@ export function scanDocuments(
     return documents;
   }
 
+  // Skip the main skill file names
+  const skipFiles = new Set(["SKILL.md", "skill.md"]);
+
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const subDirPath = path.join(skillDir, entry.name);
-    documents.push(...scanDir(subDirPath, skillDir, baseDir));
+    const fullPath = path.join(skillDir, entry.name);
+
+    if (entry.isDirectory()) {
+      // Recurse into subdirectories
+      documents.push(...scanDir(fullPath, skillDir, baseDir));
+    } else if (entry.isFile() && !skipFiles.has(entry.name)) {
+      // Include root-level files (excluding SKILL.md)
+      if (!isPathWithinBase(fullPath, baseDir)) continue;
+
+      try {
+        const stat = fs.statSync(fullPath);
+        if (stat.size > MAX_FILE_SIZE) continue;
+
+        const relativePath = path.relative(skillDir, fullPath).replace(/\\/g, "/");
+        documents.push({
+          path: relativePath,
+          mimeType: getMimeType(entry.name),
+          size: stat.size,
+          hash: computeFileHash(fullPath),
+        });
+      } catch {
+        // Skip files we can't stat or hash
+      }
+    }
   }
 
   return documents;
@@ -236,6 +273,21 @@ export function discoverSkills(skillsDir: string): Map<string, SkillMetadata> {
       // Scan for supplementary documents
       const documents = scanDocuments(skillDir, resolvedDir);
 
+      // Build pre-computed manifest with file hashes
+      const skillMdHash = computeFileHash(skillMdPath);
+      const manifest: SkillManifest = {
+        skill: trimmedName,
+        files: [
+          { path: "SKILL.md", size: stat.size, hash: skillMdHash },
+          ...documents.map((doc) => ({
+            path: doc.path,
+            size: doc.size,
+            hash: doc.hash,
+          })),
+        ],
+      };
+      const manifestJson = JSON.stringify(manifest);
+
       skillMap.set(trimmedName, {
         name: trimmedName,
         description: description.trim(),
@@ -243,6 +295,8 @@ export function discoverSkills(skillsDir: string): Map<string, SkillMetadata> {
         skillDir,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
         documents,
+        manifest,
+        manifestJson,
       });
     } catch (error) {
       console.error(`Failed to parse skill at ${skillDir}:`, error);
@@ -285,6 +339,8 @@ export function loadSkillContent(
 
 /**
  * Load a supplementary document from a skill directory.
+ * Returns text content (string) for text MIME types and
+ * base64-encoded content for binary MIME types.
  *
  * Security: Validates that the path is within the skills directory,
  * rejects path traversal attempts, and enforces a file size limit.
@@ -292,11 +348,17 @@ export function loadSkillContent(
 export function loadDocument(
   skill: SkillMetadata,
   documentPath: string,
-  skillsDir: string
-): string {
+  skillsDir: string,
+  isText: boolean
+): { text: string } | { blob: string } {
   // Security: reject path traversal attempts
   if (documentPath.includes("..")) {
     throw new Error("Path traversal not allowed");
+  }
+
+  // Security: reject absolute paths
+  if (path.isAbsolute(documentPath)) {
+    throw new Error("Absolute paths not allowed");
   }
 
   const fullPath = path.join(skill.skillDir, documentPath);
@@ -314,5 +376,9 @@ export function loadDocument(
     );
   }
 
-  return fs.readFileSync(fullPath, "utf-8");
+  if (isText) {
+    return { text: fs.readFileSync(fullPath, "utf-8") };
+  } else {
+    return { blob: fs.readFileSync(fullPath).toString("base64") };
+  }
 }

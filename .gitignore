@@ -1,7 +1,6 @@
 .claude/settings.local.json
 
 # Local reference repos and planning docs
-%TEMP%/
 TODO.md
 
 # Build artifacts
