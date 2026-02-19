@@ -103,14 +103,6 @@ Two sample skills are included in `sample-skills/` for testing:
 | Input validation | Zod schema on tool parameters | URI template matching (resources) + Zod schema (`load_skill` tool) |
 | Supporting files | Not demonstrated | `ResourceTemplate` for files, `_manifest` for discovery |
 
-## What This Example Intentionally Omits
-
-- Directory watching for new/removed skills (`resources.listChanged` is declared but not triggered)
-- MCP Prompts for explicit skill invocation
-- Client-side `SkillCatalog` for multi-server skill aggregation (see skillsdotnet for a reference implementation)
-- GitHub sync, configuration UI
-- `skill://` URI scheme registration or standardization
-
 ## Answers to Open Question #12
 
 > "Why not just use resources?"
