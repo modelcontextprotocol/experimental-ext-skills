@@ -28,11 +28,13 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { RegisteredResource, RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { discoverSkills, loadSkillContent, loadDocument } from "./skill-discovery.js";
 import { generateSkillsXML, isTextMimeType } from "./resource-helpers.js";
 import { createSubscriptionManager } from "./subscriptions.js";
+import { createSkillDirectoryWatcher } from "./skill-watcher.js";
 
 // Resolve skills directory from CLI arg or default to ../sample-skills
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -42,11 +44,15 @@ const skillsDir = process.argv[2]
 
 // Discover skills at startup
 const skillMap = discoverSkills(skillsDir);
-const skillNames = Array.from(skillMap.keys());
-const skillListStr = skillNames.join(", ") || "none";
+
+/** Dynamic skill list string — reflects current skillMap contents. */
+function getSkillListStr(): string {
+  const names = Array.from(skillMap.keys());
+  return names.join(", ") || "none";
+}
 
 console.error(
-  `[skills-as-resources] Discovered ${skillMap.size} skill(s): ${skillListStr}`
+  `[skills-as-resources] Discovered ${skillMap.size} skill(s): ${getSkillListStr()}`
 );
 for (const [name, skill] of skillMap) {
   const fileCount = skill.manifest.files.length;
@@ -80,10 +86,21 @@ server.registerResource(
   })
 );
 
-// Per-skill static resources
-for (const [name, skill] of skillMap) {
-  // Resource: skill://{name}/SKILL.md — skill content (listed)
-  server.registerResource(
+// Track resource handles so we can remove them when skills are removed dynamically.
+const resourceHandles = new Map<string, {
+  skill: RegisteredResource;
+  manifest: RegisteredResource;
+}>();
+
+/**
+ * Register the SKILL.md and _manifest resources for a single skill.
+ * Returns the resource handles for later removal.
+ */
+function registerSkillResources(
+  name: string,
+  skill: import("./types.js").SkillMetadata,
+): { skill: RegisteredResource; manifest: RegisteredResource } {
+  const skillHandle = server.registerResource(
     `skill-${name}`,
     `skill://${name}/SKILL.md`,
     {
@@ -110,8 +127,7 @@ for (const [name, skill] of skillMap) {
     }
   );
 
-  // Resource: skill://{name}/_manifest — file inventory with SHA256 hashes (listed)
-  server.registerResource(
+  const manifestHandle = server.registerResource(
     `skill-${name}-manifest`,
     `skill://${name}/_manifest`,
     {
@@ -127,6 +143,13 @@ for (const [name, skill] of skillMap) {
       ],
     })
   );
+
+  return { skill: skillHandle, manifest: manifestHandle };
+}
+
+// Per-skill static resources
+for (const [name, skill] of skillMap) {
+  resourceHandles.set(name, registerSkillResources(name, skill));
 }
 
 // --- Resource template for supporting files ---
@@ -177,7 +200,7 @@ server.registerResource(
         contents: [
           {
             uri: uri.href,
-            text: `# Error\n\nSkill "${skillName}" not found. Available: ${skillListStr}`,
+            text: `# Error\n\nSkill "${skillName}" not found. Available: ${getSkillListStr()}`,
           },
         ],
       };
@@ -227,13 +250,15 @@ server.registerResource(
 // Tool: load_skill — allows models to discover and load skills on demand.
 // Description dynamically lists available skill names, mirroring
 // skillsdotnet's SkillCatalog pattern but implemented server-side.
-server.registerTool(
+const loadSkillToolDescription = () =>
+  `Load the full SKILL.md content for a named skill. ` +
+  `Use this when you need detailed instructions for performing a specific task. ` +
+  `Available skills: ${getSkillListStr()}`;
+
+const loadSkillTool: RegisteredTool = server.registerTool(
   "load_skill",
   {
-    description:
-      `Load the full SKILL.md content for a named skill. ` +
-      `Use this when you need detailed instructions for performing a specific task. ` +
-      `Available skills: ${skillListStr}`,
+    description: loadSkillToolDescription(),
     inputSchema: {
       skillName: z.string().describe("The name of the skill to load"),
     },
@@ -245,7 +270,7 @@ server.registerTool(
         content: [
           {
             type: "text" as const,
-            text: `Skill "${skillName}" not found. Available skills: ${skillListStr}`,
+            text: `Skill "${skillName}" not found. Available skills: ${getSkillListStr()}`,
           },
         ],
         isError: true,
@@ -291,8 +316,46 @@ server.server.setRequestHandler(UnsubscribeRequestSchema, async (request) => {
   return {};
 });
 
+// --- Directory watcher for dynamic skill discovery ---
+
+// Watch skillsDir for structural changes (new/removed skill directories)
+// and update the resource list + notify clients via resources/listChanged.
+const directoryWatcher = createSkillDirectoryWatcher(skillsDir, () => {
+  const newSkillMap = discoverSkills(skillsDir);
+
+  // Find removed skills
+  for (const name of skillMap.keys()) {
+    if (!newSkillMap.has(name)) {
+      const handles = resourceHandles.get(name);
+      if (handles) {
+        handles.skill.remove();
+        handles.manifest.remove();
+        resourceHandles.delete(name);
+      }
+      subscriptions.unsubscribeByPrefix(`skill://${name}/`);
+      skillMap.delete(name);
+      console.error(`[skills-as-resources] Skill removed: ${name}`);
+    }
+  }
+
+  // Find added skills
+  for (const [name, metadata] of newSkillMap) {
+    if (!skillMap.has(name)) {
+      skillMap.set(name, metadata);
+      resourceHandles.set(name, registerSkillResources(name, metadata));
+      console.error(
+        `[skills-as-resources] Skill added: ${name} (${metadata.manifest.files.length} file(s))`
+      );
+    }
+  }
+
+  // Update load_skill tool description with current skill list
+  loadSkillTool.update({ description: loadSkillToolDescription() });
+});
+
 // Clean up watchers on exit
 process.on("SIGINT", () => {
+  directoryWatcher.close();
   subscriptions.close();
   process.exit(0);
 });

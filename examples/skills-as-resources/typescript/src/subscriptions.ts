@@ -23,6 +23,8 @@ export interface SubscriptionManager {
   subscribe(uri: string): void;
   /** Remove interest in change notifications for `uri`. */
   unsubscribe(uri: string): void;
+  /** Unsubscribe all URIs matching a prefix (used when a skill is removed). */
+  unsubscribeByPrefix(prefix: string): void;
   /** Tear down all watchers and clear internal state. */
   close(): void;
 }
@@ -214,6 +216,15 @@ export function createSubscriptionManager(
 
       uriToFilePaths.delete(uri);
       console.error(`[subscriptions] Unsubscribed: ${uri}`);
+    },
+
+    unsubscribeByPrefix(prefix: string): void {
+      const toRemove = Array.from(subscribedUris).filter((uri) =>
+        uri.startsWith(prefix),
+      );
+      for (const uri of toRemove) {
+        this.unsubscribe(uri);
+      }
     },
 
     close(): void {
