@@ -126,7 +126,7 @@ This implementation shows that resources **do work** for skill delivery, and tha
 
 ## Convergence with SkillsDotNet
 
-The URI scheme in this implementation is aligned with [SkillsDotNet](https://github.com/bradwilson/skillsdotnet), a C# implementation of the same pattern. Both implementations use:
+The URI scheme in this implementation is aligned with [SkillsDotNet](https://github.com/pederhp/skillsdotnet), a C# implementation of the same pattern. Both implementations use:
 
 - `skill://{name}/SKILL.md` — listed resource for skill content
 - `skill://{name}/_manifest` — listed resource for file inventory (with SHA256 hashes)
