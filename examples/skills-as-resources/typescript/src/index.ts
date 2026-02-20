@@ -19,7 +19,7 @@
  * Inspired by:
  * - skilljack-mcp by Ola Hungerford (https://github.com/olaservo/skilljack-mcp)
  * - skills-over-mcp by Keith Groves (https://github.com/keithagroves/skills-over-mcp)
- * - SkillsDotNet by Brad Wilson (https://github.com/bradwilson/skillsdotnet)
+ * - SkillsDotNet by Peder Holdgaard Pedersen (https://github.com/pederhp/skillsdotnet)
  *
  * @license Apache-2.0
  */
