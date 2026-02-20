@@ -1,1 +1,11 @@
 .claude/settings.local.json
+
+# Local reference repos and planning docs
+TODO.md
+
+# Build artifacts
+node_modules/
+dist/
+__pycache__/
+*.egg-info/
+.eggs/
