@@ -21,11 +21,7 @@ This Interest Group welcomes contributions from anyone interested in skills dist
 
 The [Agent Skills spec](https://agentskills.io/) is maintained in the [agentskills/agentskills](https://github.com/agentskills/agentskills) repository. For topics that intersect with both this IG and the Agent Skills spec (e.g., protocol design questions, proposed extensions, or alignment on terminology), the recommended channel is [Discussions](https://github.com/agentskills/agentskills/discussions) in that repository.
 
-Before opening a discussion, review the [Agent Skills contributing guide](https://github.com/agentskills/agentskills/blob/main/CONTRIBUTING.md) — in particular:
-
-- Proposals should address real implementation challenges, not theoretical concerns.
-- The spec maintainers maintain a high bar for additions; prefer starting a discussion before investing significant effort.
-- Use [Discussions](https://github.com/agentskills/agentskills/discussions) for proposals, questions, and general feedback; reserve Issues for concrete bugs.
+Before opening a discussion, review the [Agent Skills contributing guide](https://github.com/agentskills/agentskills/blob/main/CONTRIBUTING.md).
 
 ## Meetings
 
