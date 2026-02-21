@@ -63,4 +63,5 @@ export interface SkillMetadata {
   documents: SkillDocument[]; // Supplementary files found in subdirectories
   manifest: SkillManifest; // Pre-computed file manifest
   manifestJson: string; // Pre-serialized manifest JSON (avoids I/O on request)
+  lastModified: string; // ISO 8601 timestamp from SKILL.md file mtime
 }

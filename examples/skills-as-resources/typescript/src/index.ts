@@ -26,6 +26,7 @@
 
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 import { z } from "zod";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { RegisteredResource, RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -36,11 +37,19 @@ import { generateSkillsXML, isTextMimeType } from "./resource-helpers.js";
 import { createSubscriptionManager } from "./subscriptions.js";
 import { createSkillDirectoryWatcher } from "./skill-watcher.js";
 
-// Resolve skills directory from CLI arg or default to ../sample-skills
+// Parse CLI arguments: [skillsDir] [--no-embed-catalog]
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const skillsDir = process.argv[2]
-  ? path.resolve(process.argv[2])
-  : path.resolve(__dirname, "../../sample-skills");
+const { values: flags, positionals } = parseArgs({
+  args: process.argv.slice(2),
+  options: {
+    "no-embed-catalog": { type: "boolean", default: false },
+  },
+  allowPositionals: true,
+});
+const embedCatalog = !flags["no-embed-catalog"];
+const skillsDir = positionals[0]
+  ? path.resolve(positionals[0])
+  : path.resolve(__dirname, "../../../sample-skills");
 
 // Discover skills at startup
 const skillMap = discoverSkills(skillsDir);
@@ -53,6 +62,9 @@ function getSkillListStr(): string {
 
 console.error(
   `[skills-as-resources] Discovered ${skillMap.size} skill(s): ${getSkillListStr()}`
+);
+console.error(
+  `[skills-as-resources] Catalog embedding: ${embedCatalog ? "on" : "off (--no-embed-catalog)"}`
 );
 for (const [name, skill] of skillMap) {
   const fileCount = skill.manifest.files.length;
@@ -75,6 +87,10 @@ server.registerResource(
     description:
       "XML representation of available skills for injecting into system prompts",
     mimeType: "application/xml",
+    annotations: {
+      audience: ["user", "assistant"],
+      priority: 0.3,
+    },
   },
   async (uri) => ({
     contents: [
@@ -106,6 +122,11 @@ function registerSkillResources(
     {
       description: skill.description,
       mimeType: "text/markdown",
+      annotations: {
+        audience: ["user", "assistant"],
+        priority: 1.0,
+        lastModified: skill.lastModified,
+      },
     },
     async (uri) => {
       try {
@@ -133,6 +154,11 @@ function registerSkillResources(
     {
       description: `File manifest for skill '${name}' with content hashes`,
       mimeType: "application/json",
+      annotations: {
+        audience: ["user", "assistant"],
+        priority: 0.5,
+        lastModified: skill.lastModified,
+      },
     },
     async (uri) => ({
       contents: [
@@ -185,6 +211,10 @@ server.registerResource(
   {
     description: "Fetch a supporting file from a skill directory",
     mimeType: "text/plain",
+    annotations: {
+      audience: ["user", "assistant"],
+      priority: 0.2,
+    },
   },
   async (uri, variables) => {
     const skillName = Array.isArray(variables.skillName)
@@ -250,10 +280,16 @@ server.registerResource(
 // Tool: load_skill — allows models to discover and load skills on demand.
 // Description dynamically lists available skill names, mirroring
 // skillsdotnet's SkillCatalog pattern but implemented server-side.
-const loadSkillToolDescription = () =>
-  `Load the full SKILL.md content for a named skill. ` +
-  `Use this when you need detailed instructions for performing a specific task. ` +
-  `Available skills: ${getSkillListStr()}`;
+// When --no-embed-catalog is set, the description only lists skill names
+// (useful when the client already injects skill context from resources).
+const loadSkillToolDescription = () => {
+  const base =
+    `Load the full SKILL.md content for a named skill. ` +
+    `Use this when you need detailed instructions for performing a specific task.`;
+  return embedCatalog
+    ? base + `\n\n` + generateSkillsXML(skillMap)
+    : base + ` Available skills: ${getSkillListStr()}`;
+};
 
 const loadSkillTool: RegisteredTool = server.registerTool(
   "load_skill",

@@ -54,12 +54,24 @@ npm run build
 
 **Run with MCP Inspector**:
 ```bash
-npx @modelcontextprotocol/inspector node dist/index.js ../sample-skills
+npx @modelcontextprotocol/inspector node dist/index.js ../../sample-skills
 ```
 
 **Development mode** (no build step):
 ```bash
-npm run dev -- ../sample-skills
+npm run dev -- ../../sample-skills
+```
+
+### Options
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `[skillsDir]` | `examples/sample-skills/` | Path to the skills directory |
+| `--no-embed-catalog` | off (catalog embedded) | Disable embedding `<available_skills>` XML in the `load_skill` tool description. Use when the client already injects skill context from resources, to avoid duplicate injection. |
+
+**Example** — disable catalog embedding for a client with native `skill://` support:
+```bash
+node dist/index.js ../../sample-skills --no-embed-catalog
 ```
 
 ## Security Features
@@ -75,7 +87,7 @@ The implementation includes:
 
 ## Sample Skills
 
-Two sample skills are included in `sample-skills/` for testing:
+Two shared sample skills are included in [`examples/sample-skills/`](../../sample-skills/) for testing:
 
 | Skill | Description | Documents | Notes |
 | :--- | :--- | :--- | :--- |
@@ -85,10 +97,30 @@ Two sample skills are included in `sample-skills/` for testing:
 ## Key Design Decisions
 
 - **Hybrid approach (resources + tool)**: Resources provide application-controlled access for hosts that want to manage context. The `load_skill` tool provides model-controlled access for progressive disclosure. Experimental findings show models reliably use tools but tend to ignore resources (see [`docs/experimental-findings.md`](../../docs/experimental-findings.md)), making the hybrid approach more practical than resources alone.
-- **URI scheme aligned with skillsdotnet**: The `skill://{name}/SKILL.md` and `skill://{name}/_manifest` URI conventions match the [SkillsDotNet](https://github.com/bradwilson/skillsdotnet) C# implementation. This enables cross-implementation interoperability — a client-side `SkillCatalog` can discover skills from either implementation by scanning `resources/list` for `skill://*/SKILL.md` URIs.
+- **URI scheme aligned with skillsdotnet**: The `skill://{name}/SKILL.md` and `skill://{name}/_manifest` URI conventions match the [SkillsDotNet](https://github.com/pederhp/skillsdotnet) C# implementation. This enables cross-implementation interoperability — a client-side `SkillCatalog` can discover skills from either implementation by scanning `resources/list` for `skill://*/SKILL.md` URIs.
 - **`_manifest` with SHA256 hashes**: Pre-computed at startup with file sizes and content hashes. Enables download/sync workflows and cache invalidation without re-reading files on each request.
 - **Listed resources for skills, template for supporting files**: Each skill's `SKILL.md` and `_manifest` are concrete resources visible in `resources/list`. Supporting files are accessed via a `ResourceTemplate` (`skill://{name}/{+path}`) and are discoverable through the `_manifest` — keeping `resources/list` clean.
 - **`skill://prompt-xml` for injection**: Optional convenience resource that allows hosts to inject skill awareness into system prompts using the resources primitive.
+
+## Resource Annotations
+
+All resources include MCP [resource annotations](https://modelcontextprotocol.io/specification/draft/server/resources#annotations) to help clients filter, prioritize, and display skill resources appropriately.
+
+| Resource | `audience` | `priority` | `lastModified` |
+| :--- | :--- | :--- | :--- |
+| `skill://{name}/SKILL.md` | `["user", "assistant"]` | `1.0` | SKILL.md file mtime |
+| `skill://{name}/_manifest` | `["user", "assistant"]` | `0.5` | SKILL.md file mtime |
+| `skill://{name}/{+path}` | `["user", "assistant"]` | `0.2` | — |
+| `skill://prompt-xml` | `["user", "assistant"]` | `0.3` | — |
+
+All resources default to both audiences. The [Agent Skills specification](https://agentskills.org) is actively discussing a frontmatter `metadata` field (e.g., `invocation: model | user`) that would allow skill authors to narrow the intended audience per-skill. When that is finalized, this implementation will parse it from `metadata` and map it to the MCP `audience` annotation accordingly.
+
+### Priority Scale
+
+- **1.0** — Primary skill content (SKILL.md). Clients should include these in context.
+- **0.5** — Supporting metadata (\_manifest). Include if context budget allows.
+- **0.3** — Convenience resources (prompt-xml). Optional.
+- **0.2** — Supporting files (template). Load on demand only.
 
 ## How This Differs from Skills as Tools
 
