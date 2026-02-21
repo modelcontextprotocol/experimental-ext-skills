@@ -41,6 +41,7 @@ See [problem-statement.md](docs/problem-statement.md) for full details.
 | [Use Cases](docs/use-cases.md) | Key use cases driving this work |
 | [Approaches](docs/approaches.md) | Approaches being explored (not mutually exclusive) |
 | [Open Questions](docs/open-questions.md) | Unresolved questions with community input |
+| [MCP Resources](docs/mcp-resources.md) | Overview of the MCP Resources primitive and its relevance to skills |
 | [Experimental Findings](docs/experimental-findings.md) | Results from implementations and testing |
 | [Related Work](docs/related-work.md) | SEPs, implementations, and external resources |
 | [Meeting Notes](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-ig) | Published after each working session |
