@@ -1,0 +1,1 @@
+When working on MCP-related code or reviewing MCP-related changes, use the mcp-docs MCP server to look up the latest protocol documentation. For schema details, reference https://github.com/modelcontextprotocol/modelcontextprotocol/tree/main/schema which contains versioned schemas in JSON (schema.json) and TypeScript (schema.ts) formats.
