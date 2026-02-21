@@ -297,6 +297,7 @@ export function discoverSkills(skillsDir: string): Map<string, SkillMetadata> {
         documents,
         manifest,
         manifestJson,
+        lastModified: stat.mtime.toISOString(),
       });
     } catch (error) {
       console.error(`Failed to parse skill at ${skillDir}:`, error);
