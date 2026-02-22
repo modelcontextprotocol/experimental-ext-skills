@@ -295,6 +295,12 @@ const loadSkillTool: RegisteredTool = server.registerTool(
   "load_skill",
   {
     description: loadSkillToolDescription(),
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
     inputSchema: {
       skillName: z.string().describe("The name of the skill to load"),
     },
