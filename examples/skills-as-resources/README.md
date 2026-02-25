@@ -158,6 +158,26 @@ The URI scheme in this implementation is aligned with [SkillsDotNet](https://git
 3. Build compact context summaries for the system prompt (~50-100 tokens per skill)
 4. Expose a `load_skill` tool/function for on-demand full content loading
 
+## Comparison to FastMCP Implementation
+
+[FastMCP](https://github.com/jlowin/fastmcp) includes support for the `skill://` URI scheme through its [Skills Provider](https://gofastmcp.com/servers/providers/skills). Both FastMCP and this implementation converge on:
+
+- Same three-tier resource model: listed `SKILL.md` + listed `_manifest` + template for supporting files
+- Same manifest format: `{ skill, files: [{ path, size, hash }] }` with `sha256:<hex>` hashes
+- Same discovery model: scan for `SKILL.md` frontmatter, enumerate supporting files, pre-compute hashes
+- Same security model: path traversal prevention, symlink resolution, MIME type detection
+
+Key architectural differences:
+
+| Aspect | This implementation | FastMCP |
+| :--- | :--- | :--- |
+| Reactivity | Push-based (file watching + subscriptions) | Poll-based (optional re-scan on request) |
+| Access model | Hybrid: Resources + `load_skill` server tool | Resources + client utilities |
+| Architecture | Flat, single-server | Layered provider hierarchy with vendor presets (Claude, Cursor, Codex, Gemini, etc.) |
+| Client utilities | Server-only | Includes `list_skills`, `download_skill`, `sync_skills` for skill distribution |
+| System prompt injection | Optional `skill://prompt-xml` resource + tool description embedding | Not implemented (relies on client) |
+| Resource annotations | `audience`, `priority`, `lastModified` on all resources | Not set (uses internal metadata) |
+
 ## Inspirations and Attribution
 
 This reference implementation derives from:
