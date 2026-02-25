@@ -12,7 +12,7 @@ An MCP server scans a directory for SKILL.md files and exposes them as resources
 | :--- | :--- | :--- | :--- |
 | Resource | `skill://{name}/SKILL.md` | `text/markdown` | Full SKILL.md content (listed) |
 | Resource | `skill://{name}/_manifest` | `application/json` | File inventory with SHA256 hashes (listed) |
-| Resource | `skill://{name}/{+path}` | varies | Supporting file (template, not listed) |
+| Resource | `skill://{name}/{+path}` | varies | Supporting file (template, not listed); text files return UTF-8 content, binary files return base64-encoded blobs |
 | Resource | `skill://prompt-xml` | `application/xml` | XML for system prompt injection (optional) |
 | Tool | `load_skill` | — | Model-controlled skill loading |
 
@@ -30,15 +30,16 @@ This is a **hybrid** approach: resources provide **application-controlled** acce
 └─────────────┘
 ```
 
-1. **Startup**: Server scans the configured skills directory for `*/SKILL.md` files and supplementary documents; computes SHA256 hashes and builds file manifests
+1. **Startup**: Server scans the configured skills directory for `*/SKILL.md` (or `skill.md`) files and supplementary documents; computes SHA256 hashes and builds file manifests
 2. **Discovery**: Parses YAML frontmatter to extract `name` and `description`
-3. **Registration**: Registers static resources (`SKILL.md` + `_manifest`) for each skill, a `ResourceTemplate` for supporting files, and a `load_skill` tool
+3. **Registration**: Registers static resources (`SKILL.md` + `_manifest`) for each skill, a `ResourceTemplate` for supporting files with auto-completion hints (skill name and file path), and a `load_skill` tool
 4. **Progressive disclosure** (two paths):
    - **Application-controlled** (via resources): `resources/list` → scan for `skill://*/SKILL.md` → read `skill://{name}/SKILL.md` on demand → read `skill://{name}/_manifest` for file inventory → read `skill://{name}/{path}` for supporting files
    - **Model-controlled** (via tool): `tools/list` → discover `load_skill` with available skill names in description → call `load_skill("code-review")` to get full content
 5. **System prompt injection**: `skill://prompt-xml` provides XML that hosts can inject into system prompts
 6. **Capability declaration**: Server declares `resources.listChanged` and `resources.subscribe` capabilities
 7. **Resource subscriptions**: Clients can call `resources/subscribe` on any `skill://` URI to receive `notifications/resources/updated` when the underlying file(s) change on disk. Watchers are created on-demand via [chokidar](https://github.com/paulmillr/chokidar) and cleaned up on unsubscribe.
+8. **Dynamic skill management (hot-reload)**: The server watches the skills directory for structural changes — new or removed skill subdirectories and `SKILL.md` files appearing or disappearing. When changes are detected (debounced at 500ms), the server re-scans the directory: new skills get their `SKILL.md` and `_manifest` resources registered, removed skills get their resources unregistered and subscriptions cleaned up, and the `load_skill` tool description is updated with the current skill list. A `notifications/resources/list_changed` notification is sent to connected clients so they can refresh their resource lists.
 
 ## Implementations
 
@@ -97,6 +98,7 @@ Two shared sample skills are included in [`examples/sample-skills/`](../../sampl
 ## Key Design Decisions
 
 - **Hybrid approach (resources + tool)**: Resources provide application-controlled access for hosts that want to manage context. The `load_skill` tool provides model-controlled access for progressive disclosure. Experimental findings show models reliably use tools but tend to ignore resources (see [`docs/experimental-findings.md`](../../docs/experimental-findings.md)), making the hybrid approach more practical than resources alone.
+- **`load_skill` per server — duplication trade-off**: Including `load_skill` in each skill server means clients with native `skill://` resource loading support see duplicate context — the client already parsed frontmatter from resources AND the tool description lists available skills. However, for clients *without* native support for loading skills as resources, `load_skill` is the only way to provide skills via MCP without manually selecting resources. The `--no-embed-catalog` flag mitigates description-level duplication. Long-term, `load_skill` may be better served as a well-known client-side tool (like [SkillsDotNet](https://github.com/pederhp/skillsdotnet)'s `SkillCatalog`) or a generic `load_resource` tool, avoiding per-server duplication entirely. See [PR #16 discussion](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/16#discussion_r2829745543) for context.
 - **URI scheme aligned with skillsdotnet**: The `skill://{name}/SKILL.md` and `skill://{name}/_manifest` URI conventions match the [SkillsDotNet](https://github.com/pederhp/skillsdotnet) C# implementation. This enables cross-implementation interoperability — a client-side `SkillCatalog` can discover skills from either implementation by scanning `resources/list` for `skill://*/SKILL.md` URIs.
 - **`_manifest` with SHA256 hashes**: Pre-computed at startup with file sizes and content hashes. Enables download/sync workflows and cache invalidation without re-reading files on each request.
 - **Listed resources for skills, template for supporting files**: Each skill's `SKILL.md` and `_manifest` are concrete resources visible in `resources/list`. Supporting files are accessed via a `ResourceTemplate` (`skill://{name}/{+path}`) and are discoverable through the `_manifest` — keeping `resources/list` clean.
@@ -122,19 +124,6 @@ All resources default to both audiences. The [Agent Skills specification](https:
 - **0.3** — Convenience resources (prompt-xml). Optional.
 - **0.2** — Supporting files (template). Load on demand only.
 
-## How This Differs from Skills as Tools
-
-| Aspect | Skills as Tools | Skills as Resources (this example) |
-| :--- | :--- | :--- |
-| Control model | Model-controlled only | Hybrid: application-controlled (resources) + model-controlled (`load_skill` tool) |
-| MCP Primitive | Tools | Resources + Tools |
-| Discovery | Tool description + `list_skills` call | `resources/list` scan for `skill://*/SKILL.md` + `load_skill` tool description |
-| Loading | `read_skill(name)` tool call | `resources/read` on `skill://{name}/SKILL.md` or `load_skill(name)` tool call |
-| File inventory | Not demonstrated | `skill://{name}/_manifest` with SHA256 hashes |
-| System prompt | Via tool description embedding | Via `skill://prompt-xml` resource or `load_skill` tool description |
-| Input validation | Zod schema on tool parameters | URI template matching (resources) + Zod schema (`load_skill` tool) |
-| Supporting files | Not demonstrated | `ResourceTemplate` for files, `_manifest` for discovery |
-
 ## Answers to Open Question #12
 
 > "Why not just use resources?"
@@ -156,15 +145,13 @@ This implementation shows that resources **do work** for skill delivery, and tha
 | **5. Server Instructions** | Uses server instructions to point to resources instead of exposing resources directly |
 | **6. Convention** | This example could become part of a documented convention pattern |
 
-## Convergence with SkillsDotNet
+## Borrowing From SkillsDotNet
 
 The URI scheme in this implementation is aligned with [SkillsDotNet](https://github.com/pederhp/skillsdotnet), a C# implementation of the same pattern. Both implementations use:
 
 - `skill://{name}/SKILL.md` — listed resource for skill content
 - `skill://{name}/_manifest` — listed resource for file inventory (with SHA256 hashes)
 - `skill://{name}/{+path}` — resource template for supporting files
-
-This convergence enables a future client-side `SkillCatalog` to discover and load skills from either implementation without knowing which language the server is written in. The key client-side pattern (from skillsdotnet) is:
 
 1. Scan `resources/list` for URIs matching `skill://*/SKILL.md`
 2. Read each SKILL.md to extract frontmatter (name + description)
@@ -173,7 +160,7 @@ This convergence enables a future client-side `SkillCatalog` to discover and loa
 
 ## Inspirations and Attribution
 
-This reference implementation is original code inspired by patterns from:
+This reference implementation derives from:
 
 - **[skills-over-mcp](https://github.com/keithagroves/skills-over-mcp)** by [Keith Groves](https://github.com/keithagroves) — Resource-based skill exposure, `skill://` URI scheme, JSON index, XML prompt injection, document templates
 - **[skilljack-mcp](https://github.com/olaservo/skilljack-mcp)** by [Ola Hungerford](https://github.com/olaservo) — Resource template patterns, subscription architecture, path security
