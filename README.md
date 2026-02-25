@@ -88,7 +88,7 @@ This IG may propose becoming a Working Group if:
 | Item | Status | Champion | Notes |
 | :--- | :--- | :--- | :--- |
 | Requirements alignment | In Progress | All facilitators | Review approaches, identify common requirements and gaps |
-| Agent Skills spec coordination | Not Started | TBD | Establish communication with agentskills.io maintainers |
+| Agent Skills spec coordination | In Progress | Ola | Use [agentskills/agentskills Discussions](https://github.com/agentskills/agentskills/discussions) for intersecting topics; see [contributing guide](https://github.com/agentskills/agentskills/blob/main/CONTRIBUTING.md) |
 | Experimental findings repo | Proposed | Ola | Dedicated repo for implementations and evaluation results |
 | SEP-2076 review | In Progress | Yu Yi | Skills as first-class primitive proposal |
 | Registry skills.json proposal | In Progress | Ozz | Skills metadata in registry schema |
