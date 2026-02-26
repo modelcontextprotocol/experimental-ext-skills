@@ -26,11 +26,9 @@ Early experiments suggest they do, but more rigorous testing is needed.
 
 > "Clients have been slow to implement support for resources. Had some parallel primitive 'skills' been implemented, I'm not sure clients would have implemented them any faster. Basically they all went for 'tools' and have slowly been getting around to implementing other primitives." — [Cliff Hall](https://github.com/cliffhall)
 
-## 6. How do we coordinate with agent skills spec owners?
+## ~~6. How do we coordinate with agent skills spec owners?~~
 
-The contribution model for the skills spec isn't clear, and MCP-related efforts should be brought to their attention.
-
-- [Ola Hungerford](https://github.com/olaservo)
+[Answered in this PR](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/28)
 
 ## 7. What would MCP have had to get right for skills to have been shipped over MCP from the beginning?
 
