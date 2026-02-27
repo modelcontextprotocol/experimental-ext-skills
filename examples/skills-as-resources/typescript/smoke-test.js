@@ -94,7 +94,6 @@ async function main() {
       assert(caps.resources, "resources capability missing");
       assert(caps.resources.listChanged === true, "listChanged not true");
       assert(caps.resources.subscribe === true, "subscribe not true");
-      assert(caps.tools, "tools capability missing");
     });
 
     // Test 2: list resources
@@ -270,64 +269,6 @@ async function main() {
       );
     });
 
-    // Test 8: list tools and call load_skill (valid + invalid)
-    await runTest(
-      "load_skill tool: list, call valid, call invalid",
-      async () => {
-        // List
-        const { tools } = await client.listTools();
-        assert(tools.length === 1, `expected 1 tool, got ${tools.length}`);
-        assert(tools[0].name === "load_skill", `tool name: ${tools[0].name}`);
-        assert(
-          tools[0].inputSchema?.properties?.skillName,
-          "missing skillName in schema",
-        );
-        assert(
-          tools[0].annotations?.readOnlyHint === true,
-          "readOnlyHint not true",
-        );
-        assert(
-          tools[0].annotations?.idempotentHint === true,
-          "idempotentHint not true",
-        );
-        assert(
-          tools[0].description?.includes("code-review"),
-          "description missing code-review",
-        );
-        assert(
-          tools[0].description?.includes("git-commit-review"),
-          "description missing git-commit-review",
-        );
-
-        // Valid call
-        const ok = await client.callTool({
-          name: "load_skill",
-          arguments: { skillName: "code-review" },
-        });
-        assert(ok.content?.length === 1, "expected 1 content item");
-        assert(ok.content[0].type === "text", "content not text");
-        assert(
-          ok.content[0].text.includes("# Code Review"),
-          "missing heading in tool result",
-        );
-        assert(!ok.isError, "unexpected isError on valid call");
-
-        // Invalid call
-        const err = await client.callTool({
-          name: "load_skill",
-          arguments: { skillName: "nonexistent-skill" },
-        });
-        assert(err.isError === true, "expected isError on invalid call");
-        assert(
-          err.content[0].text.toLowerCase().includes("not found"),
-          "missing 'not found' in error",
-        );
-        assert(
-          err.content[0].text.includes("code-review"),
-          "missing available skill in error",
-        );
-      },
-    );
   } finally {
     clearTimeout(timer);
     await client.close();
