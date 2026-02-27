@@ -44,8 +44,18 @@ This is a **resources-only** server. Clients are expected to provide their own `
 
 **Prerequisites**: Node.js >= 18, npm
 
+The example depends on the [`@ext-modelcontextprotocol/skills`](../../../typescript/sdk/) SDK (linked via `file:` reference). Build the SDK first:
+
 ```bash
-cd typescript
+cd ../../../typescript/sdk
+npm install
+npm run build
+```
+
+Then build the example:
+
+```bash
+cd examples/skills-as-resources/typescript
 npm install
 npm run build
 ```
@@ -126,17 +136,27 @@ This server exposes skills as resources only — it does **not** include server-
 4. **Subscribe to changes** (optional): Call `resources/subscribe` on skill URIs to receive `notifications/resources/updated` when files change on disk. Re-enumerate on `notifications/resources/list_changed`.
 5. **Use `skill://prompt-xml`** (optional): Read the `skill://prompt-xml` resource for pre-built `<available_skills>` XML suitable for system prompt injection, as an alternative to building your own summaries from step 1.
 
-### SDK integration sketch
+### SDK integration
 
-A client SDK might expose a helper like:
+The [`@ext-modelcontextprotocol/skills`](../../../typescript/sdk/) SDK provides ready-made helpers for both server and client sides. This example uses the SDK — see [`src/index.ts`](typescript/src/index.ts) for the server-side usage.
 
+**Server-side** (skill discovery + resource registration):
 ```typescript
-// Pseudocode — not a real SDK method (yet)
-const skills = await client.listResources()
-  .then(({ resources }) => resources
-    .filter(r => r.uri.match(/^skill:\/\/[^/]+\/SKILL\.md$/))
-    .map(r => ({ uri: r.uri, name: r.name, description: r.description }))
-  );
+import { discoverSkills, registerSkillResources } from "@ext-modelcontextprotocol/skills";
+
+const skillMap = discoverSkills("./skills");
+const handles = registerSkillResources(server, skillMap, "./skills", {
+  template: true,
+  promptXml: true,
+});
+```
+
+**Client-side** (skill enumeration + context building):
+```typescript
+import { listSkillResources, buildSkillsSummary } from "@ext-modelcontextprotocol/skills";
+
+const skills = await listSkillResources(client);
+console.log(buildSkillsSummary(skills));
 ```
 
 See [PR #16 discussion](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/16#discussion_r2859600003) for the full rationale on why client-side `read_resource` is preferred over server-side `load_skill` tools.
