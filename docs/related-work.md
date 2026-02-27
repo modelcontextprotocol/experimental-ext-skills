@@ -29,6 +29,7 @@ Original implementations from external repositories (example implementations in 
 | Strands Agents MCP server | AWS | [github.com/strands-agents/mcp-server](https://github.com/strands-agents/mcp-server/) | Docs-as-MCP: TF-IDF search + doc fetch |
 | AWS MCP server | AWS | [docs.aws.amazon.com/aws-mcp/…](https://docs.aws.amazon.com/aws-mcp/latest/userguide/understanding-mcp-server-tools.html) | `retrieve_agent_sop` (skills) + `call_aws` (tool) |
 | Kiro powers directory | Kiro | [github.com/kirodotdev/powers](https://github.com/kirodotdev/powers/) | Plugin directory bundling skills + MCP servers |
+| MCPB | MCP | [github.com/modelcontextprotocol/mcpb](https://github.com/modelcontextprotocol/mcpb) | Bundle manifest packaging MCP server config alongside skill files |
 
 ## External Resources
 
@@ -39,4 +40,5 @@ Original implementations from external repositories (example implementations in 
 - **Apache Airflow AIP-91** (MCP integration): [cwiki.apache.org/…/AIP-91+-+MCP](https://cwiki.apache.org/confluence/display/AIRFLOW/AIP-91+-+MCP)
 - **llms.txt convention:** [llmstxt.org](https://llmstxt.org/) — Convention for making documentation LLM-accessible; used by [MCPDoc](https://github.com/langchain-ai/mcpdoc) in a way similar to how skills work.
 - **AWS Agent SOPs:** [docs.aws.amazon.com/…/agent-sops](https://docs.aws.amazon.com/aws-mcp/latest/userguide/agent-sops.html) — Pre-built operational workflows as skill-like guidance
+- **Skill dependency declaration:** [agentskills/agentskills#110](https://github.com/agentskills/agentskills/issues/110) — Discusses how skills should declare their tool/server dependencies
 - **Video background:** [youtube.com/watch?v=CEvIs9y1uog](https://www.youtube.com/watch?v=CEvIs9y1uog)

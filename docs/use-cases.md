@@ -18,7 +18,9 @@ Workflows that reference tools conditionally based on context, requiring rich st
 
 ## 3. Multi-Server Composition
 
-Skills that leverage tools from multiple off-the-shelf servers where you can't (or don't want to) modify their individual instructions.
+Skills that leverage tools from multiple off-the-shelf servers where you can't (or don't want to) modify their individual instructions. Skills can also make it more natural to translate ad-hoc tool-call-based workflows into scripted workflows, without fundamentally changing the content of the skill.
+
+**Related:** [agentskills/agentskills#110](https://github.com/agentskills/agentskills/issues/110) — Skill dependency declaration
 
 **Community input:**
 

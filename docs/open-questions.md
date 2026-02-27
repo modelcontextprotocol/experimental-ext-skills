@@ -18,6 +18,8 @@ Or is the separation between "primitive server" and "skill that uses the primiti
 
 A skill orchestrating tools from several servers can't live in any single server's instructions.
 
+**Related:** [agentskills/agentskills#110](https://github.com/agentskills/agentskills/issues/110) — Discusses how skills should declare their tool/server dependencies. The lack of explicit dependency configuration makes multi-server skill execution unpredictable: if required servers and tools aren't already loaded, the skill can't reliably execute.
+
 ## 5. Do clients actually leverage skills when presented via MCP?
 
 Early experiments suggest they do, but more rigorous testing is needed.
@@ -83,6 +85,12 @@ Note: Some apps like Claude Code have started to indicate in the skill frontmatt
 > "If the conclusion is 'just use resources', I am fine with that direction too — but then we should standardize a way to identify and list workflow resources as 'skills' so clients can reliably surface them (otherwise we are back to out-of-band conventions)." — [sebthom](https://github.com/modelcontextprotocol/modelcontextprotocol/issues/2167#issuecomment-3824771018)
 
 See also [Approaches](approaches.md) for more notes on using resources.
+
+## ~14. How should skills and resources be discoverable over MCP?
+
+The MCP registry doesn't currently expose what tools and/or resources are available in `server.json`. This may be addressed as part of the Server Card work rather than the registry itself. Need to track the latest status of the server card + `server.json` relationship going forward.
+
+— Feb 26 office hours
 
 ## 13. What is the optimal relationship between skills and MCP?
 

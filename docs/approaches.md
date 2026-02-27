@@ -76,6 +76,15 @@ Examples:
 
 > "The only slight concern I have is the idea that there are still 'first class skills' (skills that agents recognize as skills, can be presented as skills through the user agent, can be bundled with subagents, etc) and these sort of 'skills as context' approaches where the agent can certainly discover and ingest the skills data, but possibly with some differences compared to how they would apply first class skills." — [Bob Dickinson](https://github.com/TeamSparkAI)
 
+### Feb 26 office hours: Direction for skills-as-resources
+
+The group aligned on focusing the skills-as-resources approach using client helper tools:
+
+- **Client-side tooling:** Rather than each server shipping its own `load_skill` tool, clients should support model-driven resource loading directly — e.g., a built-in `read_resource` tool on the client side and an SDK-level `list_skill_uris()` method. This is a small lift for clients (compared to something like elicitation or sampling) and avoids duplicate approaches or increased compatibility matrices. — [Peter Alexander](https://github.com/peter-anthropic)
+- **Three-part framing** (Ola Hungerford): The repo should contain (1) server implementation — how skills should be made available as resources, (2) client implementation — what client tools should be available to consume skills as resources, and (3) examples of server-side workarounds for clients that don't yet support (2)
+- **Hinting workaround:** Using a special hinting tool to remind the model to load skills — a workaround for models not proactively reaching for resources on their own — [Nate Moore](https://github.com/natemoo-re) (Zapier)
+- **Next steps:** Partner with a few client implementors to test once the extension is ready. The "workaround" implementations (e.g., skills in tool descriptions) remain as comparison baselines, but should be more clearly separated in intent.
+
 This approach may also:
 
 - Use resource templates for parameterized skill discovery

@@ -54,6 +54,12 @@ Tested skills exposed in three ways across multiple clients:
 
 FastMCP added skills support in version 3.0. Worth examining for alignment with other approaches.
 
+**Update model comparison (Feb 26 office hours):**
+
+- FastMCP supports more of a "pull" model for updating resources that have changed
+- The skills-as-resources implementation in this repo ([PR #16](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/16)) watches for changes and allows clients to subscribe to resources via `resources/subscribe` and `resources/updated` notifications — more of a "push" model
+- Both models are worth evaluating; the right choice is likely use-case specific
+
 **Related:** [jlowin/fastmcp#2694](https://github.com/jlowin/fastmcp/issues/2694)
 
 ## PydanticAI Skills Support
