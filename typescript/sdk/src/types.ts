@@ -1,5 +1,5 @@
 /**
- * Type definitions for the Skills as Resources reference implementation.
+ * Type definitions for the Skills as Resources SDK.
  *
  * URI scheme aligned with skillsdotnet conventions:
  *   - skill://{name}/SKILL.md   — listed resource for skill content
@@ -11,6 +11,8 @@
  * - skills-over-mcp by Keith Groves (https://github.com/keithagroves/skills-over-mcp)
  * - SkillsDotNet by Brad Wilson (https://github.com/bradwilson/skillsdotnet)
  */
+
+import type { RegisteredResource } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 /**
  * A file entry in the skill manifest, including content hash.
@@ -65,3 +67,39 @@ export interface SkillMetadata {
   manifestJson: string; // Pre-serialized manifest JSON (avoids I/O on request)
   lastModified: string; // ISO 8601 timestamp from SKILL.md file mtime
 }
+
+/**
+ * Lightweight client-side summary of a discovered skill.
+ * Built from resources/list results and optional frontmatter parsing.
+ */
+export interface SkillSummary {
+  /** Skill name (parsed from URI or frontmatter) */
+  name: string;
+  /** Full skill:// URI for the SKILL.md resource */
+  uri: string;
+  /** Skill description (from resource metadata or frontmatter) */
+  description?: string;
+  /** MIME type of the resource */
+  mimeType?: string;
+}
+
+/**
+ * Options for registerSkillResources().
+ */
+export interface RegisterSkillResourcesOptions {
+  /** Register the resource template for supporting files (skill://{name}/{+path}). Default: true */
+  template?: boolean;
+  /** Register the skill://prompt-xml convenience resource. Default: false */
+  promptXml?: boolean;
+}
+
+/**
+ * Return type for registerSkillResources() — maps skill name to resource handles.
+ */
+export type SkillResourceHandles = Map<
+  string,
+  {
+    skill: RegisteredResource;
+    manifest: RegisteredResource;
+  }
+>;

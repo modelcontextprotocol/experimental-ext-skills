@@ -12,8 +12,8 @@
 
 import * as path from "node:path";
 import { watch, type FSWatcher } from "chokidar";
-import { isPathWithinBase } from "./skill-discovery.js";
-import type { SkillMetadata } from "./types.js";
+import { isPathWithinBase } from "@ext-modelcontextprotocol/skills";
+import type { SkillMetadata } from "@ext-modelcontextprotocol/skills";
 
 /** Debounce interval (ms) for coalescing rapid file changes. */
 const DEBOUNCE_MS = 100;

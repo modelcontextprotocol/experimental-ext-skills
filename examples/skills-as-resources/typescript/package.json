@@ -11,9 +11,9 @@
     "test:smoke": "node smoke-test.js"
   },
   "dependencies": {
+    "@ext-modelcontextprotocol/skills": "file:../../../typescript/sdk",
     "@modelcontextprotocol/sdk": "^1.27.1",
-    "chokidar": "^4.0.3",
-    "yaml": "^2.7.0"
+    "chokidar": "^4.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
