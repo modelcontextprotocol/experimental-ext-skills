@@ -4,8 +4,7 @@
  *
  * A reference implementation demonstrating the Resources approach
  * from the Skills Over MCP Interest Group: exposing agent skills via
- * MCP resources using the skill:// URI scheme, with a load_skill tool
- * for model-controlled progressive disclosure.
+ * MCP resources using the skill:// URI scheme.
  *
  * URI scheme (aligned with skillsdotnet conventions):
  *   - skill://{name}/SKILL.md   — Skill content (listed resource)
@@ -13,8 +12,10 @@
  *   - skill://{name}/{+path}    — Supporting file (resource template, not listed)
  *   - skill://prompt-xml        — XML for system prompt injection (optional)
  *
- * Tool:
- *   - load_skill                — Model-controlled skill loading (progressive disclosure)
+ * Clients are expected to:
+ *   - Scan resources/list for skill://{name}/SKILL.md URIs to discover skills
+ *   - Parse frontmatter for name + description to build context summaries
+ *   - Provide a read_resource tool so the model can load skills on demand
  *
  * Inspired by:
  * - skilljack-mcp by Ola Hungerford (https://github.com/olaservo/skilljack-mcp)
@@ -27,9 +28,8 @@
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { z } from "zod";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { RegisteredResource, RegisteredTool } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { RegisteredResource } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { discoverSkills, loadSkillContent, loadDocument } from "./skill-discovery.js";
@@ -37,16 +37,12 @@ import { generateSkillsXML, isTextMimeType } from "./resource-helpers.js";
 import { createSubscriptionManager } from "./subscriptions.js";
 import { createSkillDirectoryWatcher } from "./skill-watcher.js";
 
-// Parse CLI arguments: [skillsDir] [--no-embed-catalog]
+// Parse CLI arguments: [skillsDir]
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const { values: flags, positionals } = parseArgs({
+const { positionals } = parseArgs({
   args: process.argv.slice(2),
-  options: {
-    "no-embed-catalog": { type: "boolean", default: false },
-  },
   allowPositionals: true,
 });
-const embedCatalog = !flags["no-embed-catalog"];
 const skillsDir = positionals[0]
   ? path.resolve(positionals[0])
   : path.resolve(__dirname, "../../../sample-skills");
@@ -63,18 +59,15 @@ function getSkillListStr(): string {
 console.error(
   `[skills-as-resources] Discovered ${skillMap.size} skill(s): ${getSkillListStr()}`
 );
-console.error(
-  `[skills-as-resources] Catalog embedding: ${embedCatalog ? "on" : "off (--no-embed-catalog)"}`
-);
 for (const [name, skill] of skillMap) {
   const fileCount = skill.manifest.files.length;
   console.error(`  - ${name}: ${fileCount} file(s) in manifest`);
 }
 
-// Create MCP server with resources and tools capabilities
+// Create MCP server with resources capabilities
 const server = new McpServer(
   { name: "skills-as-resources-example", version: "0.2.0" },
-  { capabilities: { resources: { listChanged: true, subscribe: true }, tools: {} } }
+  { capabilities: { resources: { listChanged: true, subscribe: true } } }
 );
 
 // --- Static resources ---
@@ -275,70 +268,6 @@ server.registerResource(
   }
 );
 
-// --- Tool for model-controlled progressive disclosure ---
-
-// Tool: load_skill — allows models to discover and load skills on demand.
-// Description dynamically lists available skill names, mirroring
-// skillsdotnet's SkillCatalog pattern but implemented server-side.
-// When --no-embed-catalog is set, the description only lists skill names
-// (useful when the client already injects skill context from resources).
-const loadSkillToolDescription = () => {
-  const base =
-    `Load the full SKILL.md content for a named skill. ` +
-    `Use this when you need detailed instructions for performing a specific task.`;
-  return embedCatalog
-    ? base + `\n\n` + generateSkillsXML(skillMap)
-    : base + ` Available skills: ${getSkillListStr()}`;
-};
-
-const loadSkillTool: RegisteredTool = server.registerTool(
-  "load_skill",
-  {
-    description: loadSkillToolDescription(),
-    annotations: {
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false,
-    },
-    inputSchema: {
-      skillName: z.string().describe("The name of the skill to load"),
-    },
-  },
-  async ({ skillName }) => {
-    const skill = skillMap.get(skillName);
-    if (!skill) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Skill "${skillName}" not found. Available skills: ${getSkillListStr()}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-
-    try {
-      const content = loadSkillContent(skill.path, skillsDir);
-      return {
-        content: [{ type: "text" as const, text: content }],
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Failed to load skill "${skillName}": ${message}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-  }
-);
-
 // --- Resource subscriptions ---
 
 // Watch subscribed skill files and notify on changes.
@@ -390,9 +319,6 @@ const directoryWatcher = createSkillDirectoryWatcher(skillsDir, () => {
       );
     }
   }
-
-  // Update load_skill tool description with current skill list
-  loadSkillTool.update({ description: loadSkillToolDescription() });
 });
 
 // Clean up watchers on exit
