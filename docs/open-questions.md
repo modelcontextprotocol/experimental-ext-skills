@@ -6,21 +6,13 @@ Should skills be discoverable through registry metadata ("if you install this se
 
 ## 2. How do "first-class" skills differ from "skills as context"?
 
-Native agent skills can be presented through the user agent, bundled with subagents, etc. Do MCP-surfaced skills lose capabilities compared to directly installed skills?
+'Native' agent skills can be presented through the user agent, bundled with subagents, etc. Do MCP-surfaced skills lose capabilities compared to directly installed skills? This question also ties into a more general topic about context-as-resources discoverability and standardization of client host behavior — it's not just a skills-specific framing question.
 
-**Community input:**
-
-> "The only slight concern I have is the idea that there are still 'first class skills' (skills that agents recognize as skills, can be presented as skills through the user agent, can be bundled with subagents, etc) and these sort of 'skills as context' approaches where the agent can certainly discover and ingest the skills data, but possibly with some differences compared to how they would apply first class skills." — [Bob Dickinson](https://github.com/TeamSparkAI)
-
-> "I don't like creating dichotomy between first-class skills and skills as context, because pretty much everything an MCP server exposes is context. Skills-as-resources is much more accurate." — [Peder Holdgaard Pedersen](https://github.com/PederHP)
+For more community input on this topic see: (approaches.md#design-principles)
 
 ## 3. Should server.instructions be extended for richer content?
 
 Or is the separation between "primitive server" and "skill that uses the primitive" the right abstraction?
-
-**Community input:**
-
-> "I would caution against seeing skills as too tightly coupled with tools. Not all skills need to be related to the tools on a server — or even client-side tool use at all. This is especially true for agents that use very broad tools or heavily reliant on code interpreter and similar meta-tools." — [Peder Holdgaard Pedersen](https://github.com/PederHP)
 
 ## 4. How should skills relate to multiple servers?
 
@@ -34,11 +26,9 @@ Early experiments suggest they do, but more rigorous testing is needed.
 
 > "Clients have been slow to implement support for resources. Had some parallel primitive 'skills' been implemented, I'm not sure clients would have implemented them any faster. Basically they all went for 'tools' and have slowly been getting around to implementing other primitives." — [Cliff Hall](https://github.com/cliffhall)
 
-## 6. How do we coordinate with agent skills spec owners?
+## ~~6. How do we coordinate with agent skills spec owners?~~
 
-The contribution model for the skills spec isn't clear, and MCP-related efforts should be brought to their attention.
-
-- [Ola Hungerford](https://github.com/olaservo)
+[Answered in this PR](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/28)
 
 ## 7. What would MCP have had to get right for skills to have been shipped over MCP from the beginning?
 
@@ -92,6 +82,8 @@ Note: Some apps like Claude Code have started to indicate in the skill frontmatt
 
 > "If the conclusion is 'just use resources', I am fine with that direction too — but then we should standardize a way to identify and list workflow resources as 'skills' so clients can reliably surface them (otherwise we are back to out-of-band conventions)." — [sebthom](https://github.com/modelcontextprotocol/modelcontextprotocol/issues/2167#issuecomment-3824771018)
 
+See also [Approaches](approaches.md) for more notes on using resources.
+
 ## 13. What is the optimal relationship between skills and MCP?
 
 Skills already work as simple files that agents load directly. Adding MCP to the process should provide clear value beyond what standalone skills already offer.
@@ -101,3 +93,5 @@ Skills already work as simple files that agents load directly. Adding MCP to the
 > "Skills are simple files that agents can load directly even if they don't have any MCP servers connected. Adding MCP to the process only for that would be over complicating something that already works well... the question becomes 'what is the optimal relationship between skills and MCP?'" — [Cliff Hall](https://github.com/cliffhall)
 
 >  "Skills can be benefit from MCP Servers as an "official" distribution channel from an organizations. Also, Skills _can be_ dependendent on the specific tools _only_ available on the MCP server they are distributed with. I see Skills and MCP are complementary to each other." — [Yu Yi](https://github.com/erain)
+
+> "MCP servers are most useful as an appendage of skills, like `scripts/` are. That also naturally answers the question of multi-server skills." — [Jonathan Hefner](https://github.com/jonathanhefner)

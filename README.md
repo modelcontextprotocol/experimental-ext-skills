@@ -20,6 +20,7 @@ This Interest Group explores how "[agent skills](https://agentskills.io/)" (rich
 - **Approving spec changes:** This IG does not have authority to approve protocol changes; recommendations flow through the SEP process
 - **Registry schema decisions:** Coordinate with Registry WG; this IG explores requirements but doesn't own the schema
 - **Client implementation mandates:** We can document patterns but not require specific client behavior
+- **Plugin/bundle packaging:** Some use cases surface a broader need for installable bundles (skills + servers + subagents + configuration as a single artifact). How to solve for this is out of scope.
 
 ## Problem Statement
 
@@ -42,6 +43,7 @@ See [problem-statement.md](docs/problem-statement.md) for full details.
 | [Open Questions](docs/open-questions.md) | Unresolved questions with community input |
 | [Experimental Findings](docs/experimental-findings.md) | Results from implementations and testing |
 | [Related Work](docs/related-work.md) | SEPs, implementations, and external resources |
+| [Meeting Notes](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-ig) | Published after each working session |
 | [Contributing](CONTRIBUTING.md) | How to participate |
 
 ## Stakeholder Groups
@@ -57,7 +59,7 @@ See [problem-statement.md](docs/problem-statement.md) for full details.
 | Role | Name | Organization | GitHub |
 | :--- | :--- | :--- | :--- |
 | Maintainer | Ola Hungerford | Nordstrom / MCP Maintainer | [@olaservo](https://github.com/olaservo) |
-| Facilitator | Bob Dickinson | TeamSpark.ai | [@TeamSparkAI](https://github.com/TeamSparkAI) |
+| Facilitator | Bob Dickinson | TeamSpark.ai | [@BobDickinson](https://github.com/BobDickinson) |
 | Facilitator | Rado | Stacklok / MCP Maintainer | [@rdimitrov](https://github.com/rdimitrov) |
 | Facilitator | Yu Yi | Google | [@erain](https://github.com/erain) |
 | Facilitator | Ozz | Stacklok | [@JAORMX](https://github.com/JAORMX) |
@@ -86,7 +88,7 @@ This IG may propose becoming a Working Group if:
 | Item | Status | Champion | Notes |
 | :--- | :--- | :--- | :--- |
 | Requirements alignment | In Progress | All facilitators | Review approaches, identify common requirements and gaps |
-| Agent Skills spec coordination | Not Started | TBD | Establish communication with agentskills.io maintainers |
+| Agent Skills spec coordination | In Progress | Ola | Use [agentskills/agentskills Discussions](https://github.com/agentskills/agentskills/discussions) for intersecting topics; see [contributing guide](https://github.com/agentskills/agentskills/blob/main/CONTRIBUTING.md) |
 | Experimental findings repo | Proposed | Ola | Dedicated repo for implementations and evaluation results |
 | SEP-2076 review | In Progress | Yu Yi | Skills as first-class primitive proposal |
 | Registry skills.json proposal | In Progress | Ozz | Skills metadata in registry schema |
