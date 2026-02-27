@@ -1,5 +1,5 @@
 /**
- * Skill discovery, content loading, and document scanning module.
+ * Server-side skill discovery, content loading, and MCP resource registration.
  *
  * Discovers Agent Skills by scanning a directory for subdirectories
  * containing SKILL.md files, parses YAML frontmatter for metadata,
@@ -14,8 +14,17 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
 import { parse as parseYaml } from "yaml";
-import type { SkillMetadata, SkillDocument, SkillManifest } from "./types.js";
-import { getMimeType } from "./resource-helpers.js";
+import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type {
+  SkillMetadata,
+  SkillDocument,
+  SkillManifest,
+  RegisterSkillResourcesOptions,
+  SkillResourceHandles,
+} from "./types.js";
+import { getMimeType, isTextMimeType } from "./mime.js";
+import { generateSkillsXML } from "./xml.js";
 
 /** Maximum file size for skill files (1MB). */
 const MAX_FILE_SIZE = 1 * 1024 * 1024;
@@ -62,7 +71,7 @@ function parseFrontmatter(content: string): {
  */
 export function isPathWithinBase(
   targetPath: string,
-  baseDir: string
+  baseDir: string,
 ): boolean {
   try {
     const realBase = fs.realpathSync(baseDir);
@@ -84,7 +93,7 @@ export function isPathWithinBase(
 function scanDir(
   dirPath: string,
   relativeTo: string,
-  baseDir: string
+  baseDir: string,
 ): SkillDocument[] {
   const documents: SkillDocument[] = [];
 
@@ -108,7 +117,9 @@ function scanDir(
         const stat = fs.statSync(fullPath);
         if (stat.size > MAX_FILE_SIZE) continue;
 
-        const relativePath = path.relative(relativeTo, fullPath).replace(/\\/g, "/");
+        const relativePath = path
+          .relative(relativeTo, fullPath)
+          .replace(/\\/g, "/");
         documents.push({
           path: relativePath,
           mimeType: getMimeType(entry.name),
@@ -131,11 +142,10 @@ function scanDir(
  * Scan a skill directory for all supplementary files.
  * Finds all files in the skill directory (including root-level files
  * and subdirectories), excluding SKILL.md / skill.md itself.
- * This matches skillsdotnet's behavior of including all files recursively.
  */
 export function scanDocuments(
   skillDir: string,
-  baseDir: string
+  baseDir: string,
 ): SkillDocument[] {
   const documents: SkillDocument[] = [];
 
@@ -146,24 +156,23 @@ export function scanDocuments(
     return documents;
   }
 
-  // Skip the main skill file names
   const skipFiles = new Set(["SKILL.md", "skill.md"]);
 
   for (const entry of entries) {
     const fullPath = path.join(skillDir, entry.name);
 
     if (entry.isDirectory()) {
-      // Recurse into subdirectories
       documents.push(...scanDir(fullPath, skillDir, baseDir));
     } else if (entry.isFile() && !skipFiles.has(entry.name)) {
-      // Include root-level files (excluding SKILL.md)
       if (!isPathWithinBase(fullPath, baseDir)) continue;
 
       try {
         const stat = fs.statSync(fullPath);
         if (stat.size > MAX_FILE_SIZE) continue;
 
-        const relativePath = path.relative(skillDir, fullPath).replace(/\\/g, "/");
+        const relativePath = path
+          .relative(skillDir, fullPath)
+          .replace(/\\/g, "/");
         documents.push({
           path: relativePath,
           mimeType: getMimeType(entry.name),
@@ -186,7 +195,9 @@ export function scanDocuments(
  *
  * Security: Skips files larger than MAX_FILE_SIZE, validates frontmatter fields.
  */
-export function discoverSkills(skillsDir: string): Map<string, SkillMetadata> {
+export function discoverSkills(
+  skillsDir: string,
+): Map<string, SkillMetadata> {
   const skillMap = new Map<string, SkillMetadata>();
   const resolvedDir = path.resolve(skillsDir);
 
@@ -218,7 +229,7 @@ export function discoverSkills(skillsDir: string): Map<string, SkillMetadata> {
     const stat = fs.statSync(skillMdPath);
     if (stat.size > MAX_FILE_SIZE) {
       console.error(
-        `Skipping ${skillMdPath}: file size ${(stat.size / 1024 / 1024).toFixed(2)}MB exceeds limit`
+        `Skipping ${skillMdPath}: file size ${(stat.size / 1024 / 1024).toFixed(2)}MB exceeds limit`,
       );
       continue;
     }
@@ -242,19 +253,16 @@ export function discoverSkills(skillsDir: string): Map<string, SkillMetadata> {
       }
       if (typeof description !== "string" || !description.trim()) {
         console.error(
-          `Skill at ${skillDir}: missing or invalid 'description' field`
+          `Skill at ${skillDir}: missing or invalid 'description' field`,
         );
         continue;
       }
 
       // Extract optional metadata fields
       const metadata: Record<string, string> = {};
-      if (
-        frontmatter.metadata &&
-        typeof frontmatter.metadata === "object"
-      ) {
+      if (frontmatter.metadata && typeof frontmatter.metadata === "object") {
         for (const [k, v] of Object.entries(
-          frontmatter.metadata as Record<string, unknown>
+          frontmatter.metadata as Record<string, unknown>,
         )) {
           if (typeof v === "string") {
             metadata[k] = v;
@@ -265,7 +273,7 @@ export function discoverSkills(skillsDir: string): Map<string, SkillMetadata> {
       const trimmedName = name.trim();
       if (skillMap.has(trimmedName)) {
         console.error(
-          `Warning: Duplicate skill name "${trimmedName}" at ${skillMdPath} — keeping first`
+          `Warning: Duplicate skill name "${trimmedName}" at ${skillMdPath} — keeping first`,
         );
         continue;
       }
@@ -315,23 +323,20 @@ export function discoverSkills(skillsDir: string): Map<string, SkillMetadata> {
  */
 export function loadSkillContent(
   skillPath: string,
-  skillsDir: string
+  skillsDir: string,
 ): string {
-  // Security: only allow .md files
   if (!skillPath.endsWith(".md")) {
     throw new Error("Only .md files can be read");
   }
 
-  // Security: verify path is within skills directory
   if (!isPathWithinBase(skillPath, skillsDir)) {
     throw new Error("Path escapes the skills directory");
   }
 
-  // Security: check file size
   const stat = fs.statSync(skillPath);
   if (stat.size > MAX_FILE_SIZE) {
     throw new Error(
-      `File size ${(stat.size / 1024 / 1024).toFixed(2)}MB exceeds ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB limit`
+      `File size ${(stat.size / 1024 / 1024).toFixed(2)}MB exceeds ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB limit`,
     );
   }
 
@@ -340,40 +345,35 @@ export function loadSkillContent(
 
 /**
  * Load a supplementary document from a skill directory.
- * Returns text content (string) for text MIME types and
- * base64-encoded content for binary MIME types.
+ * Returns text content for text MIME types and base64-encoded content for binary.
  *
- * Security: Validates that the path is within the skills directory,
- * rejects path traversal attempts, and enforces a file size limit.
+ * Security: Validates path within skills directory, rejects path traversal,
+ * enforces file size limit.
  */
 export function loadDocument(
   skill: SkillMetadata,
   documentPath: string,
   skillsDir: string,
-  isText: boolean
+  isText: boolean,
 ): { text: string } | { blob: string } {
-  // Security: reject path traversal attempts
   if (documentPath.includes("..")) {
     throw new Error("Path traversal not allowed");
   }
 
-  // Security: reject absolute paths
   if (path.isAbsolute(documentPath)) {
     throw new Error("Absolute paths not allowed");
   }
 
   const fullPath = path.join(skill.skillDir, documentPath);
 
-  // Security: verify path is within skills directory
   if (!isPathWithinBase(fullPath, skillsDir)) {
     throw new Error("Path escapes the skills directory");
   }
 
-  // Security: check file size
   const stat = fs.statSync(fullPath);
   if (stat.size > MAX_FILE_SIZE) {
     throw new Error(
-      `File size ${(stat.size / 1024 / 1024).toFixed(2)}MB exceeds ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB limit`
+      `File size ${(stat.size / 1024 / 1024).toFixed(2)}MB exceeds ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB limit`,
     );
   }
 
@@ -382,4 +382,215 @@ export function loadDocument(
   } else {
     return { blob: fs.readFileSync(fullPath).toString("base64") };
   }
+}
+
+/**
+ * Register MCP resources for all discovered skills on an McpServer.
+ *
+ * Registers per-skill:
+ *   - skill://{name}/SKILL.md — skill content (listed resource)
+ *   - skill://{name}/_manifest — file manifest (listed resource)
+ *
+ * Optionally registers:
+ *   - skill://{name}/{+path} — resource template for supporting files
+ *   - skill://prompt-xml — XML for system prompt injection
+ *
+ * Returns a map of skill name → resource handles for later removal.
+ */
+export function registerSkillResources(
+  server: McpServer,
+  skillMap: Map<string, SkillMetadata>,
+  skillsDir: string,
+  options?: RegisterSkillResourcesOptions,
+): SkillResourceHandles {
+  const handles: SkillResourceHandles = new Map();
+  const { template = true, promptXml = false } = options ?? {};
+
+  // Register per-skill resources
+  for (const [name, skill] of skillMap) {
+    const skillHandle = server.registerResource(
+      `skill-${name}`,
+      `skill://${name}/SKILL.md`,
+      {
+        description: skill.description,
+        mimeType: "text/markdown",
+        annotations: {
+          audience: ["user", "assistant"],
+          priority: 1.0,
+          lastModified: skill.lastModified,
+        },
+      },
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async (uri) => {
+        try {
+          const content = loadSkillContent(skill.path, skillsDir);
+          return {
+            contents: [{ uri: uri.href, text: content }],
+          };
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          return {
+            contents: [
+              {
+                uri: uri.href,
+                text: `# Error\n\nFailed to load skill "${name}": ${message}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    const manifestHandle = server.registerResource(
+      `skill-${name}-manifest`,
+      `skill://${name}/_manifest`,
+      {
+        description: `File manifest for skill '${name}' with content hashes`,
+        mimeType: "application/json",
+        annotations: {
+          audience: ["user", "assistant"],
+          priority: 0.5,
+          lastModified: skill.lastModified,
+        },
+      },
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async (uri) => ({
+        contents: [
+          {
+            uri: uri.href,
+            text: skill.manifestJson,
+          },
+        ],
+      }),
+    );
+
+    handles.set(name, { skill: skillHandle, manifest: manifestHandle });
+  }
+
+  // Resource template for supporting files
+  if (template) {
+    server.registerResource(
+      "skill-file",
+      new ResourceTemplate("skill://{skillName}/{+path}", {
+        list: undefined,
+        complete: {
+          skillName: (value) => {
+            return Array.from(skillMap.values())
+              .filter((s) => s.documents.length > 0)
+              .map((s) => s.name)
+              .filter((n) => n.startsWith(value));
+          },
+          path: (value, context) => {
+            const skillName = context?.arguments?.skillName;
+            if (!skillName) return [];
+
+            const skill = skillMap.get(skillName);
+            if (!skill) return [];
+
+            return skill.documents
+              .map((d) => d.path)
+              .filter((p) => p.startsWith(value));
+          },
+        },
+      }),
+      {
+        description: "Fetch a supporting file from a skill directory",
+        mimeType: "text/plain",
+        annotations: {
+          audience: ["user", "assistant"],
+          priority: 0.2,
+        },
+      },
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async (uri, variables) => {
+        const skillName = Array.isArray(variables.skillName)
+          ? variables.skillName[0]
+          : variables.skillName;
+        const filePath = Array.isArray(variables.path)
+          ? variables.path[0]
+          : variables.path;
+
+        const skill = skillMap.get(skillName);
+        if (!skill) {
+          const names = Array.from(skillMap.keys()).join(", ") || "none";
+          return {
+            contents: [
+              {
+                uri: uri.href,
+                text: `# Error\n\nSkill "${skillName}" not found. Available: ${names}`,
+              },
+            ],
+          };
+        }
+
+        const doc = skill.documents.find((d) => d.path === filePath);
+        if (!doc) {
+          const available =
+            skill.documents.map((d) => `- ${d.path}`).join("\n");
+          return {
+            contents: [
+              {
+                uri: uri.href,
+                text: `# Error\n\nFile "${filePath}" not found in skill "${skillName}".\n\n## Available Files\n\n${available || "No supporting files available."}`,
+              },
+            ],
+          };
+        }
+
+        try {
+          const isText = isTextMimeType(doc.mimeType);
+          const content = loadDocument(skill, filePath, skillsDir, isText);
+          return {
+            contents: [
+              {
+                uri: uri.href,
+                mimeType: doc.mimeType,
+                ...content,
+              },
+            ],
+          };
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          return {
+            contents: [
+              {
+                uri: uri.href,
+                text: `# Error\n\nFailed to read file: ${message}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+  }
+
+  // Optional prompt-xml convenience resource
+  if (promptXml) {
+    server.registerResource(
+      "skills-prompt-xml",
+      "skill://prompt-xml",
+      {
+        description:
+          "XML representation of available skills for injecting into system prompts",
+        mimeType: "application/xml",
+        annotations: {
+          audience: ["user", "assistant"],
+          priority: 0.3,
+        },
+      },
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async (uri) => ({
+        contents: [
+          {
+            uri: uri.href,
+            text: generateSkillsXML(skillMap),
+          },
+        ],
+      }),
+    );
+  }
+
+  return handles;
 }

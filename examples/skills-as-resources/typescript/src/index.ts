@@ -28,12 +28,14 @@
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { RegisteredResource } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { discoverSkills, loadSkillContent, loadDocument } from "./skill-discovery.js";
-import { generateSkillsXML, isTextMimeType } from "./resource-helpers.js";
+import {
+  discoverSkills,
+  registerSkillResources,
+  type SkillResourceHandles,
+} from "@ext-modelcontextprotocol/skills";
 import { createSubscriptionManager } from "./subscriptions.js";
 import { createSkillDirectoryWatcher } from "./skill-watcher.js";
 
@@ -50,14 +52,8 @@ const skillsDir = positionals[0]
 // Discover skills at startup
 const skillMap = discoverSkills(skillsDir);
 
-/** Dynamic skill list string — reflects current skillMap contents. */
-function getSkillListStr(): string {
-  const names = Array.from(skillMap.keys());
-  return names.join(", ") || "none";
-}
-
 console.error(
-  `[skills-as-resources] Discovered ${skillMap.size} skill(s): ${getSkillListStr()}`
+  `[skills-as-resources] Discovered ${skillMap.size} skill(s): ${Array.from(skillMap.keys()).join(", ") || "none"}`
 );
 for (const [name, skill] of skillMap) {
   const fileCount = skill.manifest.files.length;
@@ -70,202 +66,15 @@ const server = new McpServer(
   { capabilities: { resources: { listChanged: true, subscribe: true } } }
 );
 
-// --- Static resources ---
+// --- Register all skill resources via SDK ---
 
-// Resource: skill://prompt-xml — XML for system prompt injection (optional convenience)
-server.registerResource(
-  "skills-prompt-xml",
-  "skill://prompt-xml",
-  {
-    description:
-      "XML representation of available skills for injecting into system prompts",
-    mimeType: "application/xml",
-    annotations: {
-      audience: ["user", "assistant"],
-      priority: 0.3,
-    },
-  },
-  async (uri) => ({
-    contents: [
-      {
-        uri: uri.href,
-        text: generateSkillsXML(skillMap),
-      },
-    ],
-  })
-);
-
-// Track resource handles so we can remove them when skills are removed dynamically.
-const resourceHandles = new Map<string, {
-  skill: RegisteredResource;
-  manifest: RegisteredResource;
-}>();
-
-/**
- * Register the SKILL.md and _manifest resources for a single skill.
- * Returns the resource handles for later removal.
- */
-function registerSkillResources(
-  name: string,
-  skill: import("./types.js").SkillMetadata,
-): { skill: RegisteredResource; manifest: RegisteredResource } {
-  const skillHandle = server.registerResource(
-    `skill-${name}`,
-    `skill://${name}/SKILL.md`,
-    {
-      description: skill.description,
-      mimeType: "text/markdown",
-      annotations: {
-        audience: ["user", "assistant"],
-        priority: 1.0,
-        lastModified: skill.lastModified,
-      },
-    },
-    async (uri) => {
-      try {
-        const content = loadSkillContent(skill.path, skillsDir);
-        return {
-          contents: [{ uri: uri.href, text: content }],
-        };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              text: `# Error\n\nFailed to load skill "${name}": ${message}`,
-            },
-          ],
-        };
-      }
-    }
-  );
-
-  const manifestHandle = server.registerResource(
-    `skill-${name}-manifest`,
-    `skill://${name}/_manifest`,
-    {
-      description: `File manifest for skill '${name}' with content hashes`,
-      mimeType: "application/json",
-      annotations: {
-        audience: ["user", "assistant"],
-        priority: 0.5,
-        lastModified: skill.lastModified,
-      },
-    },
-    async (uri) => ({
-      contents: [
-        {
-          uri: uri.href,
-          text: skill.manifestJson,
-        },
-      ],
-    })
-  );
-
-  return { skill: skillHandle, manifest: manifestHandle };
-}
-
-// Per-skill static resources
-for (const [name, skill] of skillMap) {
-  resourceHandles.set(name, registerSkillResources(name, skill));
-}
-
-// --- Resource template for supporting files ---
-
-// Template: skill://{skillName}/{+path}
-// The {+} prefix uses RFC 6570 reserved expansion, matching paths with slashes.
-// NOT listed — supporting files are discoverable via the _manifest resource.
-server.registerResource(
-  "skill-file",
-  new ResourceTemplate("skill://{skillName}/{+path}", {
-    list: undefined,
-    complete: {
-      skillName: (value) => {
-        return Array.from(skillMap.values())
-          .filter((s) => s.documents.length > 0)
-          .map((s) => s.name)
-          .filter((name) => name.startsWith(value));
-      },
-      path: (value, context) => {
-        const skillName = context?.arguments?.skillName;
-        if (!skillName) return [];
-
-        const skill = skillMap.get(skillName);
-        if (!skill) return [];
-
-        // SDK's createCompletionResult handles truncation to 100 and sets total/hasMore
-        return skill.documents
-          .map((d) => d.path)
-          .filter((p) => p.startsWith(value));
-      },
-    },
-  }),
-  {
-    description: "Fetch a supporting file from a skill directory",
-    mimeType: "text/plain",
-    annotations: {
-      audience: ["user", "assistant"],
-      priority: 0.2,
-    },
-  },
-  async (uri, variables) => {
-    const skillName = Array.isArray(variables.skillName)
-      ? variables.skillName[0]
-      : variables.skillName;
-    const filePath = Array.isArray(variables.path)
-      ? variables.path[0]
-      : variables.path;
-
-    const skill = skillMap.get(skillName);
-    if (!skill) {
-      return {
-        contents: [
-          {
-            uri: uri.href,
-            text: `# Error\n\nSkill "${skillName}" not found. Available: ${getSkillListStr()}`,
-          },
-        ],
-      };
-    }
-
-    const doc = skill.documents.find((d) => d.path === filePath);
-    if (!doc) {
-      const available = skill.documents.map((d) => `- ${d.path}`).join("\n");
-      return {
-        contents: [
-          {
-            uri: uri.href,
-            text: `# Error\n\nFile "${filePath}" not found in skill "${skillName}".\n\n## Available Files\n\n${available || "No supporting files available."}`,
-          },
-        ],
-      };
-    }
-
-    try {
-      const isText = isTextMimeType(doc.mimeType);
-      const content = loadDocument(skill, filePath, skillsDir, isText);
-      return {
-        contents: [
-          {
-            uri: uri.href,
-            mimeType: doc.mimeType,
-            ...content,
-          },
-        ],
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return {
-        contents: [
-          {
-            uri: uri.href,
-            text: `# Error\n\nFailed to read file: ${message}`,
-          },
-        ],
-      };
-    }
-  }
+// registerSkillResources closes over skillMap by reference, so dynamic
+// mutations (add/delete) are reflected in template completions and prompt-xml.
+const resourceHandles: SkillResourceHandles = registerSkillResources(
+  server,
+  skillMap,
+  skillsDir,
+  { template: true, promptXml: true },
 );
 
 // --- Resource subscriptions ---
@@ -309,11 +118,16 @@ const directoryWatcher = createSkillDirectoryWatcher(skillsDir, () => {
     }
   }
 
-  // Find added skills
+  // Find added skills — register via SDK with single-entry map
   for (const [name, metadata] of newSkillMap) {
     if (!skillMap.has(name)) {
       skillMap.set(name, metadata);
-      resourceHandles.set(name, registerSkillResources(name, metadata));
+      const singleMap = new Map([[name, metadata]]);
+      const newHandles = registerSkillResources(server, singleMap, skillsDir, {
+        template: false,  // Already registered at startup
+        promptXml: false,  // Already registered (and reads from skillMap by ref)
+      });
+      resourceHandles.set(name, newHandles.get(name)!);
       console.error(
         `[skills-as-resources] Skill added: ${name} (${metadata.manifest.files.length} file(s))`
       );
