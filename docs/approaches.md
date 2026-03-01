@@ -11,6 +11,9 @@ Several design considerations are emerging from community discussion:
 - **Don't assume how tool paradigms will evolve.** The conceptual surface of skills shouldn't bake in assumptions about how tools develop. That doesn't preclude skills being implemented as a well-known tool, but the design should not couple skills to any particular tool evolution path.
 - **Let the primitive choice follow from the use case.** The answer may not be "resources" or "new primitive" — it may be both, depending on the interaction pattern. Some skills are context for the model. Some are context for the human. Some are both. The delivery mechanism should support that range. ([See related thread on SEP 2076](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076#discussion_r2736299627))
 - **Minimize ecosystem complexity.** The broader AI tooling ecosystem is experiencing complexity fatigue — too many overlapping concepts (servers, skills, plugins, hooks, agents) erode credibility and adoption. Whatever approach the IG recommends should reuse existing MCP primitives where possible and only introduce new surface area when there's a clear case that existing primitives can't serve the need. ([See related issue](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/14))
+- **Skills are context, and the pattern extends beyond workflows.** The skill format and progressive disclosure pattern apply equally to organizational knowledge and in-context learning — not just tool-usage workflows. MCP also provides trust and security advantages over git-based distribution (see [Open Question 10](open-questions.md#10-how-should-skills-handle-security-and-trust-boundaries)).
+
+> "Skills are really just context, and the format/standard provides a standardized way to have progressive disclosure for injected context. They're named skills, but they work very well for any kind of in-context learning, including organizational/institutional knowledge." — [Peder Holdgaard Pedersen](https://github.com/PederHP) (Saxo Bank), via Discord
 
 ## Central Tension: Convention vs. Protocol Extension
 
@@ -83,13 +86,35 @@ The group aligned on focusing the skills-as-resources approach using client help
 - **Client-side tooling:** Rather than each server shipping its own `load_skill` tool, clients should support model-driven resource loading directly — e.g., a built-in `read_resource` tool on the client side and an SDK-level `list_skill_uris()` method. This is a small lift for clients (compared to something like elicitation or sampling) and avoids duplicate approaches or increased compatibility matrices. — [Peter Alexander](https://github.com/peter-anthropic)
 - **Three-part framing** (Ola Hungerford): The repo should contain (1) server implementation — how skills should be made available as resources, (2) client implementation — what client tools should be available to consume skills as resources, and (3) examples of server-side workarounds for clients that don't yet support (2)
 - **Hinting workaround:** Using a special hinting tool to remind the model to load skills — a workaround for models not proactively reaching for resources on their own — [Nate Moore](https://github.com/natemoo-re) (Zapier)
+- **Resources adoption insight:** Resources are such a general primitive that part of the lack of adoption is that it's hard for many to see the value without a concrete use case driving it. Skills could be the use case that drives broader resource adoption — by defining a standardized `skill://` convention, clients have a clear reason to implement resource loading. — Ola Hungerford, Feb 26 office hours
 - **Next steps:** Partner with a few client implementors to test once the extension is ready. The "workaround" implementations (e.g., skills in tool descriptions) remain as comparison baselines, but should be more clearly separated in intent.
+
+> "Skills as skill:// Resources sounds brilliant… Could be the next compelling Resource after ui:// and all that's happening with MCP Apps." — tadasant (PulseMCP), via Discord
 
 This approach may also:
 
 - Use resource templates for parameterized skill discovery
 - Use Prompts for explicit skill invocation
 - Use `tools/listChanged` and other notifications for dynamic updates without server re-initialization
+
+### Distribution and Provenance Considerations
+
+Several design constraints have emerged from community discussion around how skills are distributed over MCP:
+
+- **Ephemeral availability:** Skills should be available while a server is installed, without requiring a separate permanent install step. Clients could optionally offer to permanently install skills discovered from servers.
+- **Provenance metadata:** The server URL for remote servers should be bundled into skill frontmatter metadata, so skills carry their origin and source identity.
+- **SDK ergonomics:** It would be valuable at the SDK level to provide frontmatter and body content separately in code, rather than requiring authors to construct a single markdown blob.
+- **Trust model alignment:** Skill trust should align with existing MCP trust — based on server trust. The community consensus is to discourage using MCP as a mechanism for providing a skills marketplace for arbitrary third-party content.
+- **No OS-level packaging:** MCP servers should not provide platform-specific bundles (tar.gz, etc.); skills should remain text-based context. MCP has no notion of operating system or environment on the receiving side.
+- **Git-based distribution:** Versioned distribution via git (tags, pinned refs) is viable without a formal registry. Clare Liguori (AWS) noted that Terraform operated without a formal registry for a long time — Feb 26 office hours.
+
+**Community input:**
+
+> "Installless/temporary/ephemeral skill availability while server is installed feels like a good pattern. Clients could optionally offer to permanently install." — [Sam Morrow](https://github.com/SamMorrowDrums) (GitHub), via Discord
+
+> "We should probably stipulate that the server URL for remote servers also be bundled into frontmatter metadata, ideally given the way users may discover these autonomously, encoding source identity in a way that is collocated will be good when things go wrong." — [Sam Morrow](https://github.com/SamMorrowDrums) (GitHub), via Discord
+
+> "We have no notion of operating system/environment and I don't think MCP servers providing tar.gz bundles of arbitrary content is a great idea… the trust model is same as MCP, based on server trust, so broadly I think we want to discourage using MCP as a mechanism for providing a skills marketplace for arbitrary 3rd party content." — [Sam Morrow](https://github.com/SamMorrowDrums) (GitHub), via Discord
 
 ### Variant: Skills via Sampling
 

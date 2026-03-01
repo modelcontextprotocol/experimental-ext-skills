@@ -29,7 +29,12 @@ Original implementations from external repositories (example implementations in 
 | Strands Agents MCP server | AWS | [github.com/strands-agents/mcp-server](https://github.com/strands-agents/mcp-server/) | Docs-as-MCP: TF-IDF search + doc fetch |
 | AWS MCP server | AWS | [docs.aws.amazon.com/aws-mcp/…](https://docs.aws.amazon.com/aws-mcp/latest/userguide/understanding-mcp-server-tools.html) | `retrieve_agent_sop` (skills) + `call_aws` (tool) |
 | Kiro powers directory | Kiro | [github.com/kirodotdev/powers](https://github.com/kirodotdev/powers/) | Plugin directory bundling skills + MCP servers |
-| MCPB | MCP | [github.com/modelcontextprotocol/mcpb](https://github.com/modelcontextprotocol/mcpb) | Bundle manifest packaging MCP server config alongside skill files |
+| NimbleBrain mcp-ipinfo | NimbleBrain | [github.com/NimbleBrainInc/mcp-ipinfo](https://github.com/NimbleBrainInc/mcp-ipinfo) | skill:// resource colocation example |
+| NimbleBrain mcp-webfetch | NimbleBrain | [github.com/NimbleBrainInc/mcp-webfetch](https://github.com/NimbleBrainInc/mcp-webfetch) | skill:// resource colocation example |
+| NimbleBrain mcp-pdfco | NimbleBrain | [github.com/NimbleBrainInc/mcp-pdfco](https://github.com/NimbleBrainInc/mcp-pdfco) | skill:// resource colocation example |
+| NimbleBrain mcp-folk | NimbleBrain | [github.com/NimbleBrainInc/mcp-folk](https://github.com/NimbleBrainInc/mcp-folk) | skill:// resource colocation example |
+| NimbleBrain mcp-brave-search | NimbleBrain | [github.com/NimbleBrainInc/mcp-brave-search](https://github.com/NimbleBrainInc/mcp-brave-search) | skill:// resource colocation example |
+| MCPB | MCP | [github.com/modelcontextprotocol/mcpb](https://github.com/modelcontextprotocol/mcpb) | Bundle manifest packaging MCP server config alongside skill files; Ola and Eliot Roe (Validin) are actively experimenting with MCPB for bundling servers + skills as an alternative to the plugin model (Feb 26 office hours) |
 
 ## External Resources
 

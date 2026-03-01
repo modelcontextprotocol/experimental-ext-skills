@@ -20,6 +20,18 @@ A skill orchestrating tools from several servers can't live in any single server
 
 **Related:** [agentskills/agentskills#110](https://github.com/agentskills/agentskills/issues/110) — Discusses how skills should declare their tool/server dependencies. The lack of explicit dependency configuration makes multi-server skill execution unpredictable: if required servers and tools aren't already loaded, the skill can't reliably execute.
 
+**Emerging proposal — host-mediated dependency resolution:** Skills would declare MCP servers and/or tools as dependencies in their frontmatter. The host mediates availability: if required dependencies are not present, the skill frontmatter should not be loaded into model context (it is effectively not an available skill). This model also enables local caching of skills — they can be downloaded once and used offline as long as their dependencies are available.
+
+The agentskills.io spec currently has a freeform [compatibility field](https://agentskills.io/specification#compatibility-field) but no formal dependency mechanism. Some existing tools (e.g., skills.sh) handle dependencies implicitly by instructing agents to install via bash/npm/uv. Skills may also be composable (skill-to-skill dependencies) — see [Use Case 3](use-cases.md#3-multi-server-composition).
+
+**Community input:**
+
+> "If [required tools/servers are] not available then the skill frontmatter shouldn't be loaded into model context, as it is effectively not an available skill. This also means that you can cache skills locally." — [Peder Holdgaard Pedersen](https://github.com/PederHP) (Saxo Bank), via Discord
+
+> "If there is some standard that we can introduce to specify skill dependencies… and all platforms can read that and load the skill or not based on that would be amazing." — Sunish Sheth, via Discord
+
+> "npx skills is ok for simple use-cases but doesn't work for dependencies across Skill — i.e. if Skill 1 uses Skill 2 — which is one of the benefits of Skills — that they are composable." — [Kaxil Naik](https://github.com/kaxil) (Astronomer), via Discord
+
 ## 5. Do clients actually leverage skills when presented via MCP?
 
 Early experiments suggest they do, but more rigorous testing is needed.
@@ -27,6 +39,8 @@ Early experiments suggest they do, but more rigorous testing is needed.
 **Community input:**
 
 > "Clients have been slow to implement support for resources. Had some parallel primitive 'skills' been implemented, I'm not sure clients would have implemented them any faster. Basically they all went for 'tools' and have slowly been getting around to implementing other primitives." — [Cliff Hall](https://github.com/cliffhall)
+
+Beyond whether clients *can* leverage skills technically, community testing shows models often don't *choose to* use skills even when they are available and preloaded in context — a behavioral problem, not just a technical one. See [Skill Reliability and Adherence](experimental-findings.md#skill-reliability-and-adherence) for detailed findings and [Open Question 15](#15-how-can-clients-ensure-models-reliably-load-and-adhere-to-skills) for potential solutions.
 
 ## ~~6. How do we coordinate with agent skills spec owners?~~
 
@@ -66,6 +80,12 @@ If skills can be abused for prompt injection, what mitigations should be spec'd?
 
 Proposed mitigations: skills are untrusted docs not directives; clients MUST NOT auto-apply without explicit policy; skills should be presented with provenance and be optionally gated.
 
+The distribution channel itself also has trust implications. Current skill distribution via git repos is problematic from a security and trust perspective, particularly for enterprises. MCP's authenticated server model provides a more controlled distribution channel, but the trust model should align with existing MCP trust boundaries — not position MCP as a marketplace for arbitrary third-party content.
+
+> "Current distribution of skills is a nightmare in terms of security and trust — both from an end-user and enterprise point-of-view. A git repo is a problematic distribution channel." — [Peder Holdgaard Pedersen](https://github.com/PederHP) (Saxo Bank), via Discord
+
+> "The trust model is same as MCP, based on server trust, so broadly I think we want to discourage using MCP as a mechanism for providing a skills marketplace for arbitrary 3rd party content." — [Sam Morrow](https://github.com/SamMorrowDrums) (GitHub), via Discord
+
 ## 11. Should the control model be use-case specific?
 
 Perhaps resources (application-controlled) for some use cases, tools (model-controlled) for others? Can a convention support both?
@@ -103,3 +123,16 @@ Skills already work as simple files that agents load directly. Adding MCP to the
 >  "Skills can be benefit from MCP Servers as an "official" distribution channel from an organizations. Also, Skills _can be_ dependendent on the specific tools _only_ available on the MCP server they are distributed with. I see Skills and MCP are complementary to each other." — [Yu Yi](https://github.com/erain)
 
 > "MCP servers are most useful as an appendage of skills, like `scripts/` are. That also naturally answers the question of multi-server skills." — [Jonathan Hefner](https://github.com/jonathanhefner)
+
+## 15. How can clients ensure models reliably load and adhere to skills?
+
+Community reports indicate models frequently ignore available skills or lose adherence over time, especially as the context window grows and compaction occurs. This is a practical blocker for skill adoption regardless of how skills are delivered (resources, tools, or native).
+
+Sub-questions:
+
+- Should clients implement automatic skill injection at conversation start?
+- How should skill adherence survive context window compaction?
+- Is a "skill autoload" mechanism needed at the protocol or convention level?
+- Should skill adherence be a client implementation concern or part of the skill delivery spec?
+
+See [Skill Reliability and Adherence](experimental-findings.md#skill-reliability-and-adherence) for community reports and workarounds.

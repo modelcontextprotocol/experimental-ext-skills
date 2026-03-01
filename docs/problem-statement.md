@@ -8,6 +8,8 @@
 - **Complex workflows exceed practical instruction size** — some skills require hundreds of lines of markdown with references to bundled files, scripts, and examples
 - **No discovery mechanism** — users installing MCP servers from a registry don't know if there's a corresponding skill they should also install
 - **Multi-server orchestration** — skills may need to coordinate tools from multiple servers, which doesn't fit the single-server instruction model
+- **Distribution channel trust and security** — current skill distribution via git repos is problematic from a security and trust perspective, particularly for enterprise users. MCP's authenticated server model provides a more controlled distribution channel. (See [Open Question 10](open-questions.md#10-how-should-skills-handle-security-and-trust-boundaries) for community input.)
+- **Skill-at-scale discovery** — a server may expose many skills, but clients need selective loading. Current discovery mechanisms don't support filtering or relevance-based retrieval of skills.
 
 ## Broader Context
 
