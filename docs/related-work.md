@@ -6,6 +6,7 @@
 | :--- | :--- | :--- |
 | [SEP-2076](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076) | MCP Spec | Agent Skills as a first-class MCP primitive |
 | [skills.json format proposal](https://github.com/modelcontextprotocol/registry/discussions/895) | MCP Registry | Skills metadata in registry schema |
+| [Agent Skills Discovery via Well-Known URIs](https://github.com/cloudflare/agent-skills-discovery-rfc) | Cloudflare | Domain-level skill discovery using `/.well-known/skills/` (RFC 8615); includes integrity verification and progressive disclosure |
 
 ## Implementations
 
@@ -46,4 +47,5 @@ Original implementations from external repositories (example implementations in 
 - **llms.txt convention:** [llmstxt.org](https://llmstxt.org/) — Convention for making documentation LLM-accessible; used by [MCPDoc](https://github.com/langchain-ai/mcpdoc) in a way similar to how skills work.
 - **AWS Agent SOPs:** [docs.aws.amazon.com/…/agent-sops](https://docs.aws.amazon.com/aws-mcp/latest/userguide/agent-sops.html) — Pre-built operational workflows as skill-like guidance
 - **Skill dependency declaration:** [agentskills/agentskills#110](https://github.com/agentskills/agentskills/issues/110) — Discusses how skills should declare their tool/server dependencies
+- **Agent Skills Discovery RFC** (Matt Silverlock / Cloudflare): [github.com/cloudflare/agent-skills-discovery-rfc](https://github.com/cloudflare/agent-skills-discovery-rfc) — Proposes `/.well-known/skills/` for domain-level skill discovery using RFC 8615. Defines an `index.json` discovery index with progressive disclosure (name/description at discovery time, full SKILL.md on activation), SHA-256 content integrity, and optional archive distribution. Complementary to MCP-level discovery: `.well-known` answers "what skills does this domain publish?" while MCP answers "how does the agent consume them at runtime?"
 - **Video background:** [youtube.com/watch?v=CEvIs9y1uog](https://www.youtube.com/watch?v=CEvIs9y1uog)
