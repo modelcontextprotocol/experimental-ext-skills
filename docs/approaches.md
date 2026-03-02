@@ -11,6 +11,7 @@ Several design considerations are emerging from community discussion:
 - **Don't assume how tool paradigms will evolve.** The conceptual surface of skills shouldn't bake in assumptions about how tools develop. That doesn't preclude skills being implemented as a well-known tool, but the design should not couple skills to any particular tool evolution path.
 - **Let the primitive choice follow from the use case.** The answer may not be "resources" or "new primitive" — it may be both, depending on the interaction pattern. Some skills are context for the model. Some are context for the human. Some are both. The delivery mechanism should support that range. ([See related thread on SEP 2076](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076#discussion_r2736299627))
 - **Minimize ecosystem complexity.** The broader AI tooling ecosystem is experiencing complexity fatigue — too many overlapping concepts (servers, skills, plugins, hooks, agents) erode credibility and adoption. Whatever approach the IG recommends should reuse existing MCP primitives where possible and only introduce new surface area when there's a clear case that existing primitives can't serve the need. ([See related issue](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/14))
+- **Skills are context, and the pattern extends beyond workflows.** The skill format and progressive disclosure pattern apply equally to organizational knowledge and in-context learning — not just tool-usage workflows. MCP also provides trust and security advantages over git-based distribution (see [Open Question 10](open-questions.md#10-how-should-skills-handle-security-and-trust-boundaries)).
 
 ## Central Tension: Convention vs. Protocol Extension
 
@@ -76,11 +77,33 @@ Examples:
 
 > "The only slight concern I have is the idea that there are still 'first class skills' (skills that agents recognize as skills, can be presented as skills through the user agent, can be bundled with subagents, etc) and these sort of 'skills as context' approaches where the agent can certainly discover and ingest the skills data, but possibly with some differences compared to how they would apply first class skills." — [Bob Dickinson](https://github.com/TeamSparkAI)
 
+See also [notes from Feb 26th Office Hours](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/2316)
+
 This approach may also:
 
 - Use resource templates for parameterized skill discovery
 - Use Prompts for explicit skill invocation
 - Use `tools/listChanged` and other notifications for dynamic updates without server re-initialization
+
+### Distribution and Provenance Considerations
+
+Several design considerations have been suggested in community discussion and proposals around how skills are distributed over MCP:
+
+- **Ephemeral availability:** Skills should be available while a server is installed, without requiring a separate permanent install step. Clients could optionally offer to permanently install skills discovered from servers.
+- **Provenance metadata:** The server URL for remote servers should be bundled into skill frontmatter metadata, so skills carry their origin and source identity.
+- **SDK ergonomics:** It would be valuable at the SDK level to provide frontmatter and body content separately in code, rather than requiring authors to construct a single markdown blob.
+- **Trust model alignment:** Skill trust should align with existing MCP trust — based on server trust. The community consensus is to discourage using MCP as a mechanism for providing a skills marketplace for arbitrary third-party content.
+- **No OS-level packaging:** MCP servers should not provide platform-specific bundles (tar.gz, etc.); skills should remain text-based context. MCP has no notion of operating system or environment on the receiving side.
+- **Git-based distribution:** Versioned distribution via git (tags, pinned refs) can be viable without a formal registry. Clare Liguori (AWS) noted that Terraform operated without a formal registry for a long time — Feb 26 office hours.
+- **Domain-level discovery:** The [Agent Skills Discovery RFC](https://github.com/cloudflare/agent-skills-discovery-rfc) proposes `/.well-known/skills/` for organizations to publish skills at predictable URLs with content integrity (SHA-256 digests). This is complementary to MCP — it handles discovery and distribution while MCP handles runtime consumption.
+
+**Community input:**
+
+> "Installless/temporary/ephemeral skill availability while server is installed feels like a good pattern. Clients could optionally offer to permanently install." — [Sam Morrow](https://github.com/SamMorrowDrums) (GitHub), via Discord
+
+> "We should probably stipulate that the server URL for remote servers also be bundled into frontmatter metadata, ideally given the way users may discover these autonomously, encoding source identity in a way that is collocated will be good when things go wrong." — [Sam Morrow](https://github.com/SamMorrowDrums) (GitHub), via Discord
+
+> "We have no notion of operating system/environment and I don't think MCP servers providing tar.gz bundles of arbitrary content is a great idea… the trust model is same as MCP, based on server trust, so broadly I think we want to discourage using MCP as a mechanism for providing a skills marketplace for arbitrary 3rd party content." — [Sam Morrow](https://github.com/SamMorrowDrums) (GitHub), via Discord
 
 ### Variant: Skills via Sampling
 
