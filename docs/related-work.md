@@ -31,7 +31,6 @@ Original implementations from external repositories (example implementations in 
 | AWS MCP server | AWS | [docs.aws.amazon.com/aws-mcp/…](https://docs.aws.amazon.com/aws-mcp/latest/userguide/understanding-mcp-server-tools.html) | `retrieve_agent_sop` (skills) + `call_aws` (tool) |
 | Kiro powers directory | Kiro | [github.com/kirodotdev/powers](https://github.com/kirodotdev/powers/) | Plugin directory bundling skills + MCP servers |
 | NimbleBrain skill:// servers | NimbleBrain | [github.com/NimbleBrainInc](https://github.com/NimbleBrainInc) | skill:// resource colocation examples: [mcp-ipinfo](https://github.com/NimbleBrainInc/mcp-ipinfo), [mcp-webfetch](https://github.com/NimbleBrainInc/mcp-webfetch), [mcp-pdfco](https://github.com/NimbleBrainInc/mcp-pdfco), [mcp-folk](https://github.com/NimbleBrainInc/mcp-folk), [mcp-brave-search](https://github.com/NimbleBrainInc/mcp-brave-search) |
-| MCPB | MCP | [github.com/modelcontextprotocol/mcpb](https://github.com/modelcontextprotocol/mcpb) | Bundle manifest packaging MCP server config alongside skill files; Ola and Eliot Roe (Validin) are actively experimenting with MCPB for bundling servers + skills as an alternative to the plugin model (Feb 26 office hours) |
 
 ## External Resources
 
