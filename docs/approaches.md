@@ -13,8 +13,6 @@ Several design considerations are emerging from community discussion:
 - **Minimize ecosystem complexity.** The broader AI tooling ecosystem is experiencing complexity fatigue — too many overlapping concepts (servers, skills, plugins, hooks, agents) erode credibility and adoption. Whatever approach the IG recommends should reuse existing MCP primitives where possible and only introduce new surface area when there's a clear case that existing primitives can't serve the need. ([See related issue](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/14))
 - **Skills are context, and the pattern extends beyond workflows.** The skill format and progressive disclosure pattern apply equally to organizational knowledge and in-context learning — not just tool-usage workflows. MCP also provides trust and security advantages over git-based distribution (see [Open Question 10](open-questions.md#10-how-should-skills-handle-security-and-trust-boundaries)).
 
-> "Skills are really just context, and the format/standard provides a standardized way to have progressive disclosure for injected context. They're named skills, but they work very well for any kind of in-context learning, including organizational/institutional knowledge." — [Peder Holdgaard Pedersen](https://github.com/PederHP) (Saxo Bank), via Discord
-
 ## Central Tension: Convention vs. Protocol Extension
 
 The approaches below span a spectrum. At one end, skills become a first-class MCP primitive with dedicated protocol methods (Approach 1). At the other, existing primitives are used with documented conventions (Approach 6). A key question for this IG is whether convention can prove patterns before standardization — or whether the ecosystem needs protocol-level support to achieve reliable interoperability. These are not mutually exclusive; convention work can inform and de-risk a future protocol extension.
@@ -79,17 +77,7 @@ Examples:
 
 > "The only slight concern I have is the idea that there are still 'first class skills' (skills that agents recognize as skills, can be presented as skills through the user agent, can be bundled with subagents, etc) and these sort of 'skills as context' approaches where the agent can certainly discover and ingest the skills data, but possibly with some differences compared to how they would apply first class skills." — [Bob Dickinson](https://github.com/TeamSparkAI)
 
-### Feb 26 office hours: Direction for skills-as-resources
-
-The group aligned on focusing the skills-as-resources approach using client helper tools:
-
-- **Client-side tooling:** Rather than each server shipping its own `load_skill` tool, clients should support model-driven resource loading directly — e.g., a built-in `read_resource` tool on the client side and an SDK-level `list_skill_uris()` method. This is a small lift for clients (compared to something like elicitation or sampling) and avoids duplicate approaches or increased compatibility matrices. — [Peter Alexander](https://github.com/peter-anthropic)
-- **Three-part framing** (Ola Hungerford): The repo should contain (1) server implementation — how skills should be made available as resources, (2) client implementation — what client tools should be available to consume skills as resources, and (3) examples of server-side workarounds for clients that don't yet support (2)
-- **Hinting workaround:** Using a special hinting tool to remind the model to load skills — a workaround for models not proactively reaching for resources on their own — [Nate Moore](https://github.com/natemoo-re) (Zapier)
-- **Resources adoption insight:** Resources are such a general primitive that part of the lack of adoption is that it's hard for many to see the value without a concrete use case driving it. Skills could be the use case that drives broader resource adoption — by defining a standardized `skill://` convention, clients have a clear reason to implement resource loading. — Ola Hungerford, Feb 26 office hours
-- **Next steps:** Partner with a few client implementors to test once the extension is ready. The "workaround" implementations (e.g., skills in tool descriptions) remain as comparison baselines, but should be more clearly separated in intent.
-
-> "Skills as skill:// Resources sounds brilliant… Could be the next compelling Resource after ui:// and all that's happening with MCP Apps." — tadasant (PulseMCP), via Discord
+See also [notes from Feb 26th Office Hours](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/2316)
 
 This approach may also:
 
@@ -99,7 +87,7 @@ This approach may also:
 
 ### Distribution and Provenance Considerations
 
-Several design constraints have emerged from community discussion around how skills are distributed over MCP:
+Several design considerations have emerged from community discussion around how skills are distributed over MCP:
 
 - **Ephemeral availability:** Skills should be available while a server is installed, without requiring a separate permanent install step. Clients could optionally offer to permanently install skills discovered from servers.
 - **Provenance metadata:** The server URL for remote servers should be bundled into skill frontmatter metadata, so skills carry their origin and source identity.
