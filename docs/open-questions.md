@@ -30,7 +30,7 @@ The agentskills.io spec currently has a freeform [compatibility field](https://a
 
 > "If [required tools/servers are] not available then the skill frontmatter shouldn't be loaded into model context, as it is effectively not an available skill. This also means that you can cache skills locally." — [Peder Holdgaard Pedersen](https://github.com/PederHP) (Saxo Bank), via Discord
 
-> "If there is some standard that we can introduce to specify skill dependencies… and all platforms can read that and load the skill or not based on that would be amazing." — Sunish Sheth, via Discord
+> "If there is some standard that we can introduce to specify skill dependencies… and all platforms can read that and load the skill or not based on that would be amazing." — Sunish Sheth (Databricks), via Discord
 
 > "npx skills is ok for simple use-cases but doesn't work for dependencies across Skill — i.e. if Skill 1 uses Skill 2 — which is one of the benefits of Skills — that they are composable." — [Kaxil Naik](https://github.com/kaxil) (Astronomer), via Discord
 
