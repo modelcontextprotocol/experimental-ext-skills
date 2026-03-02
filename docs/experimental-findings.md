@@ -83,8 +83,6 @@ Introduces support for agent skills with a tools-based approach.
 
 **Community input:**
 
-> "Holy moly — I've spent months avoiding resources and trying to figure out good use cases for them. After this thread, I feel like it clicked. Dropping skills over a resource with some instructions dramatically simplifies all of this." — [Mat Goldsborough](https://github.com/mgoldsborough) (NimbleBrain), via Discord
-
 > "Skills living as skill:// resources on the server itself was the natural endpoint of that consolidation. The skill context is colocated with the tools it describes, versioned together, shipped together." — [Mat Goldsborough](https://github.com/mgoldsborough) (NimbleBrain), via Discord
 
 ## Skill Reliability and Adherence
@@ -108,5 +106,3 @@ Multiple community members have independently reported that models do not reliab
 > "Skills are ephemeral and/or time decaying — it clicks once and then give it some time and they lose the plot." — Kryspin (qcompute), via Discord
 
 > "I've seen lazy load skills with various degrees of success, actually looks like it might be model specific… [best pattern is] putting them in with a subagent that similarly named or mentions the topic in their description." — Kryspin (qcompute), via Discord
-
-**Related:** See [Open Question 15](open-questions.md#15-how-can-clients-ensure-models-reliably-load-and-adhere-to-skills) for discussion on potential solutions.
