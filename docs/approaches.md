@@ -87,14 +87,14 @@ This approach may also:
 
 ### Distribution and Provenance Considerations
 
-Several design considerations have emerged from community discussion around how skills are distributed over MCP:
+Several design considerations have been suggested in community discussion and proposals around how skills are distributed over MCP:
 
 - **Ephemeral availability:** Skills should be available while a server is installed, without requiring a separate permanent install step. Clients could optionally offer to permanently install skills discovered from servers.
 - **Provenance metadata:** The server URL for remote servers should be bundled into skill frontmatter metadata, so skills carry their origin and source identity.
 - **SDK ergonomics:** It would be valuable at the SDK level to provide frontmatter and body content separately in code, rather than requiring authors to construct a single markdown blob.
 - **Trust model alignment:** Skill trust should align with existing MCP trust — based on server trust. The community consensus is to discourage using MCP as a mechanism for providing a skills marketplace for arbitrary third-party content.
 - **No OS-level packaging:** MCP servers should not provide platform-specific bundles (tar.gz, etc.); skills should remain text-based context. MCP has no notion of operating system or environment on the receiving side.
-- **Git-based distribution:** Versioned distribution via git (tags, pinned refs) is viable without a formal registry. Clare Liguori (AWS) noted that Terraform operated without a formal registry for a long time — Feb 26 office hours.
+- **Git-based distribution:** Versioned distribution via git (tags, pinned refs) can be viable without a formal registry. Clare Liguori (AWS) noted that Terraform operated without a formal registry for a long time — Feb 26 office hours.
 - **Domain-level discovery:** The [Agent Skills Discovery RFC](https://github.com/cloudflare/agent-skills-discovery-rfc) proposes `/.well-known/skills/` for organizations to publish skills at predictable URLs with content integrity (SHA-256 digests). This is complementary to MCP — it handles discovery and distribution while MCP handles runtime consumption.
 
 **Community input:**
