@@ -91,10 +91,10 @@ Multiple community members have independently reported that models do not reliab
 
 **Findings:**
 
-- Models frequently ignore available skills, requiring hooks or repeated prompting to trigger skill loading
-- Skill adherence appears to be "time-decaying" — models follow instructions initially but lose adherence as the context window grows and compaction occurs
+- Models appear to frequently ignore available skills, requiring hooks or repeated prompting to trigger skill loading
+- Skill adherence appears to be "time-decaying" similar to other model instructions — models follow instructions initially but lose adherence as the context window grows and compaction occurs
 - Behavior is model-specific: weaker models show lower success rates with lazy-loaded skills
-- Best workaround observed: wrapping skills in a subagent whose name or description mentions the skill topic
+- One effective workaround observed by Kryspin: wrapping skills in a subagent whose name or description mentions the skill topic
 - Community desire for "skill autoloads" and "dynamic memory autoloads" as design patterns
 
 **Community input:**
