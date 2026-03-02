@@ -42,8 +42,6 @@ Early experiments suggest they do, but more rigorous testing is needed.
 
 > "Clients have been slow to implement support for resources. Had some parallel primitive 'skills' been implemented, I'm not sure clients would have implemented them any faster. Basically they all went for 'tools' and have slowly been getting around to implementing other primitives." — [Cliff Hall](https://github.com/cliffhall)
 
-Beyond whether clients *can* leverage skills technically, community testing shows models often don't *choose to* use skills even when they are available and preloaded in context — a behavioral problem, not just a technical one. See [Skill Reliability and Adherence](experimental-findings.md#skill-reliability-and-adherence) for detailed findings and [Open Question 15](#15-how-can-clients-ensure-models-reliably-load-and-adhere-to-skills) for potential solutions.
-
 ## ~~6. How do we coordinate with agent skills spec owners?~~
 
 [Answered in this PR](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/28)
@@ -82,7 +80,7 @@ If skills can be abused for prompt injection, what mitigations should be spec'd?
 
 Proposed mitigations: skills are untrusted docs not directives; clients MUST NOT auto-apply without explicit policy; skills should be presented with provenance and be optionally gated.
 
-The distribution channel itself also has trust implications. Current skill distribution via git repos is problematic from a security and trust perspective, particularly for enterprises. MCP's authenticated server model provides a more controlled distribution channel, but the trust model should align with existing MCP trust boundaries — not position MCP as a marketplace for arbitrary third-party content.
+The distribution channel itself also has trust implications. Current skill distribution via git repos can be problematic from a security and trust perspective, particularly for enterprises. MCP's authenticated server model provides a more controlled distribution channel, but the trust model should align with existing MCP trust boundaries — not position MCP as a marketplace for arbitrary third-party content.
 
 > "Current distribution of skills is a nightmare in terms of security and trust — both from an end-user and enterprise point-of-view. A git repo is a problematic distribution channel." — [Peder Holdgaard Pedersen](https://github.com/PederHP) (Saxo Bank), via Discord
 
@@ -108,12 +106,6 @@ Note: Some apps like Claude Code have started to indicate in the skill frontmatt
 
 See also [Approaches](approaches.md) for more notes on using resources.
 
-## ~14. How should skills and resources be discoverable over MCP?
-
-The MCP registry doesn't currently expose what tools and/or resources are available in `server.json`. This may be addressed as part of the Server Card work rather than the registry itself. Need to track the latest status of the server card + `server.json` relationship going forward.
-
-— Feb 26 office hours
-
 ## 13. What is the optimal relationship between skills and MCP?
 
 Skills already work as simple files that agents load directly. Adding MCP to the process should provide clear value beyond what standalone skills already offer.
@@ -125,16 +117,3 @@ Skills already work as simple files that agents load directly. Adding MCP to the
 >  "Skills can be benefit from MCP Servers as an "official" distribution channel from an organizations. Also, Skills _can be_ dependendent on the specific tools _only_ available on the MCP server they are distributed with. I see Skills and MCP are complementary to each other." — [Yu Yi](https://github.com/erain)
 
 > "MCP servers are most useful as an appendage of skills, like `scripts/` are. That also naturally answers the question of multi-server skills." — [Jonathan Hefner](https://github.com/jonathanhefner)
-
-## 15. How can clients ensure models reliably load and adhere to skills?
-
-Community reports indicate models frequently ignore available skills or lose adherence over time, especially as the context window grows and compaction occurs. This is a practical blocker for skill adoption regardless of how skills are delivered (resources, tools, or native).
-
-Sub-questions:
-
-- Should clients implement automatic skill injection at conversation start?
-- How should skill adherence survive context window compaction?
-- Is a "skill autoload" mechanism needed at the protocol or convention level?
-- Should skill adherence be a client implementation concern or part of the skill delivery spec?
-
-See [Skill Reliability and Adherence](experimental-findings.md#skill-reliability-and-adherence) for community reports and workarounds.
