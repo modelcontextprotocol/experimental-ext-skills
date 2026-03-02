@@ -28,7 +28,6 @@ Loads skills into tool descriptions. Uses dynamic tool updates to keep the skill
 
 Example eval approach and observations here: https://github.com/olaservo/skilljack-mcp/blob/main/evals/README.md
 
-
 ## FastMCP 3.0 Skills Support
 
 **URL:** [gofastmcp.com/servers/providers/skills](https://gofastmcp.com/servers/providers/skills)
