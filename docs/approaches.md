@@ -133,7 +133,7 @@ Use server instructions as a pointer to a resource: "If you need to do X, fetch 
 
 A documented "MCP Skills Convention" as a middle path between ad-hoc experiments and protocol extension. This could:
 
-- Define well-known URI schemes or naming patterns (e.g., resources matching `**/SKILL.md`)
+- Define well-known URI schemes or naming patterns (e.g., resources matching `**/SKILL.md`). See [Skill URI Scheme Proposal](skill-uri-scheme.md) for a detailed survey and recommendation.
 - Recommend metadata structure (version, tags, dependencies) aligned with agentskills.io
 - Provide guidance on control model: resources for application-controlled, `skill()` tool for model-controlled
 - Be documented in MCP docs as a "Pattern" — not in protocol schema, but officially recommended
