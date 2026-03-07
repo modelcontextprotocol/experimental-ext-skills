@@ -2,6 +2,8 @@
 
 ## 1. Is this a registry problem or an MCP server problem?
 
+> **See also:** [#44](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/44) — Define well-known URI schemes and naming patterns for skill resources
+
 Should skills be discoverable through registry metadata ("if you install this server, also install this skill") or contained within the MCP server itself?
 
 A third option is emerging: domain-level discovery via `/.well-known/skills/` (see [Agent Skills Discovery RFC](https://github.com/cloudflare/agent-skills-discovery-rfc)). This decouples skill discovery from both registries and MCP servers — an organization publishes skills at a predictable URL on its own domain. This could complement MCP-level discovery rather than replace it: `.well-known` handles "find available skills," MCP handles "load and use them at runtime."
@@ -17,6 +19,8 @@ For more community input on this topic see: (approaches.md#design-principles)
 Or is the separation between "primitive server" and "skill that uses the primitive" the right abstraction?
 
 ## 4. How should skills relate to multiple servers?
+
+> **Tracked in:** [#39](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/39) — Research skill dependency declaration and host-mediated resolution
 
 A skill orchestrating tools from several servers can't live in any single server's instructions.
 
@@ -36,6 +40,9 @@ The agentskills.io spec currently has a freeform [compatibility field](https://a
 
 ## 5. Do clients actually leverage skills when presented via MCP?
 
+> **Tracked in:** [#38](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/38) — Survey client resource-loading support across major MCP clients
+> **See also:** [#37](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/37) — Compare skill delivery mechanisms: file-based vs MCP-based
+
 Early experiments suggest they do, but more rigorous testing is needed.
 
 **Community input:**
@@ -48,9 +55,13 @@ Early experiments suggest they do, but more rigorous testing is needed.
 
 ## 7. What would MCP have had to get right for skills to have been shipped over MCP from the beginning?
 
+> **See also:** [#47](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/47) — Create evaluation matrix mapping approaches to requirements
+
 — [Keith Groves](https://github.com/keithagroves)
 
 ## 8. What could MCP reasonably change so that it will be the obvious choice for new formats?
+
+> **See also:** [#54](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/54) — The case for custom metadata instead of a URI convention
 
 — [Keith Groves](https://github.com/keithagroves)
 
@@ -94,6 +105,8 @@ Note: Some apps like Claude Code have started to indicate in the skill frontmatt
 
 ## 12. Why not just resources?
 
+> **See also:** [#54](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/54) — The case for custom metadata instead of a URI convention, [#55](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/55) — Define recommended _meta keys for skill resources
+
 **Core Maintainer input:**
 
 > "Why not just resources? That feels like the obvious implementation since skills are just files and resources already exist to expose files. i.e. just expose skills as resources the same as they're currently exposed on the filesystem and then just use the existing Agent Skills specification — client can find skills using resources/list to find SKILL.md files." — [Peter Alexander](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076#discussion_r2736299627)
@@ -107,6 +120,9 @@ Note: Some apps like Claude Code have started to indicate in the skill frontmatt
 See also [Approaches](approaches.md) for more notes on using resources.
 
 ## 13. What is the optimal relationship between skills and MCP?
+
+> **Tracked in:** [#43](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/43) — Draft MCP Skills Convention v0.1
+> **See also:** [#47](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/47) — Create evaluation matrix mapping approaches to requirements
 
 Skills already work as simple files that agents load directly. Adding MCP to the process should provide clear value beyond what standalone skills already offer.
 

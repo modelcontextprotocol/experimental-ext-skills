@@ -85,14 +85,11 @@ This IG may propose becoming a Working Group if:
 
 ## Work Tracking
 
-| Item | Status | Champion | Notes |
-| :--- | :--- | :--- | :--- |
-| Requirements alignment | In Progress | All facilitators | Review approaches, identify common requirements and gaps |
-| Agent Skills spec coordination | In Progress | Ola | Use [agentskills/agentskills Discussions](https://github.com/agentskills/agentskills/discussions) for intersecting topics; see [contributing guide](https://github.com/agentskills/agentskills/blob/main/CONTRIBUTING.md) |
-| Experimental findings repo | Proposed | Ola | Dedicated repo for implementations and evaluation results |
-| SEP-2076 review | In Progress | Yu Yi | Skills as first-class primitive proposal |
-| Registry skills.json proposal | In Progress | Ozz | Skills metadata in registry schema |
-| MCP Skills Convention v0.1 | Proposed | TBD | Documented pattern (not spec) for skills over existing primitives |
+Work items are tracked as [GitHub Issues](https://github.com/modelcontextprotocol/experimental-ext-skills/issues). Key coordination channels:
+
+- **Agent Skills spec coordination:** Use [agentskills/agentskills Discussions](https://github.com/agentskills/agentskills/discussions) for intersecting topics; see [contributing guide](https://github.com/agentskills/agentskills/blob/main/CONTRIBUTING.md)
+- **SEP-2076 review:** [Skills as first-class primitive proposal](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076) (Champion: Yu Yi)
+- **Registry skills.json proposal:** [Skills metadata in registry schema](https://github.com/modelcontextprotocol/registry/discussions/895) (Champion: Ozz)
 
 ## Success Criteria
 
