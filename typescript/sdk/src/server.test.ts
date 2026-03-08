@@ -142,6 +142,67 @@ describe("discoverSkills", () => {
     const skill = skills.get("meta-skill")!;
     expect(skill.metadata).toEqual({ author: "test", version: "1.0" });
   });
+
+  it("extracts dependencies from frontmatter", () => {
+    const skillDir = path.join(tmpDir, "dep-skill");
+    fs.mkdirSync(skillDir);
+    fs.writeFileSync(
+      path.join(skillDir, "SKILL.md"),
+      "---\nname: dep-skill\ndescription: Has deps\ndependencies: [server-a, server-b]\n---\n# Dep",
+    );
+
+    const skills = discoverSkills(tmpDir);
+    const skill = skills.get("dep-skill")!;
+    expect(skill.dependencies).toEqual(["server-a", "server-b"]);
+  });
+
+  it("extracts single dependency", () => {
+    const skillDir = path.join(tmpDir, "single-dep");
+    fs.mkdirSync(skillDir);
+    fs.writeFileSync(
+      path.join(skillDir, "SKILL.md"),
+      "---\nname: single-dep\ndescription: One dep\ndependencies: [everything-server]\n---\n# Single",
+    );
+
+    const skills = discoverSkills(tmpDir);
+    const skill = skills.get("single-dep")!;
+    expect(skill.dependencies).toEqual(["everything-server"]);
+  });
+
+  it("returns undefined dependencies when field is absent", () => {
+    createSkill("no-deps", "No deps");
+
+    const skills = discoverSkills(tmpDir);
+    const skill = skills.get("no-deps")!;
+    expect(skill.dependencies).toBeUndefined();
+  });
+
+  it("ignores non-array dependencies", () => {
+    const skillDir = path.join(tmpDir, "bad-deps");
+    fs.mkdirSync(skillDir);
+    fs.writeFileSync(
+      path.join(skillDir, "SKILL.md"),
+      "---\nname: bad-deps\ndescription: Bad deps\ndependencies: not-an-array\n---\n# Bad",
+    );
+
+    const skills = discoverSkills(tmpDir);
+    const skill = skills.get("bad-deps")!;
+    expect(skill.dependencies).toBeUndefined();
+  });
+
+  it("filters non-string items from dependencies", () => {
+    const skillDir = path.join(tmpDir, "mixed-deps");
+    fs.mkdirSync(skillDir);
+    fs.writeFileSync(
+      path.join(skillDir, "SKILL.md"),
+      "---\nname: mixed-deps\ndescription: Mixed\ndependencies: [valid-server, 123, '', another-server]\n---\n# Mixed",
+    );
+
+    const skills = discoverSkills(tmpDir);
+    const skill = skills.get("mixed-deps")!;
+    // 123 is parsed as number by YAML, '' is empty — both filtered out
+    expect(skill.dependencies).toEqual(["valid-server", "another-server"]);
+  });
 });
 
 describe("loadSkillContent", () => {

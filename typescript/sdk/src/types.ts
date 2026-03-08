@@ -62,6 +62,7 @@ export interface SkillMetadata {
   path: string; // Absolute path to the SKILL.md file
   skillDir: string; // Absolute path to the skill's directory
   metadata?: Record<string, string>; // Optional extra frontmatter fields
+  dependencies?: string[]; // MCP server dependencies declared in frontmatter
   documents: SkillDocument[]; // Supplementary files found in subdirectories
   manifest: SkillManifest; // Pre-computed file manifest
   manifestJson: string; // Pre-serialized manifest JSON (avoids I/O on request)
@@ -81,6 +82,21 @@ export interface SkillSummary {
   description?: string;
   /** MIME type of the resource */
   mimeType?: string;
+  /** MCP server dependencies (parsed from resource description or frontmatter) */
+  dependencies?: string[];
+}
+
+/**
+ * Describes the MCP server dependencies required by a skill being loaded.
+ * Passed to the SkillCatalog's onDependenciesRequired callback.
+ *
+ * Aligned with SkillsDotNet.Mcp.SkillDependencyRequest.
+ */
+export interface SkillDependencyRequest {
+  /** The name of the skill being loaded */
+  skillName: string;
+  /** The MCP server names declared in the skill's dependencies frontmatter field */
+  serverNames: string[];
 }
 
 /**

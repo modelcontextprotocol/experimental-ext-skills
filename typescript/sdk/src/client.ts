@@ -33,11 +33,26 @@ export async function listSkillResources(
       const parsed = parseSkillUri(resource.uri);
       if (!parsed || parsed.path !== SKILL_FILENAME) continue;
 
+      // Parse dependencies from "(requires: a, b)" suffix in description
+      let description = resource.description;
+      let dependencies: string[] | undefined;
+      if (description) {
+        const reqMatch = description.match(/\s*\(requires:\s*(.+)\)$/);
+        if (reqMatch) {
+          dependencies = reqMatch[1]
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
+          description = description.slice(0, reqMatch.index);
+        }
+      }
+
       skills.push({
         name: parsed.name,
         uri: resource.uri,
-        description: resource.description,
+        description,
         mimeType: resource.mimeType,
+        dependencies,
       });
     }
 
@@ -57,7 +72,7 @@ export async function listSkillResources(
  */
 export function parseSkillFrontmatter(
   content: string,
-): { name: string; description: string } | null {
+): { name: string; description: string; dependencies?: string[] } | null {
   if (!content.startsWith("---")) return null;
 
   const endIndex = content.indexOf("---", 3);
@@ -75,7 +90,20 @@ export function parseSkillFrontmatter(
     ? descMatch[1].trim().replace(/^["']|["']$/g, "")
     : "";
 
-  return { name, description };
+  // Parse optional dependencies: [server-a, server-b]
+  let dependencies: string[] | undefined;
+  const depsMatch = frontmatter.match(/^dependencies:\s*\[([^\]]*)\]$/m);
+  if (depsMatch) {
+    const items = depsMatch[1]
+      .split(",")
+      .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+      .filter((s) => s.length > 0);
+    if (items.length > 0) {
+      dependencies = items;
+    }
+  }
+
+  return { name, description, dependencies };
 }
 
 /**
@@ -94,7 +122,11 @@ export function buildSkillsSummary(skills: SkillSummary[]): string {
   const lines = ["Available skills:"];
   for (const skill of skills) {
     const desc = skill.description ? `: ${skill.description}` : "";
-    lines.push(`- ${skill.name} (${skill.uri})${desc}`);
+    const deps =
+      skill.dependencies && skill.dependencies.length > 0
+        ? ` [requires: ${skill.dependencies.join(", ")}]`
+        : "";
+    lines.push(`- ${skill.name} (${skill.uri})${desc}${deps}`);
   }
   return lines.join("\n");
 }

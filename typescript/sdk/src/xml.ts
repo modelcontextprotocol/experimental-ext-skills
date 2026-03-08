@@ -48,6 +48,11 @@ export function generateSkillsXML(
       `    <description>${escapeXml(skill.description)}</description>`,
     );
     lines.push(`    <uri>skill://${escapeXml(skill.name)}/SKILL.md</uri>`);
+    if (skill.dependencies && skill.dependencies.length > 0) {
+      lines.push(
+        `    <dependencies>${skill.dependencies.map((d) => escapeXml(d)).join(", ")}</dependencies>`,
+      );
+    }
     lines.push("  </skill>");
   }
 
@@ -75,6 +80,11 @@ export function generateSkillsXMLFromSummaries(
       );
     }
     lines.push(`    <uri>${escapeXml(skill.uri)}</uri>`);
+    if (skill.dependencies && skill.dependencies.length > 0) {
+      lines.push(
+        `    <dependencies>${skill.dependencies.map((d) => escapeXml(d)).join(", ")}</dependencies>`,
+      );
+    }
     lines.push("  </skill>");
   }
 

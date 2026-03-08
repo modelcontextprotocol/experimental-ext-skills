@@ -29,12 +29,14 @@ describe("escapeXml", () => {
 function makeSkillMetadata(
   name: string,
   description: string,
+  dependencies?: string[],
 ): SkillMetadata {
   return {
     name,
     description,
     path: `/skills/${name}/SKILL.md`,
     skillDir: `/skills/${name}`,
+    dependencies,
     documents: [],
     manifest: { skill: name, files: [] },
     manifestJson: "{}",
@@ -87,6 +89,27 @@ describe("generateSkillsXML", () => {
       "A &quot;skill&quot; with &lt;tags&gt; &amp; more",
     );
   });
+
+  it("includes dependencies element when present", () => {
+    const map = new Map<string, SkillMetadata>();
+    map.set(
+      "with-deps",
+      makeSkillMetadata("with-deps", "Has deps", ["server-a", "server-b"]),
+    );
+
+    const result = generateSkillsXML(map);
+    expect(result).toContain(
+      "<dependencies>server-a, server-b</dependencies>",
+    );
+  });
+
+  it("omits dependencies element when absent", () => {
+    const map = new Map<string, SkillMetadata>();
+    map.set("no-deps", makeSkillMetadata("no-deps", "No deps"));
+
+    const result = generateSkillsXML(map);
+    expect(result).not.toContain("<dependencies>");
+  });
 });
 
 describe("generateSkillsXMLFromSummaries", () => {
@@ -126,5 +149,34 @@ describe("generateSkillsXMLFromSummaries", () => {
     expect(result).toContain("<name>basic</name>");
     expect(result).not.toContain("<description>");
     expect(result).toContain("<uri>skill://basic/SKILL.md</uri>");
+  });
+
+  it("includes dependencies in summary XML when present", () => {
+    const skills: SkillSummary[] = [
+      {
+        name: "explore",
+        uri: "skill://explore/SKILL.md",
+        description: "Explore",
+        dependencies: ["everything-server"],
+      },
+    ];
+
+    const result = generateSkillsXMLFromSummaries(skills);
+    expect(result).toContain(
+      "<dependencies>everything-server</dependencies>",
+    );
+  });
+
+  it("omits dependencies in summary XML when absent", () => {
+    const skills: SkillSummary[] = [
+      {
+        name: "simple",
+        uri: "skill://simple/SKILL.md",
+        description: "Simple",
+      },
+    ];
+
+    const result = generateSkillsXMLFromSummaries(skills);
+    expect(result).not.toContain("<dependencies>");
   });
 });

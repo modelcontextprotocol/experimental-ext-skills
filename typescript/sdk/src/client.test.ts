@@ -80,6 +80,69 @@ Body
       description: "Extended skill",
     });
   });
+
+  it("parses dependencies from frontmatter", () => {
+    const content = `---
+name: with-deps
+description: Has dependencies
+dependencies: [server-a, server-b]
+---
+Body
+`;
+    const result = parseSkillFrontmatter(content);
+    expect(result).toEqual({
+      name: "with-deps",
+      description: "Has dependencies",
+      dependencies: ["server-a", "server-b"],
+    });
+  });
+
+  it("parses single dependency", () => {
+    const content = `---
+name: single-dep
+description: One dependency
+dependencies: [everything-server]
+---
+Body
+`;
+    const result = parseSkillFrontmatter(content);
+    expect(result?.dependencies).toEqual(["everything-server"]);
+  });
+
+  it("parses quoted dependency values", () => {
+    const content = `---
+name: quoted-deps
+description: Quoted deps
+dependencies: ["server-a", 'server-b']
+---
+Body
+`;
+    const result = parseSkillFrontmatter(content);
+    expect(result?.dependencies).toEqual(["server-a", "server-b"]);
+  });
+
+  it("returns undefined dependencies when field is absent", () => {
+    const content = `---
+name: no-deps
+description: No dependencies
+---
+Body
+`;
+    const result = parseSkillFrontmatter(content);
+    expect(result?.dependencies).toBeUndefined();
+  });
+
+  it("handles empty dependencies list", () => {
+    const content = `---
+name: empty-deps
+description: Empty deps
+dependencies: []
+---
+Body
+`;
+    const result = parseSkillFrontmatter(content);
+    expect(result?.dependencies).toBeUndefined();
+  });
 });
 
 describe("buildSkillsSummary", () => {
@@ -120,6 +183,20 @@ describe("buildSkillsSummary", () => {
     const lines = result.split("\n");
     // The skill line should NOT end with ": description" — just the URI
     expect(lines[1]).toBe("- basic (skill://basic/SKILL.md)");
+  });
+
+  it("includes dependencies in summary", () => {
+    const skills: SkillSummary[] = [
+      {
+        name: "explore",
+        uri: "skill://explore/SKILL.md",
+        description: "Explore servers",
+        dependencies: ["server-a", "server-b"],
+      },
+    ];
+
+    const result = buildSkillsSummary(skills);
+    expect(result).toContain("[requires: server-a, server-b]");
   });
 });
 
@@ -219,5 +296,70 @@ describe("listSkillResources", () => {
     );
 
     expect(skills).toHaveLength(0);
+  });
+
+  it("parses dependencies from resource description", async () => {
+    const mockClient = {
+      listResources: vi.fn().mockResolvedValue({
+        resources: [
+          {
+            uri: "skill://explore/SKILL.md",
+            name: "explore",
+            description:
+              "Explore the Everything Server (requires: everything-server)",
+            mimeType: "text/markdown",
+          },
+        ],
+      }),
+    };
+
+    const skills = await listSkillResources(
+      mockClient as unknown as Parameters<typeof listSkillResources>[0],
+    );
+
+    expect(skills).toHaveLength(1);
+    expect(skills[0].dependencies).toEqual(["everything-server"]);
+    expect(skills[0].description).toBe("Explore the Everything Server");
+  });
+
+  it("parses multiple dependencies from resource description", async () => {
+    const mockClient = {
+      listResources: vi.fn().mockResolvedValue({
+        resources: [
+          {
+            uri: "skill://multi/SKILL.md",
+            name: "multi",
+            description: "Multi deps (requires: server-a, server-b)",
+          },
+        ],
+      }),
+    };
+
+    const skills = await listSkillResources(
+      mockClient as unknown as Parameters<typeof listSkillResources>[0],
+    );
+
+    expect(skills[0].dependencies).toEqual(["server-a", "server-b"]);
+    expect(skills[0].description).toBe("Multi deps");
+  });
+
+  it("returns no dependencies when description has no requires suffix", async () => {
+    const mockClient = {
+      listResources: vi.fn().mockResolvedValue({
+        resources: [
+          {
+            uri: "skill://simple/SKILL.md",
+            name: "simple",
+            description: "A simple skill",
+          },
+        ],
+      }),
+    };
+
+    const skills = await listSkillResources(
+      mockClient as unknown as Parameters<typeof listSkillResources>[0],
+    );
+
+    expect(skills[0].dependencies).toBeUndefined();
   });
 });

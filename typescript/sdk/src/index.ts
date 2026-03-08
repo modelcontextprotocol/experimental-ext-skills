@@ -13,6 +13,7 @@ export type {
   SkillDocument,
   SkillMetadata,
   SkillSummary,
+  SkillDependencyRequest,
   RegisterSkillResourcesOptions,
   SkillResourceHandles,
 } from "./types.js";
@@ -53,3 +54,7 @@ export {
   parseSkillFrontmatter,
   buildSkillsSummary,
 } from "./client.js";
+
+// Skill catalog with dependency resolution
+export { SkillCatalog } from "./catalog.js";
+export type { ContextFormatter } from "./catalog.js";
