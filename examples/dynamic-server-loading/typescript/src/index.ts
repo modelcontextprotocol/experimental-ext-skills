@@ -12,10 +12,14 @@
  * See: https://github.com/bradwilson/skillsdotnet/tree/main/samples/DynamicMcpServers
  */
 
+import { fileURLToPath } from "node:url";
+import * as path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { SkillCatalog } from "@ext-modelcontextprotocol/skills";
 import type { SkillDependencyRequest } from "@ext-modelcontextprotocol/skills";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // --- Configuration ---
 
@@ -55,7 +59,8 @@ async function main() {
   // Determine skill server path (the skills-as-resources example server)
   const skillServerDir =
     process.argv[2] ||
-    new URL("../../skills-as-resources/typescript", import.meta.url).pathname;
+    path.resolve(__dirname, "../../../skills-as-resources/typescript");
+  const skillsDir = path.resolve(__dirname, "../../../sample-skills");
 
   console.log("=== Dynamic MCP Server Loading Demo ===\n");
 
@@ -63,11 +68,7 @@ async function main() {
   console.log(`[host] Connecting to skill server: ${skillServerDir}`);
   const skillTransport = new StdioClientTransport({
     command: "node",
-    args: [
-      `${skillServerDir}/dist/index.js`,
-      "--skills-dir",
-      new URL("../../sample-skills", import.meta.url).pathname,
-    ],
+    args: [path.join(skillServerDir, "dist/index.js"), skillsDir],
   });
 
   const skillClient = new Client({
