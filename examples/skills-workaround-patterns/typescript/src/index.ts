@@ -9,24 +9,29 @@
  *
  * Patterns implemented:
  *
- *   1. Server Instructions — skill catalog injected into the system prompt
- *      via the `instructions` server option. Clients that support server
+ *   1. Server Instructions (opt-in) — skill descriptions catalog injected
+ *      into the system prompt via the `instructions` server option. Enabled
+ *      with --use-static-server-instructions. Clients that support server
  *      instructions (Claude Code, Cursor, etc.) see skills automatically.
  *
- *   2. Tool Description Catalog — a `skill` tool whose description embeds
+ *   2. Tool Description Catalog — a `load_skill` tool whose description embeds
  *      the full <available_skills> XML. The model sees the catalog when it
  *      reads the tool list and calls the tool by name to load content.
+ *      Aligned with skilljack-mcp's tool interface.
  *
- *   3. Load Skill Tool — a simpler `load_skill` tool with just skill names
- *      in the description. Minimal overhead, relies on name recognition.
- *
- *   4. MCP Prompts — per-skill prompts (e.g., `/skill-code-review`) that
+ *   3. MCP Prompts — per-skill prompts (e.g., `/skill-code-review`) that
  *      return SKILL.md content as embedded resources, plus a `/skills`
  *      summary prompt listing all available skills.
  *
  * All patterns coexist: the server registers skill:// resources (the
  * canonical path) alongside instructions, tools, and prompts so that
  * every client gets the best experience its capabilities allow.
+ *
+ * Flags:
+ *   --use-static-server-instructions
+ *       Embed the skill descriptions catalog in the server's instructions
+ *       field. The model sees skill names and descriptions in the system
+ *       prompt and can call tools to load full content on demand.
  *
  * Inspired by:
  * - skilljack-mcp by Ola Hungerford (https://github.com/olaservo/skilljack-mcp)
@@ -53,10 +58,14 @@ import {
 // ---------------------------------------------------------------------------
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const { positionals } = parseArgs({
+const { values, positionals } = parseArgs({
   args: process.argv.slice(2),
   allowPositionals: true,
+  options: {
+    "use-static-server-instructions": { type: "boolean", default: false },
+  },
 });
+const useStaticServerInstructions = values["use-static-server-instructions"];
 const skillsDir = positionals[0]
   ? path.resolve(positionals[0])
   : path.resolve(__dirname, "../../../sample-skills");
@@ -73,20 +82,29 @@ console.error(
 for (const [name, skill] of skillMap) {
   console.error(`  - ${name}: ${skill.description}`);
 }
+if (useStaticServerInstructions) {
+  console.error("[workaround-patterns] --use-static-server-instructions enabled");
+}
 
 // ---------------------------------------------------------------------------
-// Pattern 1 — Server Instructions
+// Pattern 1 — Server Instructions (opt-in via --use-static-server-instructions)
 //
-// The skill catalog is embedded in the server's instructions field, which
-// clients inject into the system prompt during initialization.
+// When enabled, the skill descriptions catalog is embedded in the server's
+// instructions field, which clients inject into the system prompt during
+// initialization. The model sees skill names and descriptions upfront and
+// can call tools to load full content on demand.
 // ---------------------------------------------------------------------------
 
-const preamble =
-  "# Skills\n\n" +
-  "When a user's task matches a skill description below: " +
-  "1) activate it, 2) follow its instructions completely.\n\n";
+let instructionsText: string | undefined;
 
-const instructionsText = preamble + generateSkillsXML(skillMap);
+if (useStaticServerInstructions) {
+  const preamble =
+    "# Skills\n\n" +
+    "When a user's task matches a skill description below: " +
+    "1) activate it, 2) follow its instructions completely.\n\n";
+
+  instructionsText = preamble + generateSkillsXML(skillMap);
+}
 
 // ---------------------------------------------------------------------------
 // Create MCP server (all capabilities enabled)
@@ -96,7 +114,7 @@ const server = new McpServer(
   { name: "skills-workaround-patterns", version: "0.1.0" },
   {
     capabilities: { resources: {}, tools: {}, prompts: {} },
-    instructions: instructionsText,
+    ...(instructionsText ? { instructions: instructionsText } : {}),
   }
 );
 
@@ -110,82 +128,42 @@ const server = new McpServer(
 registerSkillResources(server, skillMap, skillsDir);
 
 // ---------------------------------------------------------------------------
-// Pattern 2 — Tool Description Catalog
+// Pattern 2 — Skill Tool (aligned with skilljack-mcp)
 //
 // A `skill` tool whose description embeds the full <available_skills> XML.
 // The model sees the catalog when it reads the tool list and calls the tool
 // by name to load a skill's full SKILL.md content.
-// ---------------------------------------------------------------------------
-
-const catalogXml = generateSkillsXML(skillMap);
-const toolDescription = [
-  "Load an agent skill by name.",
-  "",
-  "When a user's task matches a skill description below, call this tool",
-  "with the skill name to load its full instructions.",
-  "",
-  catalogXml,
-].join("\n");
-
-server.registerTool(
-  "skill",
-  {
-    description: toolDescription,
-    inputSchema: {
-      name: z.string().describe("Name of the skill to load"),
-    },
-  },
-  async (args) => {
-    const skill = skillMap.get(args.name);
-    if (!skill) {
-      const available = Array.from(skillMap.keys()).join(", ") || "none";
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Skill "${args.name}" not found. Available: ${available}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-
-    try {
-      const content = loadSkillContent(skill.path, skillsDir);
-      return {
-        content: [{ type: "text" as const, text: content }],
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Failed to load skill "${args.name}": ${message}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-  }
-);
-
-// ---------------------------------------------------------------------------
-// Pattern 3 — Load Skill Tool
 //
-// A simpler `load_skill` tool with just skill names listed in the
-// description. Less informative than the catalog approach but minimal
-// description overhead.
+// When --use-static-server-instructions is set, the catalog lives in server
+// instructions instead, so the tool description is kept minimal to avoid
+// duplication.
 // ---------------------------------------------------------------------------
 
-const names = Array.from(skillMap.keys());
+const skillToolUsage =
+  "Load a skill's full instructions. Returns the complete SKILL.md content " +
+  "with step-by-step guidance, examples, and file references to follow.\n\n" +
+  "IMPORTANT: When a skill is relevant to the user's task, you must invoke this tool " +
+  "IMMEDIATELY as your first action. NEVER just announce or mention a skill without " +
+  "actually calling this tool. This is a BLOCKING REQUIREMENT: invoke this tool BEFORE " +
+  "generating any other response about the task.\n\n";
+
+const toolDescription = useStaticServerInstructions
+  ? skillToolUsage + "See server instructions for available skills."
+  : skillToolUsage + generateSkillsXML(skillMap);
 
 server.registerTool(
   "load_skill",
   {
-    description: `Load an agent skill by name. Available: ${names.join(", ") || "none"}`,
+    title: "Activate Skill",
+    description: toolDescription,
     inputSchema: {
-      name: z.string().describe("Name of the skill to load"),
+      name: z.string().describe("Skill name from <available_skills>"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
     },
   },
   async (args) => {
@@ -196,7 +174,7 @@ server.registerTool(
         content: [
           {
             type: "text" as const,
-            text: `Skill "${args.name}" not found. Available: ${available}`,
+            text: `Skill "${args.name}" not found. Available skills: ${available}`,
           },
         ],
         isError: true,
@@ -224,7 +202,7 @@ server.registerTool(
 );
 
 // ---------------------------------------------------------------------------
-// Pattern 4 — MCP Prompts
+// Pattern 3 — MCP Prompts
 //
 // Per-skill prompts (e.g., /skill-code-review) return the full SKILL.md
 // content as an embedded resource. A /skills summary prompt lists all

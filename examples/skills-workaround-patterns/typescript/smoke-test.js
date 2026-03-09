@@ -4,7 +4,7 @@
  *
  * Uses the MCP Client SDK to spawn the server as a child process,
  * perform the initialization handshake, and exercise all four
- * workaround patterns (instructions, tools, prompts, resources).
+ * workaround patterns (instructions, skill tool, prompts, resources).
  *
  * Usage: node smoke-test.js [skillsDir]
  *   Default skillsDir: ../../sample-skills (relative to this script)
@@ -98,73 +98,55 @@ async function main() {
       assert(caps.prompts, "prompts capability missing");
     });
 
-    // ── Pattern 1: Server Instructions ────────────────────────────────
+    // ── Pattern 1: Server Instructions (default = off) ─────────────────
 
-    await runTest("Server instructions contain skill catalog", async () => {
+    await runTest("Default mode: no server instructions", async () => {
       const instructions = client.getInstructions();
-      assert(instructions, "instructions is empty/undefined");
       assert(
-        instructions.includes("# Skills"),
-        "missing '# Skills' preamble",
-      );
-      assert(
-        instructions.includes("<available_skills>"),
-        "missing <available_skills> XML",
-      );
-      assert(
-        instructions.includes("<name>code-review</name>"),
-        "missing code-review in instructions",
-      );
-      assert(
-        instructions.includes("<name>git-commit-review</name>"),
-        "missing git-commit-review in instructions",
-      );
-      assert(
-        instructions.includes("</available_skills>"),
-        "missing closing tag",
+        !instructions,
+        "expected no instructions in default mode, got: " + instructions,
       );
     });
 
-    // ── Pattern 2 & 3: Tools ──────────────────────────────────────────
+    // ── Pattern 2: Skill Tool (aligned with skilljack-mcp) ─────────────
 
-    await runTest("Tool list includes skill and load_skill tools", async () => {
+    await runTest("Tool list includes load_skill tool", async () => {
       const { tools } = await client.listTools();
       const names = tools.map((t) => t.name);
-      assert(names.includes("skill"), "missing 'skill' tool");
       assert(names.includes("load_skill"), "missing 'load_skill' tool");
     });
 
-    await runTest("skill tool description contains XML catalog", async () => {
+    await runTest("load_skill tool has correct title and annotations", async () => {
       const { tools } = await client.listTools();
-      const skillTool = tools.find((t) => t.name === "skill");
-      assert(skillTool, "skill tool not found");
+      const skillTool = tools.find((t) => t.name === "load_skill");
+      assert(skillTool, "load_skill tool not found");
+      assert(
+        skillTool.annotations?.readOnlyHint === true,
+        "missing readOnlyHint annotation",
+      );
+      assert(
+        skillTool.annotations?.idempotentHint === true,
+        "missing idempotentHint annotation",
+      );
+    });
+
+    await runTest("load_skill tool description contains XML catalog", async () => {
+      const { tools } = await client.listTools();
+      const skillTool = tools.find((t) => t.name === "load_skill");
+      assert(skillTool, "load_skill tool not found");
       assert(
         skillTool.description.includes("<available_skills>"),
-        "skill tool description missing XML catalog",
+        "load_skill tool description missing XML catalog",
       );
       assert(
         skillTool.description.includes("<name>code-review</name>"),
-        "skill tool description missing code-review",
+        "load_skill tool description missing code-review",
       );
     });
 
-    await runTest("load_skill tool description lists skill names", async () => {
-      const { tools } = await client.listTools();
-      const loadTool = tools.find((t) => t.name === "load_skill");
-      assert(loadTool, "load_skill tool not found");
-      assert(
-        loadTool.description.includes("code-review"),
-        "load_skill description missing code-review",
-      );
-      assert(
-        loadTool.description.includes("git-commit-review"),
-        "load_skill description missing git-commit-review",
-      );
-    });
-
-    await runTest("skill tool returns SKILL.md content", async () => {
+    await runTest("load_skill tool returns SKILL.md content", async () => {
       const result = await client.callTool({
-        name: "skill",
+        name: "load_skill",
         arguments: { name: "code-review" },
       });
       assert(!result.isError, `tool returned error: ${JSON.stringify(result)}`);
@@ -180,21 +162,9 @@ async function main() {
       );
     });
 
-    await runTest("load_skill tool returns SKILL.md content", async () => {
+    await runTest("load_skill tool returns error for unknown skill", async () => {
       const result = await client.callTool({
         name: "load_skill",
-        arguments: { name: "git-commit-review" },
-      });
-      assert(!result.isError, `tool returned error: ${JSON.stringify(result)}`);
-      assert(
-        result.content[0].text.includes("name: git-commit-review"),
-        "missing frontmatter",
-      );
-    });
-
-    await runTest("skill tool returns error for unknown skill", async () => {
-      const result = await client.callTool({
-        name: "skill",
         arguments: { name: "nonexistent" },
       });
       assert(result.isError === true, "expected isError: true");
@@ -204,7 +174,7 @@ async function main() {
       );
     });
 
-    // ── Pattern 4: Prompts ────────────────────────────────────────────
+    // ── Pattern 3: Prompts ────────────────────────────────────────────
 
     await runTest("Prompt list includes /skills and per-skill prompts", async () => {
       const { prompts } = await client.listPrompts();
@@ -249,6 +219,53 @@ async function main() {
         msg.content.resource.text.includes("# Code Review"),
         "missing heading in embedded resource",
       );
+    });
+
+    // ── --use-static-server-instructions mode ──────────────────────────
+
+    await runTest("--use-static-server-instructions embeds skill catalog", async () => {
+      // Spawn a second server instance with the flag
+      const staticTransport = new StdioClientTransport({
+        command: "node",
+        args: [serverScript, "--use-static-server-instructions", skillsDir],
+        stderr: "pipe",
+      });
+      const staticClient = new Client(
+        { name: "smoke-test-static", version: "1.0.0" },
+        { capabilities: {} },
+      );
+      await staticClient.connect(staticTransport);
+      try {
+        const instructions = staticClient.getInstructions();
+        assert(instructions, "instructions is empty/undefined");
+        assert(
+          instructions.includes("# Skills"),
+          "missing '# Skills' preamble",
+        );
+        assert(
+          instructions.includes("<available_skills>"),
+          "missing <available_skills> XML",
+        );
+        assert(
+          instructions.includes("<name>code-review</name>"),
+          "missing code-review in catalog",
+        );
+        assert(
+          instructions.includes("<name>git-commit-review</name>"),
+          "missing git-commit-review in catalog",
+        );
+
+        // Tool description should NOT duplicate the catalog
+        const { tools } = await staticClient.listTools();
+        const skillTool = tools.find((t) => t.name === "load_skill");
+        assert(skillTool, "load_skill tool not found");
+        assert(
+          !skillTool.description.includes("<available_skills>"),
+          "load_skill tool description should not contain catalog in static mode",
+        );
+      } finally {
+        await staticClient.close();
+      }
     });
 
     // ── Resources (canonical path) ────────────────────────────────────
