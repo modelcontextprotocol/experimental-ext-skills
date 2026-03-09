@@ -4,6 +4,8 @@
 
 Should skills be discoverable through registry metadata ("if you install this server, also install this skill") or contained within the MCP server itself?
 
+A third option is emerging: domain-level discovery via `/.well-known/skills/` (see [Agent Skills Discovery RFC](https://github.com/cloudflare/agent-skills-discovery-rfc)). This decouples skill discovery from both registries and MCP servers — an organization publishes skills at a predictable URL on its own domain. This could complement MCP-level discovery rather than replace it: `.well-known` handles "find available skills," MCP handles "load and use them at runtime."
+
 ## 2. How do "first-class" skills differ from "skills as context"?
 
 'Native' agent skills can be presented through the user agent, bundled with subagents, etc. Do MCP-surfaced skills lose capabilities compared to directly installed skills? This question also ties into a more general topic about context-as-resources discoverability and standardization of client host behavior — it's not just a skills-specific framing question.
@@ -17,6 +19,20 @@ Or is the separation between "primitive server" and "skill that uses the primiti
 ## 4. How should skills relate to multiple servers?
 
 A skill orchestrating tools from several servers can't live in any single server's instructions.
+
+**Related:** [agentskills/agentskills#110](https://github.com/agentskills/agentskills/issues/110) — Discusses how skills should declare their tool/server dependencies. The lack of explicit dependency configuration makes multi-server skill execution unpredictable: if required servers and tools aren't already loaded, the skill can't reliably execute.
+
+**Emerging proposal — host-mediated dependency resolution:** Skills would declare MCP servers and/or tools as dependencies in their frontmatter. The host mediates availability: if required dependencies are not present, the skill frontmatter should not be loaded into model context (it is effectively not an available skill). This model also enables local caching of skills — they can be downloaded once and used offline as long as their dependencies are available.
+
+The agentskills.io spec currently has a freeform [compatibility field](https://agentskills.io/specification#compatibility-field) but no formal dependency mechanism. Some existing tools (e.g., skills.sh) handle dependencies implicitly by instructing agents to install via bash/npm/uv. Skills may also be composable (skill-to-skill dependencies) — see [Use Case 3](use-cases.md#3-multi-server-composition).
+
+**Community input:**
+
+> "If [required tools/servers are] not available then the skill frontmatter shouldn't be loaded into model context, as it is effectively not an available skill. This also means that you can cache skills locally." — [Peder Holdgaard Pedersen](https://github.com/PederHP) (Saxo Bank), via Discord
+
+> "If there is some standard that we can introduce to specify skill dependencies… and all platforms can read that and load the skill or not based on that would be amazing." — Sunish Sheth (Databricks), via Discord
+
+> "npx skills is ok for simple use-cases but doesn't work for dependencies across Skill — i.e. if Skill 1 uses Skill 2 — which is one of the benefits of Skills — that they are composable." — [Kaxil Naik](https://github.com/kaxil) (Astronomer), via Discord
 
 ## 5. Do clients actually leverage skills when presented via MCP?
 
@@ -63,6 +79,12 @@ If skills can be abused for prompt injection, what mitigations should be spec'd?
 > "If a user registers an MCP server, they are already extending their trust boundary. A malicious server can do far worse via tools than via a 'skill' document." — [sebthom](https://github.com/modelcontextprotocol/modelcontextprotocol/issues/2167#issuecomment-3824771018)
 
 Proposed mitigations: skills are untrusted docs not directives; clients MUST NOT auto-apply without explicit policy; skills should be presented with provenance and be optionally gated.
+
+The distribution channel itself also has trust implications. Current skill distribution via git repos can be problematic from a security and trust perspective, particularly for enterprises. MCP's authenticated server model provides a more controlled distribution channel, but the trust model should align with existing MCP trust boundaries — not position MCP as a marketplace for arbitrary third-party content.
+
+> "Current distribution of skills is a nightmare in terms of security and trust — both from an end-user and enterprise point-of-view. A git repo is a problematic distribution channel." — [Peder Holdgaard Pedersen](https://github.com/PederHP) (Saxo Bank), via Discord
+
+> "The trust model is same as MCP, based on server trust, so broadly I think we want to discourage using MCP as a mechanism for providing a skills marketplace for arbitrary 3rd party content." — [Sam Morrow](https://github.com/SamMorrowDrums) (GitHub), via Discord
 
 ## 11. Should the control model be use-case specific?
 
