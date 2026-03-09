@@ -5,7 +5,9 @@
 | Proposal | Venue | Description |
 | :--- | :--- | :--- |
 | [SEP-2076](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076) | MCP Spec | Agent Skills as a first-class MCP primitive |
+| [SEP-2093](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093) | MCP Spec | Resource Contents Metadata and Capabilities: scoped `resources/list`, per-resource capabilities, `resources/metadata` endpoint |
 | [skills.json format proposal](https://github.com/modelcontextprotocol/registry/discussions/895) | MCP Registry | Skills metadata in registry schema |
+| [Agent Skills Discovery via Well-Known URIs](https://github.com/cloudflare/agent-skills-discovery-rfc) | Cloudflare | Domain-level skill discovery using `/.well-known/skills/` (RFC 8615); includes integrity verification and progressive disclosure |
 
 ## Implementations
 
@@ -29,6 +31,7 @@ Original implementations from external repositories (example implementations in 
 | Strands Agents MCP server | AWS | [github.com/strands-agents/mcp-server](https://github.com/strands-agents/mcp-server/) | Docs-as-MCP: TF-IDF search + doc fetch |
 | AWS MCP server | AWS | [docs.aws.amazon.com/aws-mcp/…](https://docs.aws.amazon.com/aws-mcp/latest/userguide/understanding-mcp-server-tools.html) | `retrieve_agent_sop` (skills) + `call_aws` (tool) |
 | Kiro powers directory | Kiro | [github.com/kirodotdev/powers](https://github.com/kirodotdev/powers/) | Plugin directory bundling skills + MCP servers |
+| NimbleBrain skill:// servers | NimbleBrain | [github.com/NimbleBrainInc](https://github.com/NimbleBrainInc) | skill:// resource colocation examples: [mcp-ipinfo](https://github.com/NimbleBrainInc/mcp-ipinfo), [mcp-webfetch](https://github.com/NimbleBrainInc/mcp-webfetch), [mcp-pdfco](https://github.com/NimbleBrainInc/mcp-pdfco), [mcp-folk](https://github.com/NimbleBrainInc/mcp-folk), [mcp-brave-search](https://github.com/NimbleBrainInc/mcp-brave-search) |
 
 ## External Resources
 
@@ -39,4 +42,6 @@ Original implementations from external repositories (example implementations in 
 - **Apache Airflow AIP-91** (MCP integration): [cwiki.apache.org/…/AIP-91+-+MCP](https://cwiki.apache.org/confluence/display/AIRFLOW/AIP-91+-+MCP)
 - **llms.txt convention:** [llmstxt.org](https://llmstxt.org/) — Convention for making documentation LLM-accessible; used by [MCPDoc](https://github.com/langchain-ai/mcpdoc) in a way similar to how skills work.
 - **AWS Agent SOPs:** [docs.aws.amazon.com/…/agent-sops](https://docs.aws.amazon.com/aws-mcp/latest/userguide/agent-sops.html) — Pre-built operational workflows as skill-like guidance
+- **Skill dependency declaration:** [agentskills/agentskills#110](https://github.com/agentskills/agentskills/issues/110) — Discusses how skills should declare their tool/server dependencies
+- **Agent Skills Discovery RFC** (Matt Silverlock / Cloudflare): [github.com/cloudflare/agent-skills-discovery-rfc](https://github.com/cloudflare/agent-skills-discovery-rfc) — Proposes `/.well-known/skills/` for domain-level skill discovery using RFC 8615. Defines an `index.json` discovery index with progressive disclosure (name/description at discovery time, full SKILL.md on activation), SHA-256 content integrity, and optional archive distribution. Complementary to MCP-level discovery: `.well-known` answers "what skills does this domain publish?" while MCP answers "how does the agent consume them at runtime?"
 - **Video background:** [youtube.com/watch?v=CEvIs9y1uog](https://www.youtube.com/watch?v=CEvIs9y1uog)
