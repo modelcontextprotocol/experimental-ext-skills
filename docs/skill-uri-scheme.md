@@ -254,8 +254,8 @@ skill://skill-name/[path]
 Following [RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986) structure:
 
 - **Scheme:** `skill`
-- **First path segment:** The skill name, identifying which skill directory is being addressed.
-- **Subsequent path segments:** `SKILL.md` for the primary content, or a relative path for supporting files.
+- **Authority:** The skill name, identifying which skill directory is being addressed.
+- **Path:** `SKILL.md` for the primary content, or a relative path for supporting files.
 
 ### Naming Rules
 
