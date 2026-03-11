@@ -3,7 +3,7 @@ import {
   listSkillResources,
   parseSkillFrontmatter,
   buildSkillsSummary,
-} from "./client.js";
+} from "./_client.js";
 import type { SkillSummary } from "./types.js";
 
 describe("parseSkillFrontmatter", () => {

@@ -1,6 +1,6 @@
 {
-  "name": "@ext-modelcontextprotocol/skills",
-  "version": "0.1.0",
+  "name": "@modelcontextprotocol/ext-skills",
+  "version": "0.2.0",
   "description": "SDK for the Skills as Resources MCP extension pattern",
   "type": "module",
   "main": "dist/index.js",
@@ -9,6 +9,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
     }
   },
   "files": [

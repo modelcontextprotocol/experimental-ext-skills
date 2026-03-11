@@ -1,11 +1,11 @@
-# @ext-modelcontextprotocol/skills
+# @modelcontextprotocol/ext-skills
 
 TypeScript SDK for the **Skills as Resources** MCP extension pattern — exposing agent skills via MCP resources using the `skill://` URI scheme.
 
 ## Installation
 
 ```bash
-npm install @ext-modelcontextprotocol/skills
+npm install @modelcontextprotocol/ext-skills
 ```
 
 Requires `@modelcontextprotocol/sdk` ^1.0.0 as a peer dependency.
@@ -17,7 +17,7 @@ Requires `@modelcontextprotocol/sdk` ^1.0.0 as a peer dependency.
 ```typescript
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { discoverSkills, registerSkillResources } from "@ext-modelcontextprotocol/skills";
+import { discoverSkills, registerSkillResources } from "@modelcontextprotocol/ext-skills/server";
 
 const server = new McpServer(
   { name: "my-skills-server", version: "1.0.0" },
@@ -40,7 +40,7 @@ import {
   listSkillResources,
   buildSkillsSummary,
   generateSkillsXMLFromSummaries,
-} from "@ext-modelcontextprotocol/skills";
+} from "@modelcontextprotocol/ext-skills/client";
 
 // After connecting to a skills server...
 const skills = await listSkillResources(client);
@@ -64,7 +64,7 @@ const xml = generateSkillsXMLFromSummaries(skills);
 ### URI Utilities
 
 ```typescript
-import { parseSkillUri, buildSkillUri, isSkillContentUri, isSkillManifestUri } from "@ext-modelcontextprotocol/skills";
+import { parseSkillUri, buildSkillUri, isSkillContentUri, isSkillManifestUri } from "@modelcontextprotocol/ext-skills";
 
 parseSkillUri("skill://code-review/SKILL.md");
 // → { name: "code-review", path: "SKILL.md" }
@@ -82,7 +82,7 @@ isSkillManifestUri("skill://code-review/_manifest"); // true
 ### MIME Utilities
 
 ```typescript
-import { getMimeType, isTextMimeType } from "@ext-modelcontextprotocol/skills";
+import { getMimeType, isTextMimeType } from "@modelcontextprotocol/ext-skills";
 
 getMimeType("doc.md");     // "text/markdown"
 getMimeType("image.png");  // "image/png"
@@ -94,7 +94,8 @@ isTextMimeType("image/png");          // false
 ### XML Generation
 
 ```typescript
-import { generateSkillsXML, generateSkillsXMLFromSummaries } from "@ext-modelcontextprotocol/skills";
+import { generateSkillsXML } from "@modelcontextprotocol/ext-skills/server";
+import { generateSkillsXMLFromSummaries } from "@modelcontextprotocol/ext-skills/client";
 
 // Server-side: from SkillMetadata map
 const xml = generateSkillsXML(skillMap);
@@ -106,7 +107,7 @@ const xml = generateSkillsXMLFromSummaries(skills);
 ### Server
 
 ```typescript
-import { discoverSkills, registerSkillResources } from "@ext-modelcontextprotocol/skills";
+import { discoverSkills, registerSkillResources } from "@modelcontextprotocol/ext-skills/server";
 
 // Discover all skills in a directory
 const skillMap = discoverSkills("./skills");
@@ -129,7 +130,7 @@ import {
   readSkillDocument,
   parseSkillFrontmatter,
   buildSkillsSummary,
-} from "@ext-modelcontextprotocol/skills";
+} from "@modelcontextprotocol/ext-skills/client";
 
 // List all skills from an MCP client (handles pagination)
 const skills = await listSkillResources(client);
@@ -154,7 +155,7 @@ The SDK exports a `READ_RESOURCE_TOOL` constant — an MCP `Tool` definition mat
 Some clients provide this tool natively. For other clients, register the schema and wire the handler to route calls to the appropriate MCP Client:
 
 ```typescript
-import { READ_RESOURCE_TOOL } from "@ext-modelcontextprotocol/skills";
+import { READ_RESOURCE_TOOL } from "@modelcontextprotocol/ext-skills/client";
 
 // Register with your AI provider (pseudocode)
 registerTool(READ_RESOURCE_TOOL, async (params) => {

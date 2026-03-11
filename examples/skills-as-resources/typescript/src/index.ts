@@ -29,8 +29,8 @@ import { SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextp
 import {
   discoverSkills,
   registerSkillResources,
-  type SkillResourceHandles,
-} from "@ext-modelcontextprotocol/skills";
+} from "@modelcontextprotocol/ext-skills/server";
+import type { SkillResourceHandles } from "@modelcontextprotocol/ext-skills";
 import { createSubscriptionManager } from "./subscriptions.js";
 import { createSkillDirectoryWatcher } from "./skill-watcher.js";
 

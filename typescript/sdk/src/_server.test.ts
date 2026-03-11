@@ -8,7 +8,7 @@ import {
   loadDocument,
   isPathWithinBase,
   scanDocuments,
-} from "./server.js";
+} from "./_server.js";
 
 let tmpDir: string;
 

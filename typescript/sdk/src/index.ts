@@ -1,7 +1,12 @@
 /**
- * @ext-modelcontextprotocol/skills
+ * @modelcontextprotocol/ext-skills
  *
  * SDK for the Skills as Resources MCP extension pattern.
+ *
+ * Entry points:
+ *   - "@modelcontextprotocol/ext-skills"          — Shared types, URI, and MIME utilities
+ *   - "@modelcontextprotocol/ext-skills/server"    — Server-side discovery and registration
+ *   - "@modelcontextprotocol/ext-skills/client"    — Client-side reading, tool schema, and summaries
  *
  * @license Apache-2.0
  */
@@ -29,27 +34,3 @@ export {
 
 // MIME utilities
 export { getMimeType, isTextMimeType } from "./mime.js";
-
-// XML generation
-export {
-  generateSkillsXML,
-  generateSkillsXMLFromSummaries,
-} from "./xml.js";
-
-// Server-side
-export {
-  discoverSkills,
-  registerSkillResources,
-  isPathWithinBase,
-} from "./server.js";
-
-// Client-side
-export {
-  READ_RESOURCE_TOOL,
-  listSkillResources,
-  readSkillContent,
-  readSkillManifest,
-  readSkillDocument,
-  parseSkillFrontmatter,
-  buildSkillsSummary,
-} from "./client.js";

@@ -44,7 +44,7 @@ This is a **resources-only** server. Clients are expected to provide their own `
 
 **Prerequisites**: Node.js >= 18, npm
 
-The example depends on the [`@ext-modelcontextprotocol/skills`](../../../typescript/sdk/) SDK (linked via `file:` reference). Build the SDK first:
+The example depends on the [`@modelcontextprotocol/ext-skills`](../../../typescript/sdk/) SDK (linked via `file:` reference). Build the SDK first:
 
 ```bash
 cd ../../../typescript/sdk
@@ -138,11 +138,11 @@ This server exposes skills as resources only — it does **not** include server-
 
 ### SDK integration
 
-The [`@ext-modelcontextprotocol/skills`](../../../typescript/sdk/) SDK provides ready-made helpers for both server and client sides. This example uses the SDK — see [`src/index.ts`](typescript/src/index.ts) for the server-side usage.
+The [`@modelcontextprotocol/ext-skills`](../../../typescript/sdk/) SDK provides ready-made helpers for both server and client sides. This example uses the SDK — see [`src/index.ts`](typescript/src/index.ts) for the server-side usage.
 
 **Server-side** (skill discovery + resource registration):
 ```typescript
-import { discoverSkills, registerSkillResources } from "@ext-modelcontextprotocol/skills";
+import { discoverSkills, registerSkillResources } from "@modelcontextprotocol/ext-skills/server";
 
 const skillMap = discoverSkills("./skills");
 const handles = registerSkillResources(server, skillMap, "./skills", {
@@ -160,7 +160,7 @@ import {
   readSkillManifest,
   readSkillDocument,
   buildSkillsSummary,
-} from "@ext-modelcontextprotocol/skills";
+} from "@modelcontextprotocol/ext-skills/client";
 
 // Enumerate and summarize skills
 const skills = await listSkillResources(client);
