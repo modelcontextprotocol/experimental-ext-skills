@@ -32,7 +32,6 @@ export { getMimeType, isTextMimeType } from "./mime.js";
 
 // XML generation
 export {
-  escapeXml,
   generateSkillsXML,
   generateSkillsXMLFromSummaries,
 } from "./xml.js";
@@ -40,16 +39,17 @@ export {
 // Server-side
 export {
   discoverSkills,
-  loadSkillContent,
-  loadDocument,
-  isPathWithinBase,
-  scanDocuments,
   registerSkillResources,
+  isPathWithinBase,
 } from "./server.js";
 
 // Client-side
 export {
+  READ_RESOURCE_TOOL,
   listSkillResources,
+  readSkillContent,
+  readSkillManifest,
+  readSkillDocument,
   parseSkillFrontmatter,
   buildSkillsSummary,
 } from "./client.js";

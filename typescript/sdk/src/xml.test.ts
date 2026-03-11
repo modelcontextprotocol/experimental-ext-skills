@@ -37,7 +37,6 @@ function makeSkillMetadata(
     skillDir: `/skills/${name}`,
     documents: [],
     manifest: { skill: name, files: [] },
-    manifestJson: "{}",
     lastModified: "2025-01-01T00:00:00.000Z",
   };
 }

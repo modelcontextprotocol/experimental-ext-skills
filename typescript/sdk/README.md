@@ -106,14 +106,7 @@ const xml = generateSkillsXMLFromSummaries(skills);
 ### Server
 
 ```typescript
-import {
-  discoverSkills,
-  registerSkillResources,
-  loadSkillContent,
-  loadDocument,
-  scanDocuments,
-  isPathWithinBase,
-} from "@ext-modelcontextprotocol/skills";
+import { discoverSkills, registerSkillResources } from "@ext-modelcontextprotocol/skills";
 
 // Discover all skills in a directory
 const skillMap = discoverSkills("./skills");
@@ -123,19 +116,17 @@ const handles = registerSkillResources(server, skillMap, "./skills", {
   template: true,   // Register resource template for supporting files (default: true)
   promptXml: false,  // Register skill://prompt-xml resource (default: false)
 });
-
-// Load skill content with security checks
-const content = loadSkillContent(skill.path, skillsDir);
-
-// Load supplementary documents
-const doc = loadDocument(skill, "references/REFERENCE.md", skillsDir, true);
 ```
 
 ### Client
 
 ```typescript
 import {
+  READ_RESOURCE_TOOL,
   listSkillResources,
+  readSkillContent,
+  readSkillManifest,
+  readSkillDocument,
   parseSkillFrontmatter,
   buildSkillsSummary,
 } from "@ext-modelcontextprotocol/skills";
@@ -149,7 +140,30 @@ const meta = parseSkillFrontmatter(content);
 
 // Build plain-text summary for context injection
 const summary = buildSkillsSummary(skills);
+
+// Read skill content, manifest, and supporting files
+const skillContent = await readSkillContent(client, "code-review");
+const manifest = await readSkillManifest(client, "code-review");
+const doc = await readSkillDocument(client, "code-review", "references/REFERENCE.md");
 ```
+
+### Tool Schema
+
+The SDK exports a `READ_RESOURCE_TOOL` constant — an MCP `Tool` definition matching the pattern used by Claude Code's built-in `read_resource` tool: `(uri, server_name)`.
+
+Some clients provide this tool natively. For other clients, register the schema and wire the handler to route calls to the appropriate MCP Client:
+
+```typescript
+import { READ_RESOURCE_TOOL } from "@ext-modelcontextprotocol/skills";
+
+// Register with your AI provider (pseudocode)
+registerTool(READ_RESOURCE_TOOL, async (params) => {
+  const client = getClientForServer(params.server_name);
+  return client.readResource({ uri: params.uri });
+});
+```
+
+See [PR #53](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/53) for the URI scheme discussion and rationale.
 
 ## URI Scheme
 
@@ -162,7 +176,6 @@ const summary = buildSkillsSummary(skills);
 
 ## Future Work (TODO)
 
-- `read_resource` tool factory for client-side model access
 - Subscription manager for resource change notifications
 - File watcher for dynamic skill hot-reload
 - Caching layer for skill content

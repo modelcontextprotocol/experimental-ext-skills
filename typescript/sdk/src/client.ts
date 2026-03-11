@@ -1,15 +1,69 @@
 /**
- * Client-side utilities for discovering and summarizing skills
+ * Client-side utilities for discovering, reading, and summarizing skills
  * exposed as MCP resources by a skills server.
  *
- * These functions help MCP clients enumerate available skills,
- * parse frontmatter from skill content, and build context summaries
- * for injection into system prompts or model context.
+ * Each MCP Client instance is inherently server-scoped — it represents a
+ * connection to a single MCP server. This is the architectural basis for
+ * excluding server names from skill:// URIs: disambiguation happens at
+ * the call site, not in the URI. Claude Code's built-in read_resource
+ * tool follows this pattern with (uri, server_name) parameters, routing
+ * each call to the correct Client instance.
+ *
+ * See: https://github.com/modelcontextprotocol/experimental-ext-skills/pull/53
  */
 
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import type { SkillSummary } from "./types.js";
-import { parseSkillUri, SKILL_FILENAME } from "./uri.js";
+import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import type { SkillManifest, SkillSummary } from "./types.js";
+import { buildSkillUri, MANIFEST_PATH, parseSkillUri, SKILL_FILENAME } from "./uri.js";
+
+/**
+ * MCP Tool definition for a generic read_resource tool.
+ *
+ * The model calls read_resource(uri, server_name) and the host routes
+ * to the correct MCP Client instance based on server_name.
+ *
+ * Clients should register this tool with their AI provider and wire the
+ * handler to route calls to the appropriate Client's readResource() method.
+ *
+ * Example wiring (pseudocode):
+ * ```typescript
+ * registerTool(READ_RESOURCE_TOOL, async (params) => {
+ *   const client = getClientForServer(params.server_name);
+ *   return client.readResource({ uri: params.uri });
+ * });
+ * ```
+ *
+ * Note: Some clients this tool natively — this schema is for
+ * other clients that need to expose read_resource to the model.
+ *
+ * See: https://github.com/modelcontextprotocol/experimental-ext-skills/pull/53
+ */
+export const READ_RESOURCE_TOOL: Tool = {
+  name: "read_resource",
+  description:
+    "Read a resource from an MCP server by its URI. " +
+    "Use this to load skill content, manifests, and supporting files.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      uri: {
+        type: "string",
+        description: "The resource URI (e.g., skill://code-review/SKILL.md)",
+      },
+      server_name: {
+        type: "string",
+        description: "The name of the MCP server that provides this resource",
+      },
+    },
+    required: ["uri", "server_name"],
+  },
+  annotations: {
+    readOnlyHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+};
 
 /**
  * List all skill resources available from an MCP client.
@@ -97,4 +151,61 @@ export function buildSkillsSummary(skills: SkillSummary[]): string {
     lines.push(`- ${skill.name} (${skill.uri})${desc}`);
   }
   return lines.join("\n");
+}
+
+/**
+ * Read a skill's SKILL.md content from an MCP server.
+ *
+ * Constructs the skill:// URI and calls client.readResource().
+ * Returns the full SKILL.md text including YAML frontmatter.
+ */
+export async function readSkillContent(
+  client: Client,
+  skillName: string,
+): Promise<string> {
+  const uri = buildSkillUri(skillName);
+  const result = await client.readResource({ uri });
+  const content = result.contents[0];
+  if (content && "text" in content) return content.text;
+  throw new Error(`Expected text content for ${uri}`);
+}
+
+/**
+ * Read a skill's file manifest from an MCP server.
+ *
+ * Returns the parsed SkillManifest with file paths, sizes, and SHA256 hashes.
+ * Useful for discovering supporting files and verifying content integrity.
+ */
+export async function readSkillManifest(
+  client: Client,
+  skillName: string,
+): Promise<SkillManifest> {
+  const uri = buildSkillUri(skillName, MANIFEST_PATH);
+  const result = await client.readResource({ uri });
+  const content = result.contents[0];
+  if (content && "text" in content)
+    return JSON.parse(content.text) as SkillManifest;
+  throw new Error(`Expected JSON content for ${uri}`);
+}
+
+/**
+ * Read a supporting file from a skill directory.
+ *
+ * The documentPath is relative to the skill root (e.g., "references/REFERENCE.md").
+ * Returns text content for text MIME types and base64-encoded blob for binary files.
+ */
+export async function readSkillDocument(
+  client: Client,
+  skillName: string,
+  documentPath: string,
+): Promise<{ text?: string; blob?: string; mimeType?: string }> {
+  const uri = buildSkillUri(skillName, documentPath);
+  const result = await client.readResource({ uri });
+  const content = result.contents[0];
+  if (!content) throw new Error(`No content returned for ${uri}`);
+  return {
+    text: "text" in content ? content.text : undefined,
+    blob: "blob" in content ? content.blob : undefined,
+    mimeType: content.mimeType,
+  };
 }
