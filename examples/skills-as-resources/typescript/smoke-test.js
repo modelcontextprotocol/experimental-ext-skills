@@ -97,7 +97,7 @@ async function main() {
     });
 
     // Test 2: list resources
-    await runTest("List resources discovers both skills", async () => {
+    await runTest("List resources discovers all skills", async () => {
       const { resources } = await client.listResources();
       const uris = resources.map((r) => r.uri);
       assert(uris.includes("skill://prompt-xml"), "missing skill://prompt-xml");
@@ -118,8 +118,16 @@ async function main() {
         "missing git-commit-review _manifest",
       );
       assert(
-        resources.length >= 5,
-        `expected >= 5 resources, got ${resources.length}`,
+        uris.includes("skill://explore-everything/SKILL.md"),
+        "missing explore-everything SKILL.md",
+      );
+      assert(
+        uris.includes("skill://explore-everything/_manifest"),
+        "missing explore-everything _manifest",
+      );
+      assert(
+        resources.length >= 7,
+        `expected >= 7 resources, got ${resources.length}`,
       );
 
       const cr = resources.find(
@@ -150,6 +158,19 @@ async function main() {
       assert(
         px.annotations?.priority === 0.3,
         `prompt-xml priority: ${px.annotations?.priority}`,
+      );
+    });
+
+    // Test 2b: skill with dependencies has requirements in description
+    await runTest("Skill with dependencies shows requirements in description", async () => {
+      const { resources } = await client.listResources();
+      const ee = resources.find(
+        (r) => r.uri === "skill://explore-everything/SKILL.md",
+      );
+      assert(ee, "explore-everything resource not found");
+      assert(
+        ee.description?.includes("(requires: everything-server)"),
+        `expected '(requires: everything-server)' in description, got: ${ee.description}`,
       );
     });
 
@@ -264,8 +285,41 @@ async function main() {
         "missing git-commit-review in XML",
       );
       assert(
+        xml.includes("<name>explore-everything</name>"),
+        "missing explore-everything in XML",
+      );
+      assert(
         xml.includes("</available_skills>"),
         "missing </available_skills>",
+      );
+    });
+
+    // Test 8: read explore-everything SKILL.md (skill with dependencies)
+    await runTest("Read SKILL.md for skill with dependencies", async () => {
+      const res = await client.readResource({
+        uri: "skill://explore-everything/SKILL.md",
+      });
+      assert(
+        res.contents[0].text.includes("name: explore-everything"),
+        "missing name field",
+      );
+      assert(
+        res.contents[0].text.includes("dependencies: [everything-server]"),
+        "missing dependencies field in frontmatter",
+      );
+      assert(
+        res.contents[0].text.includes("# Explore Everything Server"),
+        "missing heading",
+      );
+    });
+
+    // Test 9: prompt-xml includes dependencies element
+    await runTest("Prompt XML includes dependencies for explore-everything", async () => {
+      const res = await client.readResource({ uri: "skill://prompt-xml" });
+      const xml = res.contents[0].text;
+      assert(
+        xml.includes("<dependencies>everything-server</dependencies>"),
+        "missing <dependencies> element in XML for explore-everything",
       );
     });
 

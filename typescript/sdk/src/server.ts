@@ -266,6 +266,17 @@ export function discoverSkills(
         }
       }
 
+      // Extract optional MCP server dependencies
+      let dependencies: string[] | undefined;
+      if (Array.isArray(frontmatter.dependencies)) {
+        const valid = frontmatter.dependencies.filter(
+          (d): d is string => typeof d === "string" && d.trim().length > 0,
+        );
+        if (valid.length > 0) {
+          dependencies = valid.map((d) => d.trim());
+        }
+      }
+
       const trimmedName = name.trim();
       if (skillMap.has(trimmedName)) {
         console.error(
@@ -296,6 +307,7 @@ export function discoverSkills(
         path: skillMdPath,
         skillDir,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+        dependencies,
         documents,
         manifest,
         lastModified: stat.mtime.toISOString(),
@@ -401,11 +413,17 @@ export function registerSkillResources(
 
   // Register per-skill resources
   for (const [name, skill] of skillMap) {
+    // Append dependency info to description so clients can see it via resources/list
+    const skillDescription =
+      skill.dependencies && skill.dependencies.length > 0
+        ? `${skill.description} (requires: ${skill.dependencies.join(", ")})`
+        : skill.description;
+
     const skillHandle = server.registerResource(
       `skill-${name}`,
       `skill://${name}/SKILL.md`,
       {
-        description: skill.description,
+        description: skillDescription,
         mimeType: "text/markdown",
         annotations: {
           audience: ["user", "assistant"],
