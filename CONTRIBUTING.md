@@ -59,6 +59,16 @@ When adding quotes or input from community discussions:
 - Link to the original source (Discord thread, GitHub comment, etc.) where possible
 - Present input as blockquotes to distinguish it from editorial content
 
+### Decision Log
+
+Significant decisions made during meetings or through async discussion should be recorded in [docs/decisions.md](docs/decisions.md) using the ADR-lite format defined there. A decision is worth logging when it:
+
+- Chooses one approach over alternatives
+- Sets or changes the group's scope
+- Establishes a convention or coordination mechanism
+
+Add a new entry after the meeting where the decision was made or when rough consensus is reached asynchronously. Include context, the decision itself, rationale, and links to relevant issues, PRs, or discussion threads.
+
 ### Filing Issues
 
 Use GitHub Issues for:
