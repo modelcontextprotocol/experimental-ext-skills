@@ -6,19 +6,19 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 
 ---
 
-### 2026-02-14: Focus on skills-as-instructors over skills-as-helpers for MCP
+### 2026-02-14: Skills served over MCP use the instructor format
 
 **Status:** Accepted
 
-**Context:** The inaugural meeting surfaced a key distinction between two models: skills-as-instructors (text that teaches agents how to use MCP tools) and skills-as-helpers (scripts/code that execute locally). The group needed to decide which model to prioritize for skills served over MCP.
+**Context:** The inaugural meeting surfaced a key distinction between two models: skills-as-instructors (structured markdown content served to agents) and skills-as-helpers (scripts/code that execute locally). The group needed to decide which model to prioritize for skills served over MCP. Subsequent discussion in Discord and the Feb 26 office hours broadened the scope beyond "teaching agents to use tools" specifically.
 
-**Decision:** Skills served over MCP should focus on the instructor model -- teaching agents to use tools correctly -- rather than the helper model that executes arbitrary local code.
+**Decision:** Skills served over MCP use the instructor format (structured markdown content), with the convention being agnostic about whether skills reference server tools, external tools, or general knowledge. The helper model (executing arbitrary local code) is out of scope for MCP-served skills.
 
 **Rationale:** Helper-style skills that require local code execution already have existing distribution mechanisms (repos, npx, etc.) and don't need MCP as a transport. Instructor-style skills are more portable across remote and local MCP servers, easier to security-vet (static instructional content vs. arbitrary code), and align better with MCP's role as a context protocol. Dynamically served code-execution skills were flagged as unlikely to pass security review for registry listing.
 
 **References:**
 - [Feb 13 meeting notes](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/2248) (Key Decisions & Agreements)
-- [Problem Statement](docs/problem-statement.md)
+- [Problem Statement](problem-statement.md)
 
 ---
 
@@ -43,7 +43,7 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 
 **Context:** The group needed to decide whether to bring external implementations (reference repos, SEPs, related projects) into this repository or link to them externally.
 
-**Decision:** Document results from implementations in `docs/experimental-findings.md` and link to external repos and resources in `docs/related-work.md`, rather than forking or vendoring external code.
+**Decision:** Document results from implementations in `experimental-findings.md` and link to external repos and resources in `related-work.md`, rather than forking or vendoring external code.
 
 **Rationale:** This avoids duplication and maintenance burden, keeps the repo focused on the IG's exploratory documentation, and lets external projects evolve independently. The pattern of findings + references is working well for the group's needs.
 
@@ -82,7 +82,7 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 **References:**
 - [Issue #14](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/14)
 - [PR #17](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/17)
-- [Approaches doc](docs/approaches.md)
+- [Approaches doc](approaches.md)
 
 ---
 
