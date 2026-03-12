@@ -322,6 +322,18 @@ The `skill://` scheme is a custom URI scheme as permitted by the MCP specificati
 
 The proposed scheme follows RFC 3986 structure. It uses existing MCP primitives (`resources/list`, `resources/read`, resource templates, subscriptions) without requiring protocol changes.
 
+### Versioning
+
+Versioning in URIs (e.g., query parameters or path segments) is intentionally deferred. The current convention focuses on establishing the base URI structure. Skill versioning is implicitly tied to the server version — when a server updates, its skill content updates with it.
+
+### Multi-Server Skill Name Collision
+
+Since MCP resources are scoped per-server, identical `skill://` URIs from different servers are distinguishable by their originating server connection. However, when a client aggregates resources from multiple servers, collisions become a practical concern.
+
+Clients SHOULD provide a `read_resource` tool that accepts both the server name and the skill resource URI, allowing the model to disambiguate which server's skill to read. Within a skill's `SKILL.md` body, references to sub-resources (e.g., `references/GUIDE.md`) are relative to the skill — similar to how file-based skills use relative paths today. The model can resolve these from context, knowing which server the skill originated from.
+
+Servers MAY include provenance metadata in `_meta` to make origin explicit.
+
 ## References
 
 - [MCP Resources specification](https://modelcontextprotocol.io/specification/2025-06-18/server/resources)
