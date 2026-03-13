@@ -42,10 +42,6 @@ At the registry layer, NimbleBrain uses a `skill` field in registry `_meta` to s
 
 > "Skills living as skill:// resources on the server itself was the natural endpoint of that consolidation. The skill context is colocated with the tools it describes, versioned together, shipped together." — [Mat Goldsborough](https://github.com/mgoldsborough) (NimbleBrain), via Discord
 
-### skilljack-mcp
-
-[skilljack-mcp](https://github.com/olaservo/skilljack-mcp) loads skills into tool descriptions and uses dynamic tool updates to keep the skills manifest current. It passes the frontmatter `metadata` dictionary from SKILL.md files directly onto MCP resource `_meta`, validating keys against MCP spec rules. This makes skilljack-mcp the only current implementation that bridges Agent Skills frontmatter metadata to MCP `_meta` at the resource level.
-
 ### FastMCP 3.0
 
 [FastMCP](https://gofastmcp.com/servers/providers/skills) added native skills support in version 3.0 with a pull-based resource update model. FastMCP uses a `fastmcp` key in `_meta` containing structured metadata including tags, version, and a skill sub-object with the skill name and manifest flag. This is an implementation-specific namespace — not reverse-DNS prefixed, but scoped under a single top-level key to avoid collisions.
@@ -63,13 +59,11 @@ The agentskills community has also proposed open frontmatter with namespacing gu
 | Implementation | Metadata surface | Namespace approach | Skill-specific keys |
 | :--- | :--- | :--- | :--- |
 | NimbleBrain | Registry `_meta` | `skill` field | Bundle metadata (manifest.json) |
-| skilljack-mcp | Resource `_meta` | Flat (from frontmatter `metadata` dict) | Passthrough from SKILL.md |
 | FastMCP 3.0 | Resource `_meta` | `fastmcp` top-level key | `tags`, `version`, `skill.name`, `skill.is_manifest` |
 | Agent Skills spec | YAML frontmatter | Flat + `metadata` dict | `name`, `description`, `license`, `compatibility`, `allowed-tools` |
 
 **Key observations:**
 
-- skilljack-mcp is the only implementation currently bridging Agent Skills frontmatter to MCP resource `_meta`
 - FastMCP uses a non-namespaced but scoped key (`fastmcp`) — valid but doesn't follow the MCP spec's reverse DNS recommendation
 - NimbleBrain's metadata lives at the registry layer, not per-resource — complementary to per-resource `_meta`
 - The Agent Skills spec's `metadata` dict is flat `dict[str, str]`, which can't express lists or nested objects — MCP's `_meta` can
@@ -84,7 +78,7 @@ All recommended keys use the `io.agentskills/` reverse-domain prefix. This:
 - **Aligns with the agentskills community:** The namespacing proposal ([agentskills#211](https://github.com/agentskills/agentskills/issues/211)) establishes conventions for prefixed fields. Using the `agentskills.io` domain as the namespace root creates a transparent mapping between frontmatter fields and MCP metadata
 - **Avoids collisions:** Implementation-specific keys (like FastMCP's `fastmcp` key) can coexist alongside `io.agentskills/` keys without conflict
 
-> **Note:** Coordination with the agentskills.io specification maintainers is recommended before finalizing this namespace.
+> **Note:** Coordination with the agentskills.io specification maintainers is needed before finalizing this namespace.
 
 ### Core Keys
 
@@ -99,9 +93,9 @@ These keys are recommended for all skill resources. They address metadata needs 
 
 **Distinguishing `invocation` from `annotations.audience`:** These address different questions. `annotations.audience` controls *visibility* — who sees the resource (`["user"]`, `["assistant"]`, or both). `io.agentskills/invocation` controls *activation* — who can trigger loading the skill into context. A skill might be visible to the assistant (`audience: ["assistant"]`) but only loadable by the user (`invocation: "user"`).
 
-### Extended Keys
+### Experimental Extended Keys
 
-These keys are recommended for servers with richer skill metadata. They address needs with strong community demand but fewer shipping implementations.
+These keys are recommended for servers with richer skill metadata. They address needs with strong community demand but fewer shipping implementations, and are subject to change in the future.
 
 | Key | Type | Description |
 | :--- | :--- | :--- |
@@ -267,8 +261,6 @@ A deployment server exposing two skills. The `deploy-to-staging` skill depends o
 
 The [Skill URI Scheme Proposal](skill-uri-scheme.md) defines the `skill://` URI convention for identifying skill resources. That document defers to this one for `_meta` key specifics. The URI scheme determines *how skills are addressed*; the `_meta` keys determine *what metadata they carry*. The two conventions are complementary and designed to work together.
 
-The URI scheme doc also notes that servers MAY include provenance metadata in `_meta` to address multi-server skill name collisions. Provenance keys are deferred to [Future Considerations](#future-considerations) below.
-
 ### Agent Skills Spec Frontmatter
 
 The `io.agentskills/` prefix creates a transparent mapping between Agent Skills frontmatter fields and MCP `_meta` keys. A server loading skills from SKILL.md files can translate frontmatter to `_meta` mechanically:
@@ -289,7 +281,7 @@ The [registry `skills.json` proposal](https://github.com/modelcontextprotocol/re
 
 ## Future Considerations
 
-The following `_meta` keys are deferred for future work. Each addresses a real community need but lacks sufficient implementation experience or has open design questions.
+The following `_meta` keys are deferred for future work. Each addresses a community need but lacks sufficient implementation experience or has open design questions.
 
 | Candidate Key | Type | Description | Community References |
 | :--- | :--- | :--- | :--- |
@@ -300,7 +292,7 @@ The following `_meta` keys are deferred for future work. Each addresses a real c
 | `io.agentskills/activationTriggers` | `object` | File patterns, keywords, or intents that trigger skill loading | [agentskills#57](https://github.com/agentskills/agentskills/issues/57), [agentskills#64](https://github.com/agentskills/agentskills/issues/64) |
 | `io.agentskills/credentials` | `object[]` | Required API keys or tokens for skill execution | [agentskills#173](https://github.com/agentskills/agentskills/discussions/173) |
 | `io.agentskills/capabilities` | `string[]` | System access requirements (filesystem, network, shell) | [agentskills#181](https://github.com/agentskills/agentskills/discussions/181) |
-| `io.agentskills/provenance` | `object` | Server origin and authorship for multi-server disambiguation | [Skill URI Scheme Proposal](skill-uri-scheme.md) |
+| `io.agentskills/provenance` | `object` | Server origin and authorship (for addressing content attribution/credibility and edge cases with cross-server resource name collisions) [Skill URI Scheme Proposal](skill-uri-scheme.md) |
 
 ## References
 
@@ -310,6 +302,5 @@ The following `_meta` keys are deferred for future work. Each addresses a real c
 - [SEP-2076: Skills as MCP Primitives](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076) — `skills/list` and `skills/get` proposal
 - [Registry `skills.json` Discussion](https://github.com/modelcontextprotocol/registry/discussions/895) — Registry-layer skill metadata
 - [agentskills#211: Open Frontmatter with Namespacing](https://github.com/agentskills/agentskills/issues/211) — Namespace convention for non-standard fields
-- [skilljack-mcp](https://github.com/olaservo/skilljack-mcp) — Skills as tools/resources implementation
 - [FastMCP Skills Support](https://gofastmcp.com/servers/providers/skills) — FastMCP 3.0 skills provider
 - [NimbleBrain Skills](https://github.com/NimbleBrainInc/skills) — Registry-integrated skill bundles
