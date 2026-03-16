@@ -1,0 +1,26 @@
+{
+  "name": "@skills-over-mcp-ig/resource-template-discovery-example",
+  "version": "0.1.0",
+  "description": "Prototype: Resource template-based skill discovery (investigating #57)",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx src/server.ts",
+    "test": "node --import tsx integration-test.ts"
+  },
+  "dependencies": {
+    "@ext-modelcontextprotocol/skills": "file:../../../typescript/sdk",
+    "@modelcontextprotocol/sdk": "^1.27.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "Apache-2.0"
+}

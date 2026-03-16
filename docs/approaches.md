@@ -87,6 +87,23 @@ This approach may also:
 - Use Prompts for explicit skill invocation
 - Use `tools/listChanged` and other notifications for dynamic updates without server re-initialization
 
+### Variant: Resource Template Discovery
+
+Instead of listing all skills via `resources/list`, servers can expose skills as resource templates (e.g., `skill://{owner}/{repo}/{skill_name}/SKILL.md`) with `completion/complete` support. Clients discover skills by completing template arguments progressively. This scales to large platforms where enumerating all skills upfront is infeasible.
+
+**Proof-of-concept:** [github/github-mcp-server#2129](https://github.com/github/github-mcp-server/pull/2129) by [Sam Morrow](https://github.com/SamMorrowDrums) (GitHub)
+**Prototypes:**
+- [examples/resource-template-discovery/typescript](../examples/resource-template-discovery/typescript/) — fixture server mimicking Sam's `skill://{owner}/{repo}/{skill_name}/SKILL.md` pattern
+- [olaservo/mcp-docs-template-discovery](https://github.com/olaservo/mcp-docs-template-discovery) — MCP docs served via `docs://{section}/{topic}/{+path}` with context-dependent completions, demonstrating that the pattern generalizes beyond `skill://` URIs
+
+**SDK support:**
+- Low-level: `listSkillTemplates()`, `completeTemplateArg()`, `discoverSkillsFromTemplate()`, `loadSkillFromTemplate()`, `resolveManifestFiles()`
+- High-level: `discoverAllSkillsFromTemplates()` — single-call discovery + loading, building block for `SkillCatalog` integration ([PR #58](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/58))
+
+**Findings:** See [experimental-findings.md](experimental-findings.md#resource-template-skill-discovery-github-mcp-server-poc)
+
+**See also:** [#57](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/57) — Investigate resource template skill discovery
+
 ### Distribution and Provenance Considerations
 
 Several design considerations have been suggested in community discussion and proposals around how skills are distributed over MCP:

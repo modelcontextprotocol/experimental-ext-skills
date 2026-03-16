@@ -53,3 +53,24 @@ export {
   parseSkillFrontmatter,
   buildSkillsSummary,
 } from "./client.js";
+
+// Resource template discovery
+export type {
+  SkillTemplate,
+  ManifestFileEntryWithUri,
+  SkillManifestWithUris,
+  LoadedTemplateSkill,
+} from "./template.js";
+export {
+  extractTemplateVariables,
+  expandTemplate,
+  isSkillTemplate,
+  isSkillManifestTemplate,
+  detectSkillNameVariable,
+  listSkillTemplates,
+  completeTemplateArg,
+  discoverSkillsFromTemplate,
+  loadSkillFromTemplate,
+  resolveManifestFiles,
+  discoverAllSkillsFromTemplates,
+} from "./template.js";
