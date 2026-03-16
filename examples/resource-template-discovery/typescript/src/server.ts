@@ -24,8 +24,8 @@ import * as fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { discoverSkills } from "@ext-modelcontextprotocol/skills";
-import type { SkillMetadata } from "@ext-modelcontextprotocol/skills";
+import { discoverSkills } from "@modelcontextprotocol/ext-skills/server";
+import type { SkillMetadata } from "@modelcontextprotocol/ext-skills";
 
 // ---------- Configuration ----------
 

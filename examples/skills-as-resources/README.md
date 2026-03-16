@@ -44,7 +44,7 @@ This is a **resources-only** server. Clients are expected to provide their own `
 
 **Prerequisites**: Node.js >= 18, npm
 
-The example depends on the [`@ext-modelcontextprotocol/skills`](../../../typescript/sdk/) SDK (linked via `file:` reference). Build the SDK first:
+The example depends on the [`@modelcontextprotocol/ext-skills`](../../../typescript/sdk/) SDK (linked via `file:` reference). Build the SDK first:
 
 ```bash
 cd ../../../typescript/sdk
@@ -131,18 +131,18 @@ This server exposes skills as resources only — it does **not** include server-
 ### Recommended client behavior
 
 1. **Enumerate skills**: Call `resources/list` and filter for URIs matching `skill://*/SKILL.md`. Each matching resource's `description` field contains the skill summary from frontmatter.
-2. **Build context summaries**: Load skill metadata (name + description) into the system prompt so the model knows which skills are available (~50-100 tokens per skill).
-3. **Provide a `read_resource` tool**: Expose a client-side tool that maps internally to the MCP client SDK's `readResource()` call. This lets the model load full skill content on demand. Example system prompt note: *"Use the `read_resource` tool to load MCP-based skills by their `skill://` URI."*
+2. **Build context summaries**: Load skill metadata (name + description) into the system prompt so the model knows which skills are available.
+3. **Provide a `read_resource` tool**: Expose a client-side tool that lets the model load skill content on demand. Some clients (such as Claude Code) provide a built-in `read_resource` tool taking `(uri, server_name)` parameters, routing each call to the correct MCP server. For other clients, the SDK exports a `READ_RESOURCE_TOOL` schema matching this pattern — register and wire the handler to the MCP client SDK's `readResource()` call. This SDK extension also provides typed helpers: `readSkillContent()`, `readSkillManifest()`, and `readSkillDocument()`.
 4. **Subscribe to changes** (optional): Call `resources/subscribe` on skill URIs to receive `notifications/resources/updated` when files change on disk. Re-enumerate on `notifications/resources/list_changed`.
 5. **Use `skill://prompt-xml`** (optional): Read the `skill://prompt-xml` resource for pre-built `<available_skills>` XML suitable for system prompt injection, as an alternative to building your own summaries from step 1.
 
 ### SDK integration
 
-The [`@ext-modelcontextprotocol/skills`](../../../typescript/sdk/) SDK provides ready-made helpers for both server and client sides. This example uses the SDK — see [`src/index.ts`](typescript/src/index.ts) for the server-side usage.
+The [`@modelcontextprotocol/ext-skills`](../../../typescript/sdk/) SDK provides ready-made helpers for both server and client sides. This example uses the SDK — see [`src/index.ts`](typescript/src/index.ts) for the server-side usage.
 
 **Server-side** (skill discovery + resource registration):
 ```typescript
-import { discoverSkills, registerSkillResources } from "@ext-modelcontextprotocol/skills";
+import { discoverSkills, registerSkillResources } from "@modelcontextprotocol/ext-skills/server";
 
 const skillMap = discoverSkills("./skills");
 const handles = registerSkillResources(server, skillMap, "./skills", {
@@ -151,12 +151,31 @@ const handles = registerSkillResources(server, skillMap, "./skills", {
 });
 ```
 
-**Client-side** (skill enumeration + context building):
+**Client-side** (skill enumeration, context building, and reading):
 ```typescript
-import { listSkillResources, buildSkillsSummary } from "@ext-modelcontextprotocol/skills";
+import {
+  READ_RESOURCE_TOOL,
+  listSkillResources,
+  readSkillContent,
+  readSkillManifest,
+  readSkillDocument,
+  buildSkillsSummary,
+} from "@modelcontextprotocol/ext-skills/client";
 
+// Enumerate and summarize skills
 const skills = await listSkillResources(client);
 console.log(buildSkillsSummary(skills));
+
+// Register read_resource tool
+registerTool(READ_RESOURCE_TOOL, async (params) => {
+  const client = getClientForServer(params.server_name);
+  return client.readResource({ uri: params.uri });
+});
+
+// Or use typed helpers directly
+const content = await readSkillContent(client, "code-review");
+const manifest = await readSkillManifest(client, "code-review");
+const doc = await readSkillDocument(client, "code-review", "references/REFERENCE.md");
 ```
 
 See [PR #16 discussion](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/16#discussion_r2859600003) for the full rationale on why client-side `read_resource` is preferred over server-side `load_skill` tools.

@@ -1,15 +1,10 @@
 /**
  * Type definitions for the Skills as Resources SDK.
  *
- * URI scheme aligned with skillsdotnet conventions:
+ * URI scheme:
  *   - skill://{name}/SKILL.md   — listed resource for skill content
  *   - skill://{name}/_manifest  — listed resource for file inventory
  *   - skill://{name}/{+path}    — template for supporting files
- *
- * Inspired by:
- * - skilljack-mcp by Ola Hungerford (https://github.com/olaservo/skilljack-mcp)
- * - skills-over-mcp by Keith Groves (https://github.com/keithagroves/skills-over-mcp)
- * - SkillsDotNet by Brad Wilson (https://github.com/bradwilson/skillsdotnet)
  */
 
 import type { RegisteredResource } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -64,7 +59,6 @@ export interface SkillMetadata {
   metadata?: Record<string, string>; // Optional extra frontmatter fields
   documents: SkillDocument[]; // Supplementary files found in subdirectories
   manifest: SkillManifest; // Pre-computed file manifest
-  manifestJson: string; // Pre-serialized manifest JSON (avoids I/O on request)
   lastModified: string; // ISO 8601 timestamp from SKILL.md file mtime
 }
 

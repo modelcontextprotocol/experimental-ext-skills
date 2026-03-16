@@ -5,9 +5,6 @@
  * skill directories, and SKILL.md files appearing or disappearing — so
  * the server can dynamically update its resource list and send
  * `notifications/resources/list_changed` to connected clients.
- *
- * Inspired by:
- * - skilljack-mcp by Ola Hungerford (https://github.com/olaservo/skilljack-mcp)
  */
 
 import * as path from "node:path";

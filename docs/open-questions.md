@@ -119,6 +119,8 @@ Note: Some apps like Claude Code have started to indicate in the skill frontmatt
 
 See also [Approaches](approaches.md) for more notes on using resources.
 
+**URI scheme:** The `skill://{name}/SKILL.md` URI convention was proposed in [PR #53](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/53).
+
 ## 13. What is the optimal relationship between skills and MCP?
 
 > **Tracked in:** [#43](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/43) — Draft MCP Skills Convention v0.1

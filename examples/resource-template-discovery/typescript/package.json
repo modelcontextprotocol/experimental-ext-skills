@@ -11,7 +11,7 @@
     "test": "node --import tsx integration-test.ts"
   },
   "dependencies": {
-    "@ext-modelcontextprotocol/skills": "file:../../../typescript/sdk",
+    "@modelcontextprotocol/ext-skills": "file:../../../typescript/sdk",
     "@modelcontextprotocol/sdk": "^1.27.1"
   },
   "devDependencies": {

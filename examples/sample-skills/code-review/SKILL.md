@@ -34,7 +34,7 @@ Perform structured code reviews using a consistent methodology.
 
 ## Reference
 
-For a detailed checklist, see `references/REFERENCE.md` in this skill's directory.
+For a detailed checklist, see `references/REFERENCE.md`.
 
 ## Output Format
 

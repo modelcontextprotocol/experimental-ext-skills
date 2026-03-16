@@ -11,7 +11,7 @@
 
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { SkillSummary } from "./types.js";
-import { parseSkillFrontmatter } from "./client.js";
+import { parseSkillFrontmatter } from "./_client.js";
 
 /** Regex to detect skill:// URI templates. */
 const SKILL_TEMPLATE_REGEX = /^skill:\/\//;

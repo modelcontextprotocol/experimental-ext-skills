@@ -4,10 +4,6 @@
  * Discovers Agent Skills by scanning a directory for subdirectories
  * containing SKILL.md files, parses YAML frontmatter for metadata,
  * scans for supplementary documents, and provides secure content loading.
- *
- * Inspired by:
- * - skilljack-mcp by Ola Hungerford (https://github.com/olaservo/skilljack-mcp)
- * - skills-over-mcp by Keith Groves (https://github.com/keithagroves/skills-over-mcp)
  */
 
 import * as fs from "node:fs";
@@ -294,8 +290,6 @@ export function discoverSkills(
           })),
         ],
       };
-      const manifestJson = JSON.stringify(manifest);
-
       skillMap.set(trimmedName, {
         name: trimmedName,
         description: description.trim(),
@@ -304,7 +298,6 @@ export function discoverSkills(
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
         documents,
         manifest,
-        manifestJson,
         lastModified: stat.mtime.toISOString(),
       });
     } catch (error) {
@@ -459,7 +452,7 @@ export function registerSkillResources(
         contents: [
           {
             uri: uri.href,
-            text: skill.manifestJson,
+            text: JSON.stringify(skill.manifest),
           },
         ],
       }),

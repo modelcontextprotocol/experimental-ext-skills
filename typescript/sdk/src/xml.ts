@@ -3,9 +3,6 @@
  *
  * Provides functions to generate <available_skills> XML from both
  * server-side SkillMetadata maps and client-side SkillSummary arrays.
- *
- * Inspired by:
- * - skills-over-mcp by Keith Groves (https://github.com/keithagroves/skills-over-mcp)
  */
 
 import type { SkillMetadata, SkillSummary } from "./types.js";

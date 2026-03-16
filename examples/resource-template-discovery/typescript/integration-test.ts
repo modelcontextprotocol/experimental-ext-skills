@@ -17,16 +17,16 @@
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { listSkillResources } from "@modelcontextprotocol/ext-skills/client";
 import {
-  listSkillResources,
   listSkillTemplates,
   completeTemplateArg,
   discoverSkillsFromTemplate,
   loadSkillFromTemplate,
   resolveManifestFiles,
   discoverAllSkillsFromTemplates,
-} from "@ext-modelcontextprotocol/skills";
-import type { SkillManifestWithUris } from "@ext-modelcontextprotocol/skills";
+} from "@modelcontextprotocol/ext-skills";
+import type { SkillManifestWithUris } from "@modelcontextprotocol/ext-skills";
 import { createServer, OWNER, REPO } from "./src/server.js";
 
 // ---------- Helpers ----------

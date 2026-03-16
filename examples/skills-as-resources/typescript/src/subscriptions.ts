@@ -6,14 +6,12 @@
  * the underlying file(s) change on disk. Watchers are created on-demand
  * when a URI is subscribed and cleaned up when unsubscribed.
  *
- * Inspired by:
- * - skilljack-mcp by Ola Hungerford (https://github.com/olaservo/skilljack-mcp)
  */
 
 import * as path from "node:path";
 import { watch, type FSWatcher } from "chokidar";
-import { isPathWithinBase } from "@ext-modelcontextprotocol/skills";
-import type { SkillMetadata } from "@ext-modelcontextprotocol/skills";
+import { isPathWithinBase } from "@modelcontextprotocol/ext-skills/server";
+import type { SkillMetadata } from "@modelcontextprotocol/ext-skills";
 
 /** Debounce interval (ms) for coalescing rapid file changes. */
 const DEBOUNCE_MS = 100;

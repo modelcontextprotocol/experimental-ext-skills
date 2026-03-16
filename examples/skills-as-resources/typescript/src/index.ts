@@ -17,11 +17,6 @@
  *   - Parse frontmatter for name + description to build context summaries
  *   - Provide a read_resource tool so the model can load skills on demand
  *
- * Inspired by:
- * - skilljack-mcp by Ola Hungerford (https://github.com/olaservo/skilljack-mcp)
- * - skills-over-mcp by Keith Groves (https://github.com/keithagroves/skills-over-mcp)
- * - SkillsDotNet by Peder Holdgaard Pedersen (https://github.com/pederhp/skillsdotnet)
- *
  * @license Apache-2.0
  */
 
@@ -34,8 +29,8 @@ import { SubscribeRequestSchema, UnsubscribeRequestSchema } from "@modelcontextp
 import {
   discoverSkills,
   registerSkillResources,
-  type SkillResourceHandles,
-} from "@ext-modelcontextprotocol/skills";
+} from "@modelcontextprotocol/ext-skills/server";
+import type { SkillResourceHandles } from "@modelcontextprotocol/ext-skills";
 import { createSubscriptionManager } from "./subscriptions.js";
 import { createSkillDirectoryWatcher } from "./skill-watcher.js";
 

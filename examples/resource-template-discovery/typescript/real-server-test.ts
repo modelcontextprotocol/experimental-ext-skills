@@ -18,15 +18,15 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { spawn } from "node:child_process";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { listSkillResources } from "@modelcontextprotocol/ext-skills/client";
 import {
-  listSkillResources,
   listSkillTemplates,
   completeTemplateArg,
   discoverSkillsFromTemplate,
   loadSkillFromTemplate,
   resolveManifestFiles,
-} from "@ext-modelcontextprotocol/skills";
-import type { SkillManifestWithUris } from "@ext-modelcontextprotocol/skills";
+} from "@modelcontextprotocol/ext-skills";
+import type { SkillManifestWithUris } from "@modelcontextprotocol/ext-skills";
 
 // ---------- Configuration ----------
 
