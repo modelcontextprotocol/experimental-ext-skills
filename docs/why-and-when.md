@@ -76,7 +76,7 @@ This isn't an either/or choice. Skills can exist as local files *and* be served 
 
 ### "Why not just files in a git repo?"
 
-This works well for many cases and will continue to. But file-based distribution has no discovery mechanism (you have to know the repo exists), no dynamic updates (you have to re-pull), and no ephemeral availability (files persist on disk). For enterprises, git-based skill distribution also raises trust and access-control concerns that MCP's existing server trust model already addresses.
+This works well for many cases and will continue to. But file-based distribution has no discovery mechanism (you have to know the repo exists), no dynamic updates (you have to re-pull), and no ephemeral availability (files persist on disk). For enterprises, git-based skill distribution raises its own trust and access-control concerns — though MCP-based distribution introduces different governance questions (allowlisting, provenance verification, runtime integrity) that are [still being worked out](open-questions.md#10-how-should-skills-handle-security-and-trust-boundaries).
 
 ### "Why not just extend server instructions?"
 
