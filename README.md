@@ -38,6 +38,7 @@ See [problem-statement.md](docs/problem-statement.md) for full details.
 | Document | Description |
 | :--- | :--- |
 | [Problem Statement](docs/problem-statement.md) | Current limitations and gaps |
+| [Why Skills Over MCP?](docs/why-and-when.md) | Value proposition and decision guide |
 | [Use Cases](docs/use-cases.md) | Key use cases driving this work |
 | [Approaches](docs/approaches.md) | Approaches being explored (not mutually exclusive) |
 | [Open Questions](docs/open-questions.md) | Unresolved questions with community input |
