@@ -22,6 +22,14 @@ This Interest Group explores how "[agent skills](https://agentskills.io/)" (rich
 - **Client implementation mandates:** We can document patterns but not require specific client behavior
 - **Plugin/bundle packaging:** Some use cases surface a broader need for installable bundles (skills + servers + subagents + configuration as a single artifact). How to solve for this is out of scope.
 
+## Why Skills Over MCP?
+
+MCP servers give agents tools, but tools alone are insufficient for complex workflows — tool descriptions tell an agent *what* a tool does, not *how to orchestrate* multiple tools to achieve a goal. Skills bridge this gap. They are structured "how-to" knowledge: multi-step workflows, conditional logic, and orchestration instructions that can run to hundreds of lines.
+
+Skills are *context*, and MCP is a *context protocol*. Agents already connect to remote services over MCP to get tools — they can get the know-how to use those tools through the same channel. A remote MCP server can serve both its tools and the instructions for using them together, as a single atomic unit. This also enables automatic discovery (connect to a server, find its skills), dynamic updates (server-side changes flow without reinstall), multi-server composition (skills orchestrating tools across servers), and enterprise distribution (RBAC, multi-tenant, version-adaptive content) — all through infrastructure MCP servers already provide.
+
+See [why-and-when.md](docs/why-and-when.md) for the full value proposition and a guide for when MCP distribution applies vs. simpler alternatives.
+
 ## Problem Statement
 
 Native "skills" support in host applications demonstrates demand for rich workflow instructions, but there's no convention for exposing equivalent functionality through MCP primitives. Current limitations include:
