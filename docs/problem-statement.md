@@ -27,3 +27,5 @@ See [use-cases.md](use-cases.md) for detailed use cases and community input. In 
 ## Open Questions
 
 See [open-questions.md](open-questions.md) for the full list of unresolved questions with community input.
+
+For the value proposition and a guide on when MCP distribution applies, see [why-and-when.md](why-and-when.md).
