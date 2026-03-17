@@ -12,7 +12,7 @@
 
 ## Abstract
 
-This SEP defines a convention for serving [Agent Skills](https://agentskills.io/) over MCP using the existing Resources primitive. A _skill_ is a directory of files (minimally a `SKILL.md`) that provides structured workflow instructions to an agent. This extension specifies that each file in a skill directory is exposed as an MCP resource under the `skill://` URI scheme, with skill discovery achieved through scoped `resources/list` calls (per [SEP-2093]). The skill format itself — directory structure, YAML frontmatter, naming rules — is delegated entirely to the [Agent Skills specification](https://agentskills.io/specification); this SEP defines only the transport binding.
+This SEP defines a convention for serving [Agent Skills](https://agentskills.io/) over MCP using the existing Resources primitive. A _skill_ is a directory of files (minimally a `SKILL.md`) that provides structured workflow instructions to an agent. This extension specifies that each file in a skill directory is exposed as an MCP resource under the `skill://` URI scheme. Skills are addressed by URI and may be read directly; enumeration via `resources/list` and discovery via resource templates are supported but not required, accommodating servers whose skill catalogs are large, generated, or otherwise unenumerable. The skill format itself — directory structure, YAML frontmatter, naming rules — is delegated entirely to the [Agent Skills specification](https://agentskills.io/specification); this SEP defines only the transport binding.
 
 Because the extension adds no new protocol methods or capabilities, hosts that already treat MCP resources as a virtual filesystem can consume MCP-served skills identically to local filesystem skills. The specification is accompanied by implementation guidelines for host-provided resource-reading tools and SDK-level convenience wrappers.
 
@@ -22,21 +22,19 @@ Native skills support in host applications demonstrates strong demand for rich, 
 
 - **Fragmented distribution.** A server and the skill that teaches an agent to use it are versioned, discovered, and installed separately. Users installing a server from a registry have no signal that a companion skill exists. ([problem-statement.md](problem-statement.md))
 - **Instruction size limits.** Server instructions load once at initialization and are practically bounded in size. Complex workflows — such as the 875-line [mcpGraph skill](https://github.com/TeamSparkAI/mcpGraph/blob/main/skills/mcpgraphtoolkit/SKILL.md) — do not fit this model. ([experimental-findings.md](experimental-findings.md#mcpgraph-skills-in-mcp-server-repo))
-- **Inconsistent ad-hoc solutions.** Absent a convention, four independent implementations have each invented their own `skill://` URI structure, with diverging semantics for authority, path, and sub-resource addressing. ([skill-uri-scheme.md](skill-uri-scheme.md#survey-of-existing-patterns))
-
-This SEP codifies that answer.
+- **Inconsistent ad-hoc solutions.** Absent a convention, four independent implementations have each invented their own `skill://` URI structure, with diverging semantics for authority, path, and sub-resource addressing.
 
 ## Specification
 
 ### Dependencies
 
-This extension depends on [SEP-2093] (Resource Contents Metadata and Capabilities) for scoped `resources/list`. Servers implementing this extension MUST support `resources/list` with a `uri` parameter.
+Servers that support skill enumeration (see [Discovery](#discovery)) SHOULD implement scoped `resources/list` as defined in [SEP-2093] (Resource Contents Metadata and Capabilities). This dependency is conditional: a server that exposes skills only by direct URI reference or by resource template has no hard dependency on SEP-2093.
 
 ### Skill Format
 
 A skill served over MCP MUST conform to the [Agent Skills specification](https://agentskills.io/specification). In particular:
 
-- A skill is a directory identified by a _skill name_.
+- A skill is a directory. Its _skill name_ is the value of the `name` field in its `SKILL.md` frontmatter.
 - Every skill MUST contain a `SKILL.md` file at its root.
 - `SKILL.md` MUST begin with YAML frontmatter containing at minimum the `name` and `description` fields as defined by the Agent Skills specification.
 - A skill MAY contain additional files and subdirectories (references, scripts, examples, assets).
@@ -45,37 +43,39 @@ This extension does not redefine, constrain, or extend the skill format. Future 
 
 ### Resource Mapping
 
-Each file within a skill directory MUST be exposed as an MCP resource. The resource URI MUST follow the form:
+Each file within a skill directory is exposed as an MCP resource under the `skill://` scheme. The resource URI has the form:
 
 ```
-skill://<skill-name>/<path>
+skill://<skill-path>/<file-path>
 ```
 
 where:
 
-- `<skill-name>` is the skill's directory name, which MUST follow the Agent Skills specification [naming rules](https://agentskills.io/specification#name-field) (1–64 characters, lowercase alphanumeric and hyphens, no leading/trailing or consecutive hyphens).
-- `<path>` is the file's path relative to the skill directory root, using `/` as the path separator.
+- `<skill-path>` is a `/`-separated path of one or more segments locating the skill directory within the server's skill namespace. It MAY be a single segment (`git-workflow`) or nested to arbitrary depth (`acme/billing/refunds`).
+- `<file-path>` is the file's path relative to the skill directory root, using `/` as the separator.
 
-The resource for the skill's required `SKILL.md` is therefore always:
+The resource for the skill's required `SKILL.md` is therefore always addressable as `skill://<skill-path>/SKILL.md`, and the skill's root directory is the URI obtained by stripping the trailing `SKILL.md`.
 
-```
-skill://<skill-name>/SKILL.md
-```
+The `<skill-path>` is a locator, not an identifier. It need not match the skill's `name` (which comes from frontmatter), and servers MAY organize skills hierarchically by domain, team, version, or any other axis. Two constraints follow:
 
-Per [RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986), `<skill-name>` occupies the authority component and `<path>` is the path. Skill names are not network hosts; clients MUST NOT attempt DNS or network resolution of the authority.
+- A `SKILL.md` MUST NOT appear in an ancestor directory of another `SKILL.md` under the same `skill://` root. The skill directory is the boundary; skills do not nest inside other skills.
+- Each `<skill-path>` segment SHOULD be a valid URI path segment per [RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986). No further naming constraints are imposed on the path; naming constraints on the skill itself are governed by the Agent Skills specification and apply to the frontmatter `name` field.
+
+Per RFC 3986, the first segment of `<skill-path>` occupies the authority component. This carries no special semantics under this convention and clients MUST NOT attempt DNS or network resolution of it.
 
 #### Examples
 
-| File in skill directory | Resource URI |
-|---|---|
-| `git-workflow/SKILL.md` | `skill://git-workflow/SKILL.md` |
-| `pdf-processing/SKILL.md` | `skill://pdf-processing/SKILL.md` |
-| `pdf-processing/references/FORMS.md` | `skill://pdf-processing/references/FORMS.md` |
-| `pdf-processing/scripts/extract.py` | `skill://pdf-processing/scripts/extract.py` |
+| Skill path | File | Resource URI |
+|---|---|---|
+| `git-workflow` | `SKILL.md` | `skill://git-workflow/SKILL.md` |
+| `pdf-processing` | `references/FORMS.md` | `skill://pdf-processing/references/FORMS.md` |
+| `pdf-processing` | `scripts/extract.py` | `skill://pdf-processing/scripts/extract.py` |
+| `acme/billing/refunds` | `SKILL.md` | `skill://acme/billing/refunds/SKILL.md` |
+| `acme/billing/refunds` | `templates/email.md` | `skill://acme/billing/refunds/templates/email.md` |
 
 #### Resource Metadata
 
-For each `skill://<skill-name>/SKILL.md` resource:
+For each `skill://<skill-path>/SKILL.md` resource:
 
 - `mimeType` SHOULD be `text/markdown`.
 - `name` SHOULD be set from the `name` field of the `SKILL.md` YAML frontmatter.
@@ -85,7 +85,13 @@ Servers MAY expose additional frontmatter fields via the resource's `_meta` obje
 
 ### Discovery
 
-Servers implementing this extension MUST respond to a scoped list request for the `skill://` scheme root:
+A server is not required to make its skills enumerable. A `skill://` URI is directly readable via `resources/read` whether or not it appears in any list response, and hosts MUST support loading a skill given only its URI (see [Hosts: Model-Driven Resource Loading](#hosts-model-driven-resource-loading)). This is the baseline: if a model has the URI — from server instructions, from another skill, from the user — it can read the skill.
+
+On top of that baseline, three discovery mechanisms are defined. A server MAY support any combination.
+
+#### Enumeration via `resources/list`
+
+A server whose skill set is small enough to list SHOULD respond to a scoped list request for the `skill://` scheme root:
 
 ```json
 {
@@ -98,7 +104,7 @@ Servers implementing this extension MUST respond to a scoped list request for th
 }
 ```
 
-The response MUST include, for each skill the server provides, the resource entry for that skill's `SKILL.md`:
+with the `SKILL.md` resource entry for each enumerable skill:
 
 ```json
 {
@@ -113,9 +119,9 @@ The response MUST include, for each skill the server provides, the resource entr
         "mimeType": "text/markdown"
       },
       {
-        "uri": "skill://pdf-processing/SKILL.md",
-        "name": "pdf-processing",
-        "description": "Extract, transform, and annotate PDF documents",
+        "uri": "skill://acme/billing/refunds/SKILL.md",
+        "name": "refund-handling",
+        "description": "Process customer refund requests per company policy",
         "mimeType": "text/markdown"
       }
     ]
@@ -123,9 +129,41 @@ The response MUST include, for each skill the server provides, the resource entr
 }
 ```
 
-Servers MAY additionally list supporting files in this response, but MUST at minimum list each `SKILL.md`. Clients enumerate the skills a server provides by filtering the response for URIs matching `skill://*/SKILL.md`.
+The response to `resources/list(uri="skill://")` SHOULD contain only `SKILL.md` entries — one per skill. Supporting files SHOULD NOT appear here; this request enumerates skills, not their contents. Clients MAY rely on every entry in the response being a skill entry point.
 
-Servers SHOULD also respond to `resources/list` with `uri` set to `skill://<skill-name>/` by listing all files within that skill directory, enabling clients to discover a skill's supporting files without reading `SKILL.md` first.
+A server MAY also respond to `resources/list` with `uri` set to a skill's directory (e.g. `skill://acme/billing/refunds/`) by listing that skill's files.
+
+A server whose skill catalog is large, generated on demand, or backed by an external index MAY return an empty or partial result for `resources/list(uri="skill://")`, or MAY decline to support the scoped list entirely. Hosts MUST NOT treat an empty enumeration as proof that a server has no skills.
+
+#### Discovery via Resource Templates
+
+Servers MAY register one or more [resource templates](https://modelcontextprotocol.io/specification/2025-11-25/server/resources#resource-templates) with a `skill://` URI template, enabling hosts to discover the shape of the server's skill namespace and, where the template variables are completable, to enumerate skills interactively:
+
+```json
+{
+  "resourceTemplates": [
+    {
+      "uriTemplate": "skill://docs/{product}/SKILL.md",
+      "name": "Product documentation skill",
+      "description": "Usage guidance for a named product",
+      "mimeType": "text/markdown"
+    },
+    {
+      "uriTemplate": "skill://acme/{domain}/{workflow}/SKILL.md",
+      "name": "Acme workflow skill",
+      "description": "Domain-specific workflow instructions"
+    }
+  ]
+}
+```
+
+Resource templates are primarily a user-facing discovery mechanism. Hosts SHOULD recognize resource templates whose `uriTemplate` begins with `skill://` as skill discovery points and surface them in the host UI, wiring template variables to the MCP [completion API](https://modelcontextprotocol.io/specification/2025-11-25/server/utilities/completion) so the user can interactively fill in values and browse available skills. The user selects a skill; the host passes the resolved URI into the conversation.
+
+This mechanism scales to servers with unbounded skill catalogs: the template describes the addressable space without requiring the server to materialize every entry, and completion narrows it as the user types.
+
+#### Pointer from Server Instructions
+
+A server MAY direct the agent to specific `skill://` URIs from its `instructions` field. This requires no discovery machinery on the host; the URI is simply present in the model's context and readable via `resources/read`.
 
 #### Capability Declaration
 
@@ -147,7 +185,7 @@ No extension-specific settings are currently defined; an empty object indicates 
 
 Skill files are read via the standard `resources/read` method. No skill-specific read semantics are defined.
 
-Internal references within a skill (e.g., `SKILL.md` linking to `references/GUIDE.md`) are relative paths, as in the filesystem form of the Agent Skills specification. A client resolves a relative reference against the skill's root — `references/GUIDE.md` in `skill://pdf-processing/SKILL.md` resolves to `skill://pdf-processing/references/GUIDE.md` — exactly as a filesystem path would resolve.
+Internal references within a skill (e.g., `SKILL.md` linking to `references/GUIDE.md`) are relative paths, as in the filesystem form of the Agent Skills specification. A client resolves a relative reference against the skill's root — `references/GUIDE.md` in `skill://acme/billing/refunds/SKILL.md` resolves to `skill://acme/billing/refunds/references/GUIDE.md` — exactly as a filesystem path would resolve. The skill's root is the directory containing `SKILL.md`, not the `skill://` scheme root.
 
 ## Implementation Guidelines
 
@@ -174,7 +212,9 @@ Hosts SHOULD expose a tool to the model that reads MCP resources by server and U
 
 Including the server name disambiguates identical `skill://` URIs served by different connected servers. This tool is general-purpose — it reads any MCP resource — and benefits resource use cases beyond skills.
 
-The typical flow: the host calls `resources/list(uri="skill://")` on each connected server at initialization, surfaces the returned names and descriptions in the model's context, and the model calls `read_resource` when a skill is relevant to the task.
+A typical flow: the host calls `resources/list(uri="skill://")` on each connected server at initialization and surfaces any returned skill entries in the model's context. The model calls `read_resource` with a concrete URI — one returned by enumeration, one handed to it by the user (who may have found it via a `skill://` resource template in the host UI), or one obtained out-of-band — when a skill is relevant to the task.
+
+Because enumeration is optional, a `read_resource` call for a `skill://` URI that the host has never seen listed is normal and expected. The host forwards it to the named server; the server either serves the resource or returns a not-found error.
 
 ### Hosts: Unified Treatment of Filesystem and MCP Skills
 
@@ -186,21 +226,26 @@ Concretely: the same discovery surface, the same loading tool, and the same rela
 
 SDK maintainers SHOULD provide affordances that wrap the underlying resource operations in skill-specific terms. For example:
 
-**Server-side** — declare a skill from a directory:
+**Server-side** — declare a skill from a directory, at a given path:
 
 ```python
-@server.skill("git-workflow")
+@server.skill("git-workflow")                 # → skill://git-workflow/SKILL.md
 def git_workflow():
-    return Path("./skills/git-workflow")  # directory containing SKILL.md
+    return Path("./skills/git-workflow")
+
+@server.skill("acme/billing/refunds")         # → skill://acme/billing/refunds/SKILL.md
+def refunds():
+    return Path("./skills/refunds")
 ```
 
-The SDK handles: reading `SKILL.md` frontmatter to populate resource metadata, registering a `skill://git-workflow/{+path}` resource template, responding to scoped `resources/list` calls, and serving file content on `resources/read`.
+The SDK handles: reading `SKILL.md` frontmatter to populate resource metadata, registering a `skill://<skill-path>/{+path}` resource template, serving file content on `resources/read`, and (where the server's skill set is bounded) responding to scoped `resources/list` calls.
 
 **Client-side** — enumerate and fetch skills:
 
 ```python
-skills = await client.list_skills()           # wraps resources/list(uri="skill://")
-content = await client.read_skill("git-workflow")  # wraps resources/read(uri="skill://git-workflow/SKILL.md")
+skills = await client.list_skills()               # wraps resources/list(uri="skill://"), may be empty
+content = await client.read_skill_uri(
+    "skill://acme/billing/refunds/SKILL.md")      # wraps resources/read, works regardless of enumeration
 ```
 
 These wrappers are thin — each is a single underlying protocol call with a fixed URI pattern — but they give server authors an ergonomic way to declare skills and give client authors a discoverable entry point.
@@ -213,29 +258,39 @@ The Interest Group's [decision log](decisions.md#2026-02-26-prioritize-skills-as
 
 [SEP-2076] proposes the new-primitive alternative. That approach offers cleaner capability negotiation and dedicated list-changed notifications, but at the cost of flattening skills to name-addressed blobs — losing the directory model that the Agent Skills specification defines and that supporting files depend on.
 
-### Why `skill://<name>/<file>` With an Explicit `SKILL.md`?
+### Why `skill://<path>/<file>` With an Explicit `SKILL.md`?
 
-Four independent implementations converged on `skill://` as the scheme without coordination — a strong signal. They diverged on structure. The [URI scheme survey](skill-uri-scheme.md) evaluates each; this SEP adopts the FastMCP-style explicit-file structure because:
+Four independent implementations converged on `skill://` as the scheme without coordination — a strong signal. They diverged on structure. This SEP adopts the explicit-file form because:
 
 - It directly mirrors the Agent Skills specification's directory model. A skill _is_ a directory; its URI space should look like one.
 - `SKILL.md` being explicit means supporting files are siblings at the same level, with no special casing for "the skill URI" versus "a file in the skill."
 - Hosts implementing both filesystem and MCP skills can use one path-resolution codepath.
 
-The cost — `SKILL.md` is always typed out rather than implied — is small, and the discovery response already points clients at the right URI.
+The cost — `SKILL.md` is always typed out rather than implied — is small, and where discovery is supported the response already points clients at the right URI.
+
+### Why Decouple the URI Path From the Skill Name?
+
+Earlier drafts required `<skill-path>` to equal the frontmatter `name`. That coupling breaks down when a server needs hierarchy — a large organization serving `acme/billing/refunds` and `acme/support/refunds` cannot satisfy both "path is a single segment" and "path equals name" without renaming one skill. Decoupling lets the server's URI layout serve navigational needs while the frontmatter `name` serves the Agent Skills specification's identity rules. The URI is where to find the skill; the frontmatter says what it is.
+
+### Why Is Enumeration Optional?
+
+Requiring every server to list every skill in `resources/list(uri="skill://")` fails for at least three server shapes: a documentation server that synthesizes a skill per API endpoint (thousands), a skill gateway fronting an external index (unbounded), and a server that generates skills from templates parameterized at read time (unenumerable by construction). For these, the list is either too large to be useful in the model's context or does not meaningfully exist.
+
+The baseline is therefore direct readability — a `skill://` URI is always a valid argument to `resources/read`. Enumeration and template discovery are layered on top for servers where they make sense. A host that assumes enumeration is exhaustive will miss skills on servers where it is not, hence the requirement that hosts MUST NOT treat empty enumeration as proof of absence.
 
 ### Why Delegate the Format to agentskills.io?
 
 The Agent Skills specification already defines YAML frontmatter fields, naming rules, directory conventions, and the progressive-disclosure model. It has its own governance, contributing process, and multi-vendor participation. Redefining any of this in an MCP SEP would create a second source of truth and a drift risk. This SEP is a transport binding; the payload format is someone else's concern.
 
-### Why Depend on SEP-2093?
+### Why Reference SEP-2093?
 
-Without scoped `resources/list`, a client discovers skills by calling unscoped `resources/list` and filtering the response for `skill://` URIs client-side. This works but is inefficient on servers with many non-skill resources and gives servers no signal to apply skill-specific listing behavior. [SEP-2093]'s `uri` parameter fixes both: the client asks specifically for skills, and the server knows it is being asked.
+Without scoped `resources/list`, a client that wants to enumerate skills calls unscoped `resources/list` and filters for `skill://` URIs client-side. This works but is inefficient on servers with many non-skill resources and gives servers no signal to apply skill-specific listing behavior. [SEP-2093]'s `uri` parameter fixes both where enumeration is supported. The dependency is conditional because enumeration itself is: a server that exposes skills only by direct URI or by template never fields a scoped list call.
 
 ## Backward Compatibility
 
 This extension introduces no new protocol methods, message types, or schema changes beyond those already proposed in [SEP-2093]. A server that does not implement this extension simply exposes no `skill://` resources; existing clients are unaffected. A client that does not implement this extension sees `skill://` resources as ordinary resources, which they are.
 
-Existing implementations using other `skill://` URI structures (NimbleBrain's `skill://server/skill`, skilljack's implicit-`SKILL.md` `skill://name`) will need to adjust their URI paths to conform. These are small, mechanical changes, and the [survey](skill-uri-scheme.md#survey-of-existing-patterns) documents each implementation's current structure.
+Existing implementations using other `skill://` URI structures (NimbleBrain's `skill://server/skill`, skilljack's implicit-`SKILL.md` `skill://name`) will need to adjust their URI paths to conform. These are small, mechanical changes.
 
 ## Reference Implementation
 
@@ -258,7 +313,6 @@ The instructor-only scope of this extension ([decisions.md, 2026-02-14](decision
 - [SEP-2093]: Resource Contents Metadata and Capabilities
 - [SEP-2133]: Extensions
 - [SEP-2076]: Agent Skills as first-class primitive (alternative approach)
-- [Skill URI Scheme Proposal](skill-uri-scheme.md) — survey of existing patterns and recommended convention
 - [Decision Log](decisions.md) — Interest Group decisions and rationale
 - [Experimental Findings](experimental-findings.md) — results from implementations
 - [RFC 3986: URIs](https://datatracker.ietf.org/doc/html/rfc3986)
