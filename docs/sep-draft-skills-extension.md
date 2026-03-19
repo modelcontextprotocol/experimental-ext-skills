@@ -56,10 +56,12 @@ where:
 
 The resource for the skill's required `SKILL.md` is therefore always addressable as `skill://<skill-path>/SKILL.md`, and the skill's root directory is the URI obtained by stripping the trailing `SKILL.md`.
 
-The `<skill-path>` is a locator, not an identifier. It need not match the skill's `name` (which comes from frontmatter), and servers MAY organize skills hierarchically by domain, team, version, or any other axis. Two constraints follow:
+The final segment of `<skill-path>` MUST equal the skill's `name` as declared in its `SKILL.md` frontmatter. Preceding segments, if any, are a server-chosen organizational prefix — servers MAY organize skills hierarchically by domain, team, version, or any other axis. In `skill://acme/billing/refunds/SKILL.md`, the prefix is `acme/billing` and the skill's `name` is `refunds`; in `skill://git-workflow/SKILL.md` there is no prefix and the `name` is `git-workflow`. This means the skill name is always recoverable from the URI alone, without reading frontmatter.
+
+Further constraints:
 
 - A `SKILL.md` MUST NOT appear in an ancestor directory of another `SKILL.md` under the same `skill://` root. The skill directory is the boundary; skills do not nest inside other skills.
-- Each `<skill-path>` segment SHOULD be a valid URI path segment per [RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986). No further naming constraints are imposed on the path; naming constraints on the skill itself are governed by the Agent Skills specification and apply to the frontmatter `name` field.
+- The final `<skill-path>` segment, being the skill `name`, MUST satisfy the Agent Skills specification's naming rules. Prefix segments SHOULD be valid URI path segments per [RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986); no further constraints are imposed on them.
 
 Per RFC 3986, the first segment of `<skill-path>` occupies the authority component. This carries no special semantics under this convention and clients MUST NOT attempt DNS or network resolution of it.
 
@@ -78,7 +80,7 @@ Per RFC 3986, the first segment of `<skill-path>` occupies the authority compone
 For each `skill://<skill-path>/SKILL.md` resource:
 
 - `mimeType` SHOULD be `text/markdown`.
-- `name` SHOULD be set from the `name` field of the `SKILL.md` YAML frontmatter.
+- `name` SHOULD be set from the `name` field of the `SKILL.md` YAML frontmatter. By the path constraint above, this will equal the final segment of `<skill-path>`.
 - `description` SHOULD be set from the `description` field of the `SKILL.md` YAML frontmatter.
 
 Servers MAY expose additional frontmatter fields via the resource's `_meta` object. Other files in the skill use the `mimeType` appropriate to their content.
@@ -120,7 +122,7 @@ with the `SKILL.md` resource entry for each enumerable skill:
       },
       {
         "uri": "skill://acme/billing/refunds/SKILL.md",
-        "name": "refund-handling",
+        "name": "refunds",
         "description": "Process customer refund requests per company policy",
         "mimeType": "text/markdown"
       }
@@ -268,9 +270,13 @@ Four independent implementations converged on `skill://` as the scheme without c
 
 The cost — `SKILL.md` is always typed out rather than implied — is small, and where discovery is supported the response already points clients at the right URI.
 
-### Why Decouple the URI Path From the Skill Name?
+### Why Allow a Path Prefix But Constrain the Final Segment?
 
-Earlier drafts required `<skill-path>` to equal the frontmatter `name`. That coupling breaks down when a server needs hierarchy — a large organization serving `acme/billing/refunds` and `acme/support/refunds` cannot satisfy both "path is a single segment" and "path equals name" without renaming one skill. Decoupling lets the server's URI layout serve navigational needs while the frontmatter `name` serves the Agent Skills specification's identity rules. The URI is where to find the skill; the frontmatter says what it is.
+Earlier drafts required `<skill-path>` to be a single segment equal to the frontmatter `name`. That breaks down when a server needs hierarchy: an organization serving both `acme/billing/refunds` and `acme/support/refunds` cannot satisfy "single segment" without renaming one skill to dodge the collision. Allowing a prefix (`acme/billing/`, `acme/support/`) solves this — both skills can be named `refunds` and the prefix disambiguates.
+
+A subsequent draft went further and fully decoupled the path from the name. That was too loose: a URI like `skill://a/b/c/SKILL.md` tells you nothing about what the skill is called until you fetch and parse frontmatter. Clients listing skills, hosts displaying them in a picker, and models reasoning over URIs all want the name visible without a round trip.
+
+Constraining the final segment to match the frontmatter `name` gets both properties. The prefix carries the server's organizational structure; the final segment carries the skill's identity; and the two together form a locator from which the name can be read directly.
 
 ### Why Is Enumeration Optional?
 
