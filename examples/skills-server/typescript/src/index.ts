@@ -71,7 +71,7 @@ const server = new McpServer(
 );
 
 // Cast to access low-level Server internals for SEP shims.
-// These workarounds can be removed once the SDK supports:
+// These workarounds can be removed if the SDK adds support for:
 //   - extensions in capabilities (typescript-sdk#1630)
 //   - uri parameter on resources/list (SEP-2093)
 const lowLevelServer = server.server as unknown as ServerInternals;
