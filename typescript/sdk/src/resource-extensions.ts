@@ -9,9 +9,12 @@
  *   3. Per-resource capabilities — expressed via _meta
  *   4. Extension declaration — io.modelcontextprotocol/skills in capabilities
  *
- * When the SDK adds native support, this shim can be removed.
+ * If the SDK adds native support, this entire module can be removed.
  *
- * @see https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093
+ * TODO: Remove if/when resolved:
+ *   - resources/metadata & uri-scoped list: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093
+ *   - extensions in capabilities: https://github.com/modelcontextprotocol/typescript-sdk/pull/1630
+ *   - per-resource capabilities field: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093
  */
 
 import { z } from "zod";
@@ -22,7 +25,10 @@ import { buildSkillUri, MANIFEST_PATH, PROMPT_XML_URI } from "./uri.js";
 // Structural types (avoids duplicate-SDK private-property issues)
 // ---------------------------------------------------------------------------
 
-/** Minimal interface for Server.setRequestHandler(). */
+/**
+ * Minimal interface for Server.setRequestHandler().
+ * TODO: Remove if SDK adds native SEP-2093 support — use Server type directly.
+ */
 export interface RequestHandlerRegistrar {
   setRequestHandler<T extends z.ZodType>(
     schema: T,
@@ -33,6 +39,8 @@ export interface RequestHandlerRegistrar {
 /**
  * Minimal interface for the low-level Server internals we need to access.
  * We reach into private fields to override handlers and patch capabilities.
+ * TODO: Remove if SDK adds extensions support (typescript-sdk#1630) and
+ *       uri param on resources/list (SEP-2093).
  */
 export interface ServerInternals extends RequestHandlerRegistrar {
   /** Private Map of method → handler. We use this to grab and wrap existing handlers. */
@@ -93,7 +101,8 @@ export const ScopedListResourcesRequestSchema = z.object({
 
 /**
  * Build a _meta object with per-resource capabilities.
- * Capabilities live in _meta until the SDK adds a native field.
+ * TODO: Replace with native `capabilities` field on Resource if SEP-2093
+ *       lands in the SDK. See: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093
  */
 export function buildCapabilitiesMeta(
   capabilities: ResourceCapabilities,
@@ -218,6 +227,9 @@ export function registerMetadataHandler(
  *
  * Must be called AFTER McpServer has registered its resources/list handler
  * (i.e., after the first server.resource() call).
+ *
+ * TODO: Remove if the SDK adds native `uri` param support on resources/list.
+ *       See: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093
  */
 export function overrideResourcesListWithScoping(
   server: ServerInternals,
@@ -258,9 +270,8 @@ export function overrideResourcesListWithScoping(
  * Must be called BEFORE server.connect() (capabilities are sent during
  * the initialize handshake).
  *
- * This is a workaround — the SDK's ServerCapabilities schema doesn't
- * include `extensions` yet (see typescript-sdk#1630). When merged,
- * this can be replaced with a normal registerCapabilities() call.
+ * TODO: Replace with registerCapabilities({ extensions: { ... } }) if
+ *       the SDK adds support. See: https://github.com/modelcontextprotocol/typescript-sdk/pull/1630
  */
 export function declareSkillsExtension(server: ServerInternals): void {
   if (!server._capabilities) {
