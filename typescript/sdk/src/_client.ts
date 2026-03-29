@@ -184,7 +184,7 @@ export async function readSkillContent(
  */
 export function parseSkillFrontmatter(
   content: string,
-): { name: string; description: string } | null {
+): { name: string; description: string; dependencies?: string[] } | null {
   if (!content.startsWith("---")) return null;
 
   const endIndex = content.indexOf("---", 3);
@@ -202,7 +202,20 @@ export function parseSkillFrontmatter(
     ? descMatch[1].trim().replace(/^["']|["']$/g, "")
     : "";
 
-  return { name, description };
+  // Parse optional dependencies: [server-a, server-b]
+  let dependencies: string[] | undefined;
+  const depsMatch = frontmatter.match(/^dependencies:\s*\[([^\]]*)\]$/m);
+  if (depsMatch) {
+    const items = depsMatch[1]
+      .split(",")
+      .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+      .filter((s) => s.length > 0);
+    if (items.length > 0) {
+      dependencies = items;
+    }
+  }
+
+  return { name, description, dependencies };
 }
 
 /**

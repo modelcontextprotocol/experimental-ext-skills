@@ -15,3 +15,6 @@ export {
   listSkillsScoped,
 } from "../_client.js";
 export type { SkillsClient, ToolDefinition } from "../_client.js";
+
+export { SkillCatalog } from "../catalog.js";
+export type { ContextFormatter } from "../catalog.js";

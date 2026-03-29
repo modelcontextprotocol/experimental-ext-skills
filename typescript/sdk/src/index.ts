@@ -13,6 +13,7 @@ export type {
   SkillDocument,
   SkillMetadata,
   SkillSummary,
+  SkillDependencyRequest,
   RegisterSkillResourcesOptions,
   ResourceCapabilities,
   ResourceMetadataResult,

@@ -328,6 +328,15 @@ export function discoverSkills(
         }
       }
 
+      // Extract optional dependencies
+      let dependencies: string[] | undefined;
+      if (Array.isArray(frontmatter.dependencies)) {
+        dependencies = frontmatter.dependencies.filter(
+          (d): d is string => typeof d === "string" && d.trim().length > 0,
+        );
+        if (dependencies.length === 0) dependencies = undefined;
+      }
+
       // SEP constraint: final segment of skillPath MUST equal frontmatter name
       const finalSegment = skillPath.split("/").pop()!;
       if (finalSegment !== name.trim()) {
@@ -371,6 +380,7 @@ export function discoverSkills(
         absolutePath: skillMdPath,
         skillDir,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+        dependencies,
         documents,
         manifest,
         lastModified: stat.mtime.toISOString(),
