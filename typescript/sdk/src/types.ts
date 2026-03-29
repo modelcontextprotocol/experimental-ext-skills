@@ -99,6 +99,35 @@ export interface SkillSummary {
 }
 
 /**
+ * An entry in the skill://index.json discovery index.
+ * Follows the Agent Skills well-known URI discovery index format.
+ */
+export interface SkillIndexEntry {
+  /** Skill name from frontmatter (= final segment of skill path) */
+  name: string;
+  /** Always "skill-md" for MCP-served skills */
+  type: "skill-md";
+  /** Skill description from frontmatter */
+  description: string;
+  /** Full skill:// URI for the SKILL.md resource */
+  url: string;
+}
+
+/**
+ * The skill://index.json resource content.
+ * Follows the Agent Skills well-known URI discovery index format.
+ */
+export interface SkillIndex {
+  /** Schema version URI */
+  $schema: string;
+  /** Array of skill entries */
+  skills: SkillIndexEntry[];
+}
+
+/** Schema URI for the Agent Skills discovery index format. */
+export const SKILL_INDEX_SCHEMA = "https://schemas.agentskills.io/discovery/0.2.0/schema.json";
+
+/**
  * Options for registerSkillResources().
  */
 export interface RegisterSkillResourcesOptions {
@@ -108,26 +137,3 @@ export interface RegisterSkillResourcesOptions {
   promptXml?: boolean;
 }
 
-/**
- * SEP-2093: Per-resource capabilities.
- * Describes what operations a resource supports beyond basic read.
- */
-export interface ResourceCapabilities {
-  /** Supports resources/list to enumerate children */
-  list?: boolean;
-  /** Supports resources/subscribe for change notifications */
-  subscribe?: boolean;
-}
-
-/**
- * SEP-2093: Metadata-only response from resources/metadata endpoint.
- */
-export interface ResourceMetadataResult {
-  uri: string;
-  name?: string;
-  description?: string;
-  mimeType?: string;
-  annotations?: Record<string, unknown>;
-  capabilities?: ResourceCapabilities;
-  _meta?: Record<string, unknown>;
-}

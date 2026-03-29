@@ -10,18 +10,17 @@
  * Key evolution from previous version:
  *   - Multi-segment skill paths: skillPath may have a prefix before name
  *     (per the SEP, the final segment of skillPath equals frontmatter name)
- *   - SEP-2093: fetchSkillMetadata() for metadata-only access
- *   - SDK wrappers per the SEP: listSkills(), readSkillUri()
+ *   - SDK wrappers per the SEP: listSkills(), listSkillsFromIndex(), readSkillUri()
  */
 
-import type { SkillManifest, SkillSummary } from "./types.js";
+import type { SkillManifest, SkillSummary, SkillIndex } from "./types.js";
 import {
   buildSkillUri,
   MANIFEST_PATH,
+  INDEX_JSON_URI,
   parseSkillUri,
   SKILL_FILENAME,
 } from "./uri.js";
-import { ResourcesMetadataResultSchema, ScopedListResultSchema } from "./resource-extensions.js";
 
 /**
  * Minimal structural interface for an MCP Client.
@@ -50,10 +49,6 @@ export interface SkillsClient {
       blob?: string;
     }>;
   }>;
-  request(
-    request: { method: string; params?: Record<string, unknown> },
-    schema: unknown,
-  ): Promise<unknown>;
 }
 
 /**
@@ -145,6 +140,48 @@ export async function listSkills(client: SkillsClient): Promise<SkillSummary[]> 
   } while (cursor);
 
   return skills;
+}
+
+/**
+ * List skills by reading the well-known skill://index.json resource.
+ *
+ * This is the SEP's primary enumeration mechanism, following the Agent Skills
+ * well-known URI discovery index format. Returns null if the server does not
+ * expose skill://index.json (enumeration is optional per the SEP).
+ *
+ * Hosts MUST NOT treat an absent or empty index as proof that a server has
+ * no skills — a skill:// URI is always directly readable via resources/read.
+ */
+export async function listSkillsFromIndex(
+  client: SkillsClient,
+): Promise<SkillSummary[] | null> {
+  try {
+    const result = await client.readResource({ uri: INDEX_JSON_URI });
+    const content = result.contents[0];
+    if (!content || !("text" in content) || !content.text) return null;
+
+    const index = JSON.parse(content.text) as SkillIndex;
+    if (!index.skills || !Array.isArray(index.skills)) return null;
+
+    return index.skills
+      .filter((entry) => entry.type === "skill-md")
+      .map((entry) => {
+        // Extract skillPath from the url field (strip "skill://" prefix and "/SKILL.md" suffix)
+        const parsed = parseSkillUri(entry.url);
+        const skillPath = parsed?.skillPath ?? entry.name;
+
+        return {
+          name: entry.name,
+          skillPath,
+          uri: entry.url,
+          description: entry.description,
+          mimeType: "text/markdown",
+        };
+      });
+  } catch {
+    // Server doesn't expose skill://index.json — not an error
+    return null;
+  }
 }
 
 /**
@@ -262,72 +299,3 @@ export async function readSkillDocument(
   };
 }
 
-/**
- * SEP-2093: Fetch resource metadata without content.
- *
- * Tries the resources/metadata endpoint. Returns null if the server
- * doesn't support SEP-2093 (method not found).
- */
-export async function fetchSkillMetadata(
-  client: SkillsClient,
-  uri: string,
-): Promise<{ uri: string; name?: string; description?: string; mimeType?: string; capabilities?: { list?: boolean; subscribe?: boolean } } | null> {
-  try {
-    // SEP-2093: response shape is { resource: Resource }
-    const result = await client.request(
-      { method: "resources/metadata", params: { uri } },
-      ResourcesMetadataResultSchema,
-    ) as { resource: { uri: string; name?: string; description?: string; mimeType?: string; capabilities?: { list?: boolean; subscribe?: boolean }; [key: string]: unknown } };
-    return result.resource;
-  } catch {
-    // Server doesn't support resources/metadata — not an error
-    return null;
-  }
-}
-
-/**
- * List skills via resources/list with URI scoping (SEP-2093).
- *
- * When a `uriScope` is provided (e.g., "skill://acme/"), the server
- * filters to only SKILL.md entries under that prefix. Without a scope,
- * this is equivalent to a standard resources/list call.
- *
- * Returns null if the request fails (e.g., server doesn't support
- * the uri parameter on resources/list).
- */
-export async function listSkillsScoped(
-  client: SkillsClient,
-  uriScope?: string,
-): Promise<SkillSummary[] | null> {
-  try {
-    const result = await client.request(
-      {
-        method: "resources/list",
-        params: uriScope ? { uri: uriScope } : {},
-      },
-      ScopedListResultSchema,
-    ) as { resources: Array<{ uri: string; name?: string; description?: string; mimeType?: string }> };
-
-    const skills: SkillSummary[] = [];
-    for (const resource of result.resources) {
-      const parsed = parseSkillUri(resource.uri);
-      if (!parsed) continue;
-      if (
-        parsed.filePath !== SKILL_FILENAME &&
-        parsed.filePath.toLowerCase() !== "skill.md"
-      )
-        continue;
-
-      skills.push({
-        name: resource.name ?? parsed.skillPath,
-        skillPath: parsed.skillPath,
-        uri: resource.uri,
-        description: resource.description,
-        mimeType: resource.mimeType,
-      });
-    }
-    return skills;
-  } catch {
-    return null;
-  }
-}

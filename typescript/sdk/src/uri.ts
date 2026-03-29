@@ -26,6 +26,9 @@ export const MANIFEST_PATH = "_manifest";
 /** Special URI for system prompt XML. */
 export const PROMPT_XML_URI = "skill://prompt-xml";
 
+/** Well-known URI for the skill index (SEP discovery mechanism). */
+export const INDEX_JSON_URI = "skill://index.json";
+
 /**
  * Parsed components of a skill:// URI.
  */
@@ -58,7 +61,7 @@ export function parseSkillUri(uri: string): ParsedSkillUri | null {
   if (!uri.startsWith(SKILL_URI_SCHEME)) return null;
 
   const rest = uri.slice(SKILL_URI_SCHEME.length);
-  if (!rest || rest === "prompt-xml") return null;
+  if (!rest || rest === "prompt-xml" || rest === "index.json") return null;
 
   const slashIndex = rest.lastIndexOf("/");
   if (slashIndex === -1) return null;
@@ -151,4 +154,11 @@ export function isSkillManifestUri(uri: string): boolean {
  */
 export function isPromptXmlUri(uri: string): boolean {
   return uri === PROMPT_XML_URI;
+}
+
+/**
+ * Check if a URI is the well-known skill index resource.
+ */
+export function isIndexJsonUri(uri: string): boolean {
+  return uri === INDEX_JSON_URI;
 }

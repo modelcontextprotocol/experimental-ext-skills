@@ -5,13 +5,13 @@
  * Demonstrates the Skills Extension SEP with:
  *   - Extension declaration: io.modelcontextprotocol/skills (SEP-2133)
  *   - Multi-segment skill paths: prefix + name (final segment = frontmatter name)
- *   - SEP-2093 features: resources/metadata, scoped resources/list,
- *     per-resource capabilities via _meta
+ *   - skill://index.json — well-known discovery index
  *   - skill:// URI scheme with recursive discovery
  *
  * URI scheme:
  *   - skill://{skillPath}/SKILL.md     — Skill content (listed resource)
  *   - skill://{skillPath}/_manifest    — File manifest with SHA256 hashes
+ *   - skill://index.json               — Well-known discovery index (SEP enumeration)
  *   - skill://{+skillFilePath}         — Supporting files (resource template)
  *   - skill://prompt-xml               — XML for system prompt injection
  *
@@ -31,8 +31,6 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
   discoverSkills,
   registerSkillResources,
-  registerMetadataHandler,
-  overrideResourcesListWithScoping,
   declareSkillsExtension,
 } from "@modelcontextprotocol/ext-skills/server";
 import type { ServerInternals } from "@modelcontextprotocol/ext-skills/server";
@@ -70,10 +68,9 @@ const server = new McpServer(
   { capabilities: { resources: {} } },
 );
 
-// Cast to access low-level Server internals for SEP shims.
-// These workarounds can be removed if the SDK adds support for:
+// Cast to access low-level Server internals for extension declaration.
+// This workaround can be removed if the SDK adds support for:
 //   - extensions in capabilities (typescript-sdk#1630)
-//   - uri parameter on resources/list (SEP-2093)
 const lowLevelServer = server.server as unknown as ServerInternals;
 
 // --- Declare extension per SEP-2133 ---
@@ -89,20 +86,7 @@ registerSkillResources(server, skillMap, skillsDir, {
   promptXml: true,
 });
 
-// --- Override resources/list with URI scoping (SEP-2093) ---
-
-// Wraps the McpServer's built-in resources/list handler to add:
-//   resources/list(uri="skill://") → only SKILL.md entries under that prefix
-overrideResourcesListWithScoping(lowLevelServer);
-
-// --- Register resources/metadata (SEP-2093) ---
-
-registerMetadataHandler(lowLevelServer, skillMap);
-
 console.error("[skills-server] Extension: io.modelcontextprotocol/skills");
-console.error("[skills-server] SEP-2093 handlers:");
-console.error("  - resources/list with uri scoping");
-console.error("  - resources/metadata");
 
 // --- Connect via stdio transport ---
 

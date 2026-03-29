@@ -9,7 +9,6 @@
  *   - Recursive discovery (not just immediate subdirectories)
  *   - Multi-segment skill paths (PR #70): path ≠ name
  *   - No-nesting constraint enforcement
- *   - SEP-2093 capability metadata via _meta
  */
 
 import * as fs from "node:fs";
@@ -21,11 +20,13 @@ import type {
   SkillMetadata,
   SkillDocument,
   SkillManifest,
+  SkillIndex,
   RegisterSkillResourcesOptions,
 } from "./types.js";
+import { SKILL_INDEX_SCHEMA } from "./types.js";
 import { getMimeType, isTextMimeType } from "./mime.js";
 import { generateSkillsXML } from "./xml.js";
-import { buildCapabilitiesMeta } from "./resource-extensions.js";
+import { buildSkillUri, INDEX_JSON_URI } from "./uri.js";
 
 /** Maximum file size for skill files (1MB). */
 const MAX_FILE_SIZE = 1 * 1024 * 1024;
@@ -453,18 +454,39 @@ export function loadDocument(
 }
 
 /**
+ * Generate the skill://index.json discovery index.
+ *
+ * Follows the Agent Skills well-known URI discovery index format.
+ * Each entry contains the skill name, description, type ("skill-md"),
+ * and the full skill:// URI for the SKILL.md resource.
+ */
+export function generateSkillIndex(
+  skillMap: Map<string, SkillMetadata>,
+): SkillIndex {
+  return {
+    $schema: SKILL_INDEX_SCHEMA,
+    skills: Array.from(skillMap.entries()).map(([skillPath, skill]) => ({
+      name: skill.name,
+      type: "skill-md" as const,
+      description: skill.description,
+      url: buildSkillUri(skillPath),
+    })),
+  };
+}
+
+/**
  * Register MCP resources for all discovered skills on an McpServer.
  *
  * Registers per-skill (using multi-segment skill paths):
  *   - skill://{skillPath}/SKILL.md — skill content (listed resource)
  *   - skill://{skillPath}/_manifest — file manifest (listed resource)
  *
+ * Always registers:
+ *   - skill://index.json — well-known discovery index (SEP enumeration)
+ *
  * Optionally registers:
  *   - skill://{skillPath}/{+path} — resource template for supporting files
  *   - skill://prompt-xml — XML for system prompt injection
- *
- * Includes SEP-2093 per-resource capabilities in _meta and the
- * io.agentskills/version key from the meta-keys proposal.
  */
 export function registerSkillResources(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -492,12 +514,6 @@ export function registerSkillResources(
           priority: 1.0,
           lastModified: skill.lastModified,
         },
-        _meta: buildCapabilitiesMeta(
-          { list: false, subscribe: false },
-          skill.metadata?.version
-            ? { "io.agentskills/version": skill.metadata.version }
-            : undefined,
-        ),
       },
       async (uri: URL) => {
         try {
@@ -531,7 +547,6 @@ export function registerSkillResources(
           priority: 0.5,
           lastModified: skill.lastModified,
         },
-        _meta: buildCapabilitiesMeta({ list: false, subscribe: false }),
       },
       async (uri: URL) => ({
         contents: [
@@ -543,6 +558,30 @@ export function registerSkillResources(
       }),
     );
   }
+
+  // Well-known discovery index (SEP enumeration mechanism)
+  const indexJson = generateSkillIndex(skillMap);
+  server.resource(
+    "skills-index",
+    INDEX_JSON_URI,
+    {
+      description:
+        "Discovery index of available skills, following the Agent Skills well-known URI format",
+      mimeType: "application/json",
+      annotations: {
+        audience: ["user", "assistant"],
+        priority: 0.8,
+      },
+    },
+    async (uri: URL) => ({
+      contents: [
+        {
+          uri: uri.href,
+          text: JSON.stringify(indexJson, null, 2),
+        },
+      ],
+    }),
+  );
 
   // Resource template for supporting files
   if (template) {

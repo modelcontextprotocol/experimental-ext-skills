@@ -5,6 +5,7 @@
 export {
   discoverSkills,
   registerSkillResources,
+  generateSkillIndex,
   loadSkillContent,
   loadDocument,
   scanDocuments,
@@ -12,13 +13,6 @@ export {
 } from "../_server.js";
 
 export {
-  registerMetadataHandler,
-  overrideResourcesListWithScoping,
   declareSkillsExtension,
-  buildCapabilitiesMeta,
-  ResourcesMetadataRequestSchema,
-  ResourcesMetadataResultSchema,
-  ScopedListResultSchema,
-  ScopedListResourcesRequestSchema,
 } from "../resource-extensions.js";
-export type { RequestHandlerRegistrar, ServerInternals } from "../resource-extensions.js";
+export type { ServerInternals } from "../resource-extensions.js";

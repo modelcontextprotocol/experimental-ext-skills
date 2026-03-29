@@ -13,22 +13,26 @@ export type {
   SkillDocument,
   SkillMetadata,
   SkillSummary,
+  SkillIndexEntry,
+  SkillIndex,
   RegisterSkillResourcesOptions,
-  ResourceCapabilities,
-  ResourceMetadataResult,
 } from "./types.js";
+
+export { SKILL_INDEX_SCHEMA } from "./types.js";
 
 export {
   SKILL_URI_SCHEME,
   SKILL_FILENAME,
   MANIFEST_PATH,
   PROMPT_XML_URI,
+  INDEX_JSON_URI,
   parseSkillUri,
   resolveSkillFileUri,
   buildSkillUri,
   isSkillContentUri,
   isSkillManifestUri,
   isPromptXmlUri,
+  isIndexJsonUri,
 } from "./uri.js";
 export type { ParsedSkillUri } from "./uri.js";
 

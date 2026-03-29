@@ -4,13 +4,12 @@
  *
  * Demonstrates client-side SDK usage for the Skills Extension SEP:
  *
- *   1. READ_RESOURCE_TOOL  — Host-provided tool for model-driven loading
- *   2. listSkills()        — Discover all skills, show prefix + name
- *   3. readSkillContent()  — Load a multi-segment skill by path
- *   4. readSkillManifest() — Get file inventory with SHA256 hashes
- *   5. readSkillDocument() — Load a supporting file via resource template
- *   6. fetchSkillMetadata()— SEP-2093: metadata without content
- *   7. listSkillsScoped()  — SEP-2093: URI-scoped listing
+ *   1. READ_RESOURCE_TOOL      — Host-provided tool for model-driven loading
+ *   2. listSkillsFromIndex()   — Discover skills via skill://index.json
+ *   3. listSkills()            — Discover all skills via resources/list
+ *   4. readSkillContent()      — Load a multi-segment skill by path
+ *   5. readSkillManifest()     — Get file inventory with SHA256 hashes
+ *   6. readSkillDocument()     — Load a supporting file via resource template
  *
  * Connects to the skills-server via stdio (spawns as child process).
  *
@@ -24,11 +23,10 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import {
   READ_RESOURCE_TOOL,
   listSkills,
+  listSkillsFromIndex,
   readSkillContent,
   readSkillManifest,
   readSkillDocument,
-  fetchSkillMetadata,
-  listSkillsScoped,
   buildSkillsSummary,
 } from "@modelcontextprotocol/ext-skills/client";
 import { buildSkillUri } from "@modelcontextprotocol/ext-skills";
@@ -88,9 +86,31 @@ async function main() {
     console.log(JSON.stringify(READ_RESOURCE_TOOL, null, 2));
 
     // -----------------------------------------------------------------------
-    // 2. List all skills — show multi-segment paths with prefix + name
+    // 2. Discover skills via skill://index.json (SEP enumeration)
     // -----------------------------------------------------------------------
-    header("2. listSkills() — Discover Skills");
+    header("2. listSkillsFromIndex() — skill://index.json Discovery");
+
+    console.log("Per the SEP, servers whose skill set is enumerable SHOULD expose");
+    console.log("a skill://index.json resource following the Agent Skills discovery format.\n");
+
+    const indexSkills = await listSkillsFromIndex(client);
+    if (indexSkills) {
+      console.log(`Found ${indexSkills.length} skill(s) in index:\n`);
+      for (const skill of indexSkills) {
+        console.log(`  Name:        ${skill.name}`);
+        console.log(`  Skill Path:  ${skill.skillPath}`);
+        console.log(`  URI:         ${skill.uri}`);
+        console.log(`  Description: ${skill.description}`);
+        console.log();
+      }
+    } else {
+      console.log("Server does not expose skill://index.json (enumeration is optional)");
+    }
+
+    // -----------------------------------------------------------------------
+    // 3. List all skills via resources/list — show multi-segment paths
+    // -----------------------------------------------------------------------
+    header("3. listSkills() — Discover Skills via resources/list");
 
     const skills = await listSkills(client);
     console.log(`Found ${skills.length} skill(s):\n`);
@@ -112,9 +132,9 @@ async function main() {
     console.log(buildSkillsSummary(skills));
 
     // -----------------------------------------------------------------------
-    // 3. Read a multi-segment skill
+    // 4. Read a multi-segment skill
     // -----------------------------------------------------------------------
-    header("3. readSkillContent() — Load Multi-Segment Skill");
+    header("4. readSkillContent() — Load Multi-Segment Skill");
 
     const refundSkill = skills.find((s) => s.skillPath === "acme/billing/refunds");
     if (refundSkill) {
@@ -131,9 +151,9 @@ async function main() {
     }
 
     // -----------------------------------------------------------------------
-    // 4. Read skill manifest
+    // 5. Read skill manifest
     // -----------------------------------------------------------------------
-    header("4. readSkillManifest() — File Inventory");
+    header("5. readSkillManifest() — File Inventory");
 
     if (refundSkill) {
       const manifest = await readSkillManifest(client, refundSkill.skillPath);
@@ -148,9 +168,9 @@ async function main() {
     }
 
     // -----------------------------------------------------------------------
-    // 5. Read a supporting file via resource template
+    // 6. Read a supporting file via resource template
     // -----------------------------------------------------------------------
-    header("5. readSkillDocument() — Supporting File");
+    header("6. readSkillDocument() — Supporting File");
 
     if (refundSkill) {
       const docPath = "templates/refund-email-template.md";
@@ -172,40 +192,6 @@ async function main() {
     }
 
     // -----------------------------------------------------------------------
-    // 6. SEP-2093: Fetch metadata without content
-    // -----------------------------------------------------------------------
-    header("6. fetchSkillMetadata() — SEP-2093 Metadata");
-
-    if (refundSkill) {
-      console.log(`Fetching metadata for: ${refundSkill.uri}\n`);
-      const metadata = await fetchSkillMetadata(client, refundSkill.uri);
-      if (metadata) {
-        console.log("Metadata (no content transferred):");
-        console.log(JSON.stringify(metadata, null, 2));
-      } else {
-        console.log("Server does not support resources/metadata (SEP-2093)");
-      }
-    }
-
-    // -----------------------------------------------------------------------
-    // 7. SEP-2093: Scoped listing
-    // -----------------------------------------------------------------------
-    header("7. listSkillsScoped() — resources/list with URI Scoping");
-
-    console.log('Listing skills under "skill://acme/" (SKILL.md entries only):\n');
-    const acmeSkills = await listSkillsScoped(client, "skill://acme/");
-    if (acmeSkills) {
-      console.log(`Found ${acmeSkills.length} skill(s) under acme/:\n`);
-      for (const skill of acmeSkills) {
-        console.log(`  ${skill.skillPath} (name: ${skill.name})`);
-      }
-    } else {
-      console.log(
-        "Server does not support skills/list",
-      );
-    }
-
-    // -----------------------------------------------------------------------
     // Summary
     // -----------------------------------------------------------------------
     header("Demo Complete");
@@ -213,10 +199,8 @@ async function main() {
     console.log("Features demonstrated:");
     console.log("  [SEP]      Skills Extension — skill:// resource convention");
     console.log("  [SEP]      Multi-segment paths (prefix + name = last segment)");
+    console.log("  [SEP]      skill://index.json — well-known discovery index");
     console.log("  [SEP-2133] Extension declaration: io.modelcontextprotocol/skills");
-    console.log("  [SEP-2093] resources/metadata — metadata without content");
-    console.log("  [SEP-2093] resources/list(uri=...) — URI-scoped listing");
-    console.log("  [SEP-2093] Per-resource capabilities via _meta");
     console.log();
   } finally {
     await client.close();

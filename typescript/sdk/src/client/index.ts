@@ -5,13 +5,12 @@
 export {
   READ_RESOURCE_TOOL,
   listSkills,
+  listSkillsFromIndex,
   readSkillUri,
   readSkillContent,
   parseSkillFrontmatter,
   buildSkillsSummary,
   readSkillManifest,
   readSkillDocument,
-  fetchSkillMetadata,
-  listSkillsScoped,
 } from "../_client.js";
 export type { SkillsClient, ToolDefinition } from "../_client.js";
