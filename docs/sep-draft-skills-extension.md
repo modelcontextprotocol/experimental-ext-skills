@@ -97,7 +97,7 @@ On top of that baseline, two discovery mechanisms are defined. A server MAY supp
 
 #### Enumeration via `skill://index.json`
 
-A server SHOULD expose a resource at the well-known URI `skill://index.json` whose content is a JSON index of the skills it serves. The index format follows the [Agent Skills well-known URI discovery index](https://agentskills.io/well-known-uri#index-format), with three differences: the `url` field contains a full MCP resource URI (any scheme the server serves), the `digest` field is omitted (integrity is the transport's concern over an authenticated MCP connection), and entries may carry `urlTemplate` in place of `url` to describe a parameterized skill namespace.
+A server SHOULD expose a resource at the well-known URI `skill://index.json` whose content is a JSON index of the skills it serves. The index format follows the [Agent Skills well-known URI discovery index](https://agentskills.io/well-known-uri#index-format), with two differences: the `url` field contains a full MCP resource URI (any scheme the server serves), and the `digest` field is omitted (integrity is the transport's concern over an authenticated MCP connection). This binding also defines one additional `type` value, `"mcp-resource-template"`, for entries that describe a parameterized skill namespace.
 
 ```json
 {
@@ -116,9 +116,9 @@ A server SHOULD expose a resource at the well-known URI `skill://index.json` who
       "url": "skill://acme/billing/refunds/SKILL.md"
     },
     {
-      "type": "skill-md",
+      "type": "mcp-resource-template",
       "description": "Per-product documentation skill",
-      "urlTemplate": "skill://docs/{product}/SKILL.md"
+      "url": "skill://docs/{product}/SKILL.md"
     }
   ]
 }
@@ -130,15 +130,14 @@ Index fields:
 |---|---|---|
 | `$schema` | Yes | Schema version URI. Clients SHOULD match against known URIs before processing. |
 | `skills` | Yes | Array of skill entries. |
-| `skills[].type` | Yes | MUST be `"skill-md"` in the MCP context. Archive distribution does not apply; supporting files are individually addressable as resources. |
-| `skills[].description` | Yes | For concrete entries, the skill's `description` matching its `SKILL.md` frontmatter. For template entries, a description of the addressable skill space. |
-| `skills[].url` | — | The full resource URI of the skill's `SKILL.md`. Exactly one of `url` or `urlTemplate` MUST be present. |
-| `skills[].urlTemplate` | — | An [RFC 6570](https://datatracker.ietf.org/doc/html/rfc6570) URI template resolving to `SKILL.md` resource URIs. Exactly one of `url` or `urlTemplate` MUST be present. |
-| `skills[].name` | Conditional | Required when `url` is present; matches the `SKILL.md` frontmatter `name` and the final path segment. Omitted when `urlTemplate` is present. |
+| `skills[].type` | Yes | MUST be `"skill-md"` or `"mcp-resource-template"`. Archive distribution does not apply; supporting files are individually addressable as resources. |
+| `skills[].description` | Yes | For `"skill-md"`, the skill's `description` matching its `SKILL.md` frontmatter. For `"mcp-resource-template"`, a description of the addressable skill space. |
+| `skills[].url` | Yes | For `"skill-md"`, the full resource URI of the skill's `SKILL.md`. For `"mcp-resource-template"`, an [RFC 6570](https://datatracker.ietf.org/doc/html/rfc6570) URI template that resolves to `SKILL.md` resource URIs. |
+| `skills[].name` | Conditional | Required for `"skill-md"`; matches the `SKILL.md` frontmatter `name` and the final path segment. Omitted for `"mcp-resource-template"`. |
 
 Clients SHOULD ignore unrecognized fields and SHOULD skip entries with an unrecognized `type`.
 
-**Template entries** describe a parameterized skill namespace without materializing every entry. A server SHOULD register the same `urlTemplate` as an MCP [resource template](https://modelcontextprotocol.io/specification/2025-11-25/server/resources#resource-templates) so hosts can wire template variables to the [completion API](https://modelcontextprotocol.io/specification/2025-11-25/server/utilities/completion). Hosts SHOULD surface template entries in their UI as interactive discovery points: the user fills in variables via completion, selects a skill, and the host passes the resolved URI into the conversation. This scales to servers with unbounded skill catalogs.
+**Template entries** (`type: "mcp-resource-template"`) describe a parameterized skill namespace without materializing every entry. A server SHOULD register the same `url` value as an MCP [resource template](https://modelcontextprotocol.io/specification/2025-11-25/server/resources#resource-templates) so hosts can wire template variables to the [completion API](https://modelcontextprotocol.io/specification/2025-11-25/server/utilities/completion). Hosts SHOULD surface template entries in their UI as interactive discovery points: the user fills in variables via completion, selects a skill, and the host passes the resolved URI into the conversation. This scales to servers with unbounded skill catalogs.
 
 The `skill://index.json` resource is served via `resources/read` like any other resource, with `mimeType` of `application/json`. A server MAY also surface it in `resources/list` so clients can detect its presence, but clients MAY attempt to read it directly without prior discovery.
 
