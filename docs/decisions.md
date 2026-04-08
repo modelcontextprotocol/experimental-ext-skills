@@ -99,3 +99,21 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 **References:**
 - [Feb 26 office hours notes](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/2316) (Section 1)
 - [PR #16](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/16)
+
+---
+
+### 2026-03-16: `_meta` is for MCP-transport-specific concerns, not skill-level semantics
+
+**Status:** Accepted
+
+**Context:** [PR #60](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/60) initially proposed recommended `_meta` keys that mapped Agent Skills frontmatter fields (version, invocation, allowed-tools) into MCP resource `_meta` as a "materialized view." Review feedback raised several concerns: this duplicates what frontmatter already expresses, the optimization of avoiding content fetches is premature (clients cache locally), and adding it now is harder to remove later. Further discussion identified that even MCP-specific candidates like provenance and dependencies may be better addressed at the plugin/distribution layer.
+
+**Decision:** `_meta` on skill resources is reserved for metadata that is specific to the MCP transport context and has no natural home in frontmatter, `annotations`, Resource fields, or the distribution layer. Skill-level semantics (version, invocation mode, allowed tools, compatibility) remain in frontmatter. The `io.modelcontextprotocol.skills/` namespace is established for any future standardized keys. No specific keys are recommended at this time.
+
+**Rationale:** The general razor is: "does this metadata also apply to non-MCP skills? If so, it should go in frontmatter." This avoids fragmenting skill metadata across transport mechanisms, keeps `_meta` lightweight for clients that optimize for lean metadata reads, and defers standardization of specific keys until there is clear implementation experience showing that frontmatter and the distribution layer are insufficient.
+
+**References:**
+- [PR #60](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/60)
+- [Issue #55](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/55)
+- [Discord discussion](https://discord.com/channels/1358869848138059966/1482008994062274610)
+- [Using `_meta` for Skill Resources](skill-meta-keys.md)
