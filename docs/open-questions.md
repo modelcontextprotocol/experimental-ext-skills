@@ -4,7 +4,7 @@
 
 Should skills be discoverable through registry metadata ("if you install this server, also install this skill") or contained within the MCP server itself?
 
-A third option is emerging: domain-level discovery via `/.well-known/skills/` (see [Agent Skills Discovery RFC](https://github.com/cloudflare/agent-skills-discovery-rfc)). This decouples skill discovery from both registries and MCP servers — an organization publishes skills at a predictable URL on its own domain. This could complement MCP-level discovery rather than replace it: `.well-known` handles "find available skills," MCP handles "load and use them at runtime."
+A third option is emerging: domain-level discovery via `.well-known` URIs (see [Agent Skills Discovery RFC](https://github.com/cloudflare/agent-skills-discovery-rfc) proposing `/.well-known/skills/`, and the more recent [agentskills well-known URI spec](https://github.com/agentskills/agentskills/pull/254) that formalizes this as `/.well-known/agent-skills/`). This decouples skill discovery from both registries and MCP servers — an organization publishes skills at a predictable URL on its own domain. This could complement MCP-level discovery rather than replace it: `.well-known` handles "find available skills," MCP handles "load and use them at runtime."
 
 ## 2. How do "first-class" skills differ from "skills as context"?
 

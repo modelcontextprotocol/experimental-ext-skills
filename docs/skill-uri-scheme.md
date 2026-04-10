@@ -133,11 +133,11 @@ skill://pdf-processing/examples/sample.pdf  # Nested supporting file
 - File-path structure couples the URI to the internal directory layout
 - No authority segment for multi-server scoping
 
-### 5. Agent Skills Discovery RFC: `/.well-known/skills/{name}/SKILL.md`
+### 5. Agent Skills Discovery RFC and agentskills well-known URI spec
 
-**Pattern:** HTTPS URLs under `/.well-known/skills/`
+**Pattern:** HTTPS URLs under `/.well-known/skills/` (Cloudflare RFC) or `/.well-known/agent-skills/` (agentskills spec)
 
-The Cloudflare RFC defines domain-level discovery via HTTP, not a custom URI scheme. Skills are regular HTTPS resources at well-known paths:
+The [Cloudflare Agent Skills Discovery RFC](https://github.com/cloudflare/agent-skills-discovery-rfc) defines domain-level discovery via HTTP, not a custom URI scheme. Skills are regular HTTPS resources at well-known paths:
 
 ```
 https://example.com/.well-known/skills/index.json
@@ -146,6 +146,16 @@ https://example.com/.well-known/skills/wrangler/scripts/deploy.sh
 ```
 
 **Discovery:** Fetch `/.well-known/skills/index.json` which lists all skills with name, description, and file inventory.
+
+A more recent formalization, the [agentskills well-known URI spec](https://github.com/agentskills/agentskills/pull/254), builds on this RFC and introduces several refinements:
+
+- Uses `/.well-known/agent-skills/` (note the path change from `/.well-known/skills/`)
+- Defines two distribution types: `"skill-md"` (single file) and `"archive"` (bundled with scripts/assets)
+- Includes a `$schema` field for index versioning
+- Specifies archive safety requirements (path traversal, symlink, decompression bomb protections)
+- Covers full HTTP requirements and client implementation steps
+
+A companion [GitHub Action](https://github.com/jonathanhefner/agentskills-build-for-well-known) automates index generation with digest computation.
 
 **Pros:**
 - No custom URI scheme — uses standard HTTPS
@@ -200,7 +210,7 @@ SEP-2076 proposes skills as a first-class MCP primitive with dedicated methods r
 | skilljack-mcp | `skill://` | None | No | `/` collection | Yes | Yes |
 | skills-over-mcp | `skill://` | None | No | `/document/` path | Yes | Yes |
 | FastMCP 3.0 | `skill://` | None | No | File paths | Configurable | Yes |
-| Well-Known RFC | `https://` | Domain | No | File paths | N/A | No |
+| Well-Known (RFC / agentskills) | `https://` | Domain | No | File paths | N/A | No |
 | SEP-2076 | N/A | N/A | N/A | N/A | N/A | New primitive |
 
 ## Analysis
