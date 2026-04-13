@@ -19,9 +19,6 @@ Work by IG facilitators and active participants. These are the reference impleme
 | skills-over-mcp | Keith Groves | | [github.com/keithagroves/skills-over-mcp](https://github.com/keithagroves/skills-over-mcp) | Example using skills as MCP resources with current MCP primitives |
 | Astronomer agents | Kaxil Naik | Astronomer | [github.com/astronomer/agents](https://github.com/astronomer/agents) | Skills distribution via MCP for Apache Airflow; active skill catalog (blueprint, migration, warehouse-init) |
 | skillful-mcp | Kurtis Van Gent | Google Cloud | [github.com/kurtisvg/skillful-mcp](https://github.com/kurtisvg/skillful-mcp) | Progressive disclosure wrapper: `list_skills`, `use_skill`, `read_resource`, `execute_code`; Docker support, structured output |
-| NimbleBrain skills repo | NimbleBrain | NimbleBrain | [github.com/NimbleBrainInc/skills](https://github.com/NimbleBrainInc/skills) | Monorepo with `.skill` artifact format |
-| NimbleBrain registry | NimbleBrain | NimbleBrain | [registry.nimbletools.ai](https://registry.nimbletools.ai/) | Registry with skill metadata support |
-| NimbleBrain skill:// servers | NimbleBrain | NimbleBrain | [github.com/NimbleBrainInc](https://github.com/NimbleBrainInc) | skill:// resource colocation examples: [mcp-ipinfo](https://github.com/NimbleBrainInc/mcp-ipinfo), [mcp-webfetch](https://github.com/NimbleBrainInc/mcp-webfetch), [mcp-pdfco](https://github.com/NimbleBrainInc/mcp-pdfco), [mcp-folk](https://github.com/NimbleBrainInc/mcp-folk), [mcp-brave-search](https://github.com/NimbleBrainInc/mcp-brave-search) |
 | skillsdotnet | Peder HP | | [github.com/PederHP/skillsdotnet](https://github.com/PederHP/skillsdotnet) | Exploratory C# implementation compatible with FastMCP 3.0, includes interactive console chat client and sample server |
 
 ## Other Community Implementations
@@ -35,6 +32,9 @@ External projects building on skills patterns or integrating skills into framewo
 | mcp-execution | bug-ops | [github.com/bug-ops/mcp-execution](https://github.com/bug-ops/mcp-execution) | Compiles MCP servers into skill packages; `--dry-run` preview |
 | mcp-cli | philschmid | [github.com/philschmid/mcp-cli](https://github.com/philschmid/mcp-cli) | Wraps MCP servers as CLI for progressive disclosure |
 | my-cool-proxy | karashiiro | [github.com/karashiiro/my-cool-proxy](https://github.com/karashiiro/my-cool-proxy) | MCP gateway with skills as resources via Lua scripts; result offloading, session persistence (v1.6.x) |
+| NimbleBrain skills repo | NimbleBrain | [github.com/NimbleBrainInc/skills](https://github.com/NimbleBrainInc/skills) | Monorepo with `.skill` artifact format |
+| NimbleBrain registry | NimbleBrain | [registry.nimbletools.ai](https://registry.nimbletools.ai/) | Registry with skill metadata support |
+| NimbleBrain skill:// servers | NimbleBrain | [github.com/NimbleBrainInc](https://github.com/NimbleBrainInc) | skill:// resource colocation examples: [mcp-ipinfo](https://github.com/NimbleBrainInc/mcp-ipinfo), [mcp-webfetch](https://github.com/NimbleBrainInc/mcp-webfetch), [mcp-pdfco](https://github.com/NimbleBrainInc/mcp-pdfco), [mcp-folk](https://github.com/NimbleBrainInc/mcp-folk), [mcp-brave-search](https://github.com/NimbleBrainInc/mcp-brave-search) |
 | Kiro powers directory | Kiro | [github.com/kirodotdev/powers](https://github.com/kirodotdev/powers/) | Plugin directory bundling skills + MCP servers; active catalog (AWS, GCP migration, SAM, etc.) |
 
 ## Related Ecosystem Work
