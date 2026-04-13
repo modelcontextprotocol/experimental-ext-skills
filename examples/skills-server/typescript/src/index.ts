@@ -33,7 +33,6 @@ import {
   registerSkillResources,
   declareSkillsExtension,
 } from "@modelcontextprotocol/ext-skills/server";
-import type { ServerInternals } from "@modelcontextprotocol/ext-skills/server";
 
 // Parse CLI arguments: [skillsDir]
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -68,16 +67,9 @@ const server = new McpServer(
   { capabilities: { resources: {} } },
 );
 
-// Cast to access low-level Server internals for extension declaration.
-// This workaround can be removed if the SDK adds support for:
-//   - extensions in capabilities (typescript-sdk#1630)
-const lowLevelServer = server.server as unknown as ServerInternals;
-
 // --- Declare extension per SEP-2133 ---
 
-// Patches capabilities to include:
-//   extensions: { "io.modelcontextprotocol/skills": {} }
-declareSkillsExtension(lowLevelServer);
+declareSkillsExtension(server.server);
 
 // --- Register skill resources via SDK ---
 

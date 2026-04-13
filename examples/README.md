@@ -133,15 +133,15 @@ Supporting files             readSkillDocument(path,f)   resources/read
 ┌──────────────────────────────┬────────────────────────────────────┐
 │        SEP (permanent)       │     SDK Shims (temporary)          │
 ├──────────────────────────────┼────────────────────────────────────┤
-│ skill:// URI convention      │ ServerInternals interface          │
-│ SKILL.md explicit in URI     │ _requestHandlers override          │
-│ Final segment = name         │ _capabilities patching             │
-│ No-nesting constraint        │ capabilities in _meta              │
-│ resources/read for loading   │                                    │
-│ resources/list for discovery │ Tracking PRs:                      │
-│ resources/metadata (2093)    │  - typescript-sdk#1630 (extensions)│
-│ read_resource host tool      │  - SEP-2093 (uri param, metadata,  │
-│ Extension declaration        │    per-resource capabilities)      │
-│ listSkills / readSkillUri    │                                    │
+│ skill:// URI convention      │ _requestHandlers override          │
+│ SKILL.md explicit in URI     │ capabilities in _meta              │
+│ Final segment = name         │                                    │
+│ No-nesting constraint        │ Tracking PRs:                      │
+│ resources/read for loading   │  - SEP-2093 (uri param, metadata,  │
+│ resources/list for discovery │    per-resource capabilities)      │
+│ resources/metadata (2093)    │                                    │
+│ read_resource host tool      │ Resolved (SDK v1.29.0):            │
+│ Extension declaration        │  - typescript-sdk#1630 (extensions)│
+│ listSkills / readSkillUri    │  - typescript-sdk#1575 (size field)│
 └──────────────────────────────┴────────────────────────────────────┘
 ```

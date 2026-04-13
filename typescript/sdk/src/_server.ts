@@ -509,6 +509,7 @@ export function registerSkillResources(
       {
         description: skill.description,
         mimeType: "text/markdown",
+        size: skill.manifest.files.find((f) => f.path === "SKILL.md")?.size,
         annotations: {
           audience: ["user", "assistant"],
           priority: 1.0,

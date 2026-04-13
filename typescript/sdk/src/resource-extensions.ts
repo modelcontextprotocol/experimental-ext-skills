@@ -1,43 +1,46 @@
 /**
  * Extension declaration for the Skills Extension SEP.
  *
- * Provides the SEP-2133 extension capability declaration:
+ * Declares the SEP-2133 extension capability:
  *   capabilities.extensions["io.modelcontextprotocol/skills"] = {}
  *
- * TODO: Replace with native SDK support if/when resolved:
- *   - extensions in capabilities: https://github.com/modelcontextprotocol/typescript-sdk/pull/1630
+ * Uses the SDK's native registerCapabilities API (v1.29.0+).
  */
 
 /**
- * Minimal interface for the low-level Server internals we need to access.
- * We reach into private fields to patch capabilities.
- * TODO: Remove if SDK adds extensions support (typescript-sdk#1630).
+ * Minimal structural interface for a Server that supports registerCapabilities.
+ * Using a structural type avoids issues with duplicate SDK installations
+ * causing private-property type incompatibilities (same pattern as SkillsClient).
  */
-export interface ServerInternals {
-  /** Private capabilities object. We patch this to add `extensions` before connect. */
-  _capabilities: Record<string, unknown>;
+export interface SkillsServer {
+  registerCapabilities(capabilities: {
+    extensions?: Record<string, object>;
+  }): void;
 }
 
 /**
  * Declare the skills extension in server capabilities per SEP-2133.
  *
- * Patches the low-level Server's _capabilities to add:
+ * Registers:
  *   capabilities.extensions["io.modelcontextprotocol/skills"] = {}
  *
  * Must be called BEFORE server.connect() (capabilities are sent during
  * the initialize handshake).
- *
- * TODO: Replace with registerCapabilities({ extensions: { ... } }) if
- *       the SDK adds support. See: https://github.com/modelcontextprotocol/typescript-sdk/pull/1630
  */
-export function declareSkillsExtension(server: ServerInternals): void {
-  if (!server._capabilities) {
-    server._capabilities = {};
-  }
-  if (!server._capabilities.extensions) {
-    server._capabilities.extensions = {};
-  }
-  (server._capabilities.extensions as Record<string, unknown>)[
-    "io.modelcontextprotocol/skills"
-  ] = {};
+/** @deprecated Use {@link SkillsServer} instead. */
+export type ServerInternals = SkillsServer;
+
+/**
+ * Declare the skills extension in server capabilities per SEP-2133.
+ *
+ * Registers:
+ *   capabilities.extensions["io.modelcontextprotocol/skills"] = {}
+ *
+ * Must be called BEFORE server.connect() (capabilities are sent during
+ * the initialize handshake).
+ */
+export function declareSkillsExtension(server: SkillsServer): void {
+  server.registerCapabilities({
+    extensions: { "io.modelcontextprotocol/skills": {} },
+  });
 }

@@ -15,4 +15,4 @@ export {
 export {
   declareSkillsExtension,
 } from "../resource-extensions.js";
-export type { ServerInternals } from "../resource-extensions.js";
+export type { SkillsServer, ServerInternals } from "../resource-extensions.js";
