@@ -485,7 +485,7 @@ export function generateSkillIndex(
  *   - skill://index.json — well-known discovery index (SEP enumeration)
  *
  * Optionally registers:
- *   - skill://{skillPath}/{+path} — resource template for supporting files
+ *   - skill://{+skillFilePath} — resource template for supporting files
  *   - skill://prompt-xml — XML for system prompt injection
  */
 export function registerSkillResources(
