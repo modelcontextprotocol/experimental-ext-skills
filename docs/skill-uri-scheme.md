@@ -3,13 +3,13 @@
 > Proposed convention for identifying skill resources over MCP.
 
 **Issue:** [#44](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/44)
-**Status:** Draft
+**Status:** Incorporated into the draft [Skills Extension SEP](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69). This survey informed the SEP's URI scheme design; see also [PR #70](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/70) for subsequent refinements (multi-segment paths, path-name decoupling).
 
 ---
 
 ## Summary
 
-This document surveys existing URI patterns for skill resources across implementations, analyzes their trade-offs, and proposes a recommended `skill://` URI scheme for the MCP Skills Convention.
+This document surveys existing URI patterns for skill resources across implementations, analyzes their trade-offs, and proposes a recommended `skill://` URI scheme for skill resources over MCP.
 
 ## Survey of Existing Patterns
 

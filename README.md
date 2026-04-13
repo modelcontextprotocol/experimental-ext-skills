@@ -102,10 +102,10 @@ This IG may propose becoming a Working Group if:
 | Experimental findings repo | Proposed | Ola | Dedicated repo for implementations and evaluation results |
 | SEP-2076 review | In Progress | Yu Yi | Skills as first-class primitive proposal |
 | Registry skills.json proposal | In Progress | Ozz | Skills metadata in registry schema |
-| MCP Skills Convention v0.1 | Proposed | TBD | Documented pattern (not spec) for skills over existing primitives |
+| Skills Extension SEP | In Review | Peter (@pja-ant) | Extensions Track SEP for `skill://` resource convention ([#75](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/75)); evolved from Convention v0.1 (#43) |
 
 ## Success Criteria
 
 - **Short-term:** Documented consensus on requirements and evaluation of existing approaches
-- **Medium-term:** Clear recommendation (convention vs. protocol extension vs. both)
+- **Medium-term:** Clear recommendation (convention vs. protocol extension vs. both) — the draft [Skills Extension SEP](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69) represents the IG's current direction: a formal extension using existing Resources primitives
 - **Long-term:** Interoperable skill distribution across MCP servers and clients

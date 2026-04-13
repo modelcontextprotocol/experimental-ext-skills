@@ -17,6 +17,8 @@ Several design considerations are emerging from community discussion:
 
 The approaches below span a spectrum. At one end, skills become a first-class MCP primitive with dedicated protocol methods (Approach 1). At the other, existing primitives are used with documented conventions (Approach 6). A key question for this IG is whether convention can prove patterns before standardization — or whether the ecosystem needs protocol-level support to achieve reliable interoperability. These are not mutually exclusive; convention work can inform and de-risk a future protocol extension.
 
+**Current status:** The convention approach (Approach 6) was pursued and quickly evolved into a formal Extensions Track SEP ([#69](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69)), building on convergence across 4+ independent `skill://` implementations. The SEP uses existing Resources primitives with zero protocol changes, positioning it between pure convention and a new primitive. See [#75](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/75) for tracking.
+
 ## 1. Skills as Distinct MCP Primitives
 
 Add Agent Skills as a first-class, discoverable primitive in MCP. A skill is a named bundle of instructions plus references to tools, prompts, and resources that together teach an agent how to perform a domain-specific workflow.
@@ -131,6 +133,8 @@ Use server instructions as a pointer to a resource: "If you need to do X, fetch 
 
 ## 6. Official Convention as Intermediate Step
 
+> **Status:** This approach was pursued and graduated into the draft [Skills Extension SEP](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69) ([#75](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/75)). The SEP formalizes the convention as an Extensions Track specification using existing Resources primitives — zero protocol changes, backward compatible. Content format is delegated to [agentskills.io](https://agentskills.io/specification). The text below is preserved as historical context for how this approach was originally framed.
+
 A documented "MCP Skills Convention" as a middle path between ad-hoc experiments and protocol extension. This could:
 
 - Define well-known URI schemes or naming patterns (e.g., resources matching `**/SKILL.md`). See [Skill URI Scheme Proposal](skill-uri-scheme.md) for a detailed survey and recommendation.
@@ -139,7 +143,7 @@ A documented "MCP Skills Convention" as a middle path between ad-hoc experiments
 - Be documented in MCP docs as a "Pattern" — not in protocol schema, but officially recommended
 - Allow data gathering on adoption before considering protocol-level changes
 
-This mirrors how other ecosystems (e.g., Kubernetes) graduate patterns: start as convention, prove value, then formalize. Could be a concrete IG deliverable: "MCP Skills Convention v0.1."
+This mirrors how other ecosystems (e.g., Kubernetes) graduate patterns: start as convention, prove value, then formalize.
 
 **Advantages of the convention approach:**
 
