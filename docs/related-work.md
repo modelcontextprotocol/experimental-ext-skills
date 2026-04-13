@@ -10,16 +10,23 @@
 
 ## IG Member Implementations
 
-Work by IG facilitators and active participants. These are the reference implementations shaping the group's direction.
+Work by IG facilitators and active participants that directly implements the group's core patterns: SKILL.md with YAML frontmatter, `skill://` resource URIs, and progressive disclosure via MCP primitives.
 
 | Implementation | Author | Organization | URL | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| skilljack-mcp | Ola Hungerford | Nordstrom | [github.com/olaservo/skilljack-mcp](https://github.com/olaservo/skilljack-mcp) | Skills as MCP tools, resources, prompts with dynamic updates; audience annotations; unit test suite (v0.9.0) |
-| mcpGraph skill | Bob Dickinson | TeamSpark.ai | [github.com/TeamSparkAI/mcpGraph](https://github.com/TeamSparkAI/mcpGraph) | Complex skill example for graph orchestration |
-| skills-over-mcp | Keith Groves | | [github.com/keithagroves/skills-over-mcp](https://github.com/keithagroves/skills-over-mcp) | Example using skills as MCP resources with current MCP primitives |
-| Astronomer agents | Kaxil Naik | Astronomer | [github.com/astronomer/agents](https://github.com/astronomer/agents) | Skills distribution via MCP for Apache Airflow; active skill catalog (blueprint, migration, warehouse-init) |
-| skillful-mcp | Kurtis Van Gent | Google Cloud | [github.com/kurtisvg/skillful-mcp](https://github.com/kurtisvg/skillful-mcp) | Progressive disclosure wrapper: `list_skills`, `use_skill`, `read_resource`, `execute_code`; Docker support, structured output |
-| skillsdotnet | Peder HP | | [github.com/PederHP/skillsdotnet](https://github.com/PederHP/skillsdotnet) | Exploratory C# implementation compatible with FastMCP 3.0, includes interactive console chat client and sample server |
+| skilljack-mcp | Ola Hungerford | Nordstrom | [github.com/olaservo/skilljack-mcp](https://github.com/olaservo/skilljack-mcp) | SKILL.md, `skill://` resources, tools, and prompts; progressive disclosure (index→skill→files); file watching for dynamic updates; audience annotations (v0.9.0) |
+| skills-over-mcp | Keith Groves | | [github.com/keithagroves/skills-over-mcp](https://github.com/keithagroves/skills-over-mcp) | SKILL.md, `skill://` resources with progressive disclosure (index→skill→documents); Zod validation against Agent Skills spec |
+| skillsdotnet | Peder HP | | [github.com/PederHP/skillsdotnet](https://github.com/PederHP/skillsdotnet) | C# implementation: SKILL.md, `skill://` resources, `load_skill` tool for progressive disclosure, manifest with file hashes; published on NuGet; compatible with FastMCP 3.0 |
+
+## IG Member — Alternative Approaches
+
+Work by IG members that explores skills over MCP through different technical approaches than the core SKILL.md / `skill://` pattern.
+
+| Implementation | Author | Organization | URL | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| skillful-mcp | Kurtis Van Gent | Google Cloud | [github.com/kurtisvg/skillful-mcp](https://github.com/kurtisvg/skillful-mcp) | Progressive disclosure via 4 lightweight tools (`list_skills`, `use_skill`, `read_resource`, `execute_code`); wraps downstream MCP servers as skills using `mcp.json` config rather than SKILL.md; sandboxed code execution via Monty |
+| Astronomer agents | Kaxil Naik | Astronomer | [github.com/astronomer/agents](https://github.com/astronomer/agents) | Production skills catalog for Apache Airflow (blueprint, migration, warehouse-init); uses SKILL.md frontmatter but distributed via plugin marketplace rather than MCP resources; demonstrates real-world skills adoption at scale |
+| mcpGraph skill | Bob Dickinson | TeamSpark.ai | [github.com/TeamSparkAI/mcpGraph](https://github.com/TeamSparkAI/mcpGraph) | Declarative YAML-based tool orchestration engine (directed graphs of MCP tool calls); includes SKILL.md files as documentation; explores a complementary "no-code composition" approach to skill authoring |
 
 ## Other Community Implementations
 
@@ -39,7 +46,7 @@ External projects building on skills patterns or integrating skills into framewo
 
 ## Related Ecosystem Work
 
-Projects that illustrate the problem space or use adjacent patterns, but are not primarily skills implementations.
+Projects that illustrate the problem space or use adjacent patterns.
 
 | Project | Author | URL | Notes |
 | :--- | :--- | :--- | :--- |
