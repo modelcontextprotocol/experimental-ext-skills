@@ -18,9 +18,9 @@ Work by IG facilitators and active participants that directly implements the gro
 | skills-over-mcp | Keith Groves | | [github.com/keithagroves/skills-over-mcp](https://github.com/keithagroves/skills-over-mcp) | SKILL.md, `skill://` resources with progressive disclosure (index→skill→documents); Zod validation against Agent Skills spec |
 | skillsdotnet | Peder HP | | [github.com/PederHP/skillsdotnet](https://github.com/PederHP/skillsdotnet) | C# implementation: SKILL.md, `skill://` resources, `load_skill` tool for progressive disclosure, manifest with file hashes; published on NuGet; compatible with FastMCP 3.0 |
 
-## IG Member — Alternative Approaches
+## Alternative Approaches
 
-Work by IG members that explores skills over MCP through different technical approaches than the core SKILL.md / `skill://` pattern.
+Work by IG members and MCP maintainers that explores skills over MCP through different technical approaches than the core SKILL.md / `skill://` pattern.
 
 | Implementation | Author | Organization | URL | Notes |
 | :--- | :--- | :--- | :--- | :--- |
