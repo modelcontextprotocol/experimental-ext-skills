@@ -6,6 +6,7 @@
 | :--- | :--- | :--- |
 | [SEP-2076](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076) | MCP Spec | Agent Skills as a first-class MCP primitive |
 | [SEP-2093](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093) | MCP Spec | Resource Contents Metadata and Capabilities: scoped `resources/list`, per-resource capabilities, `resources/metadata` endpoint |
+| [PR #2527](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2527) | MCP Spec | Recommend clients expose resource read to models — prerequisite for the resources-based skills approach |
 | [skills.json format proposal](https://github.com/modelcontextprotocol/registry/discussions/895) | MCP Registry | Skills metadata in registry schema |
 
 ## IG Member Implementations
@@ -14,7 +15,7 @@ Work by IG facilitators and active participants that directly implements the gro
 
 | Implementation | Author | Organization | URL | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| skilljack-mcp | Ola Hungerford | Nordstrom | [github.com/olaservo/skilljack-mcp](https://github.com/olaservo/skilljack-mcp) | SKILL.md, `skill://` resources, tools, and prompts; progressive disclosure (index→skill→files); file watching for dynamic updates; audience annotations (v0.9.0) |
+| skilljack-mcp | Ola Hungerford | Nordstrom | [github.com/olaservo/skilljack-mcp](https://github.com/olaservo/skilljack-mcp) | SKILL.md, `skill://` resources, tools, and prompts; progressive disclosure (index→skill→files); file watching for dynamic updates; audience annotations |
 | skills-over-mcp | Keith Groves | | [github.com/keithagroves/skills-over-mcp](https://github.com/keithagroves/skills-over-mcp) | SKILL.md, `skill://` resources with progressive disclosure (index→skill→documents); Zod validation against Agent Skills spec |
 | skillsdotnet | Peder HP | | [github.com/PederHP/skillsdotnet](https://github.com/PederHP/skillsdotnet) | C# implementation: SKILL.md, `skill://` resources, `load_skill` tool for progressive disclosure, manifest with file hashes; published on NuGet; compatible with FastMCP 3.0 |
 
