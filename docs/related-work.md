@@ -1,6 +1,6 @@
 # Related Work
 
-## Open SEPs and Proposals
+## SEPs and Proposals
 
 | Proposal | Venue | Description |
 | :--- | :--- | :--- |
