@@ -144,6 +144,35 @@ console.log(READ_RESOURCE_TOOL);
 
 ## Well-known HTTP bridge
 
+The bridge connects HTTP-based skill publishing to MCP-based skill serving:
+
+```mermaid
+flowchart TD
+    subgraph HTTP["HTTP Discovery (install time)"]
+        H1["GET /.well-known/\nagent-skills/index.json"] --> H2["Validate $schema,\nparse entries"]
+        H2 --> H3["Fetch each skill artifact"]
+        H3 --> H4["Verify SHA-256 digest"]
+        H4 --> H5["Cache locally with digest"]
+    end
+
+    subgraph MCP["MCP Runtime (conversation time)"]
+        M1["Register cached skills\nas skill:// resources"] --> M2["Load frontmatter\n(name, description)\ninto model context"]
+        M2 --> M3["Model calls read_resource\n(server, skill://name/SKILL.md)"]
+        M3 --> M4["Host serves\nfrom local cache"]
+        M4 --> M5["Full SKILL.md\nin context"]
+    end
+
+    H5 -- "BRIDGE" --> M1
+
+    subgraph Updates["Ongoing Updates"]
+        U1["TTL expires on\nindex cache"] --> U2["Re-fetch index\nover HTTP"]
+        U2 --> U3["Compare digests\nto cached values"]
+        U3 --> U4["Re-download\nchanged skills only"]
+        U4 --> U5["Update local cache\nand MCP resources"]
+        U5 --> U6["Fire notifications/\nresources/updated"]
+    end
+```
+
 Fetch skills published at `/.well-known/agent-skills/index.json` and cache them locally for serving over MCP:
 
 ```typescript
