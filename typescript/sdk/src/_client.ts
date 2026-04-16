@@ -13,7 +13,8 @@
  *   - SDK wrappers per the SEP: listSkills(), listSkillsFromIndex(), readSkillUri()
  */
 
-import type { SkillManifest, SkillSummary, SkillIndex } from "./types.js";
+import type { SkillManifest, SkillSummary, SkillIndex, SkillTemplateEntry } from "./types.js";
+import { KNOWN_SKILL_INDEX_SCHEMAS } from "./types.js";
 import {
   buildSkillUri,
   MANIFEST_PATH,
@@ -143,6 +144,37 @@ export async function listSkills(client: SkillsClient): Promise<SkillSummary[]> 
 }
 
 /**
+ * Fetch and parse skill://index.json from an MCP server.
+ * Returns the parsed SkillIndex or null if unavailable.
+ * Shared by listSkillsFromIndex() and listSkillTemplatesFromIndex().
+ */
+async function fetchAndParseIndex(
+  client: SkillsClient,
+): Promise<SkillIndex | null> {
+  try {
+    const result = await client.readResource({ uri: INDEX_JSON_URI });
+    const content = result.contents[0];
+    if (!content || !("text" in content) || !content.text) return null;
+
+    const index = JSON.parse(content.text) as SkillIndex;
+
+    // SEP: clients SHOULD validate $schema against known URIs before processing
+    if (index.$schema && !KNOWN_SKILL_INDEX_SCHEMAS.has(index.$schema)) {
+      console.warn(
+        `[ext-skills] Unrecognized skill index $schema: "${index.$schema}". ` +
+        `Known schemas: ${[...KNOWN_SKILL_INDEX_SCHEMAS].join(", ")}. Proceeding anyway.`,
+      );
+    }
+
+    if (!index.skills || !Array.isArray(index.skills)) return null;
+
+    return index;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * List skills by reading the well-known skill://index.json resource.
  *
  * This is the SEP's primary enumeration mechanism, following the Agent Skills
@@ -155,33 +187,46 @@ export async function listSkills(client: SkillsClient): Promise<SkillSummary[]> 
 export async function listSkillsFromIndex(
   client: SkillsClient,
 ): Promise<SkillSummary[] | null> {
-  try {
-    const result = await client.readResource({ uri: INDEX_JSON_URI });
-    const content = result.contents[0];
-    if (!content || !("text" in content) || !content.text) return null;
+  const index = await fetchAndParseIndex(client);
+  if (!index) return null;
 
-    const index = JSON.parse(content.text) as SkillIndex;
-    if (!index.skills || !Array.isArray(index.skills)) return null;
+  return index.skills
+    .filter((entry) => entry.type === "skill-md")
+    .map((entry) => {
+      // Extract skillPath from the url field (strip "skill://" prefix and "/SKILL.md" suffix)
+      const parsed = parseSkillUri(entry.url);
+      const skillPath = parsed?.skillPath ?? entry.name;
 
-    return index.skills
-      .filter((entry) => entry.type === "skill-md")
-      .map((entry) => {
-        // Extract skillPath from the url field (strip "skill://" prefix and "/SKILL.md" suffix)
-        const parsed = parseSkillUri(entry.url);
-        const skillPath = parsed?.skillPath ?? entry.name;
+      return {
+        name: entry.name,
+        skillPath,
+        uri: entry.url,
+        description: entry.description,
+        mimeType: "text/markdown",
+      };
+    });
+}
 
-        return {
-          name: entry.name,
-          skillPath,
-          uri: entry.url,
-          description: entry.description,
-          mimeType: "text/markdown",
-        };
-      });
-  } catch {
-    // Server doesn't expose skill://index.json — not an error
-    return null;
-  }
+/**
+ * List resource template entries from skill://index.json.
+ *
+ * Returns template entries for parameterized skill namespaces
+ * (e.g., skill://docs/{product}/SKILL.md). Returns null if the
+ * server does not expose skill://index.json.
+ */
+export async function listSkillTemplatesFromIndex(
+  client: SkillsClient,
+): Promise<SkillTemplateEntry[] | null> {
+  const index = await fetchAndParseIndex(client);
+  if (!index) return null;
+
+  return index.skills
+    .filter((entry) => entry.type === "mcp-resource-template")
+    .map((entry) => ({
+      name: entry.name,
+      description: entry.description,
+      uriTemplate: entry.uriTemplate,
+    }));
 }
 
 /**

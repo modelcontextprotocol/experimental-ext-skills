@@ -21,6 +21,7 @@ import type {
   SkillDocument,
   SkillManifest,
   SkillIndex,
+  SkillTemplateDeclaration,
   RegisterSkillResourcesOptions,
 } from "./types.js";
 import { SKILL_INDEX_SCHEMA } from "./types.js";
@@ -459,18 +460,31 @@ export function loadDocument(
  * Follows the Agent Skills well-known URI discovery index format.
  * Each entry contains the skill name, description, type ("skill-md"),
  * and the full skill:// URI for the SKILL.md resource.
+ *
+ * Optionally includes "mcp-resource-template" entries for parameterized
+ * skill namespaces (e.g., skill://docs/{product}/SKILL.md).
  */
 export function generateSkillIndex(
   skillMap: Map<string, SkillMetadata>,
+  templates?: SkillTemplateDeclaration[],
 ): SkillIndex {
+  const skillEntries = Array.from(skillMap.entries()).map(([skillPath, skill]) => ({
+    name: skill.name,
+    type: "skill-md" as const,
+    description: skill.description,
+    url: buildSkillUri(skillPath),
+  }));
+
+  const templateEntries = (templates ?? []).map((t) => ({
+    name: t.name,
+    type: "mcp-resource-template" as const,
+    description: t.description,
+    uriTemplate: t.uriTemplate,
+  }));
+
   return {
     $schema: SKILL_INDEX_SCHEMA,
-    skills: Array.from(skillMap.entries()).map(([skillPath, skill]) => ({
-      name: skill.name,
-      type: "skill-md" as const,
-      description: skill.description,
-      url: buildSkillUri(skillPath),
-    })),
+    skills: [...skillEntries, ...templateEntries],
   };
 }
 

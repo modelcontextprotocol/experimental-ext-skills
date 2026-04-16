@@ -99,18 +99,82 @@ export interface SkillSummary {
 }
 
 /**
- * An entry in the skill://index.json discovery index.
- * Follows the Agent Skills well-known URI discovery index format.
+ * A skill-md entry in the discovery index — a concrete skill with a URI.
  */
-export interface SkillIndexEntry {
+export interface SkillMdIndexEntry {
   /** Skill name from frontmatter (= final segment of skill path) */
   name: string;
-  /** Always "skill-md" for MCP-served skills */
+  /** Entry type discriminator */
   type: "skill-md";
   /** Skill description from frontmatter */
   description: string;
   /** Full skill:// URI for the SKILL.md resource */
   url: string;
+  /** Content digest for cache validation (format: "sha256:<hex>") */
+  digest?: string;
+}
+
+/**
+ * An mcp-resource-template entry in the discovery index — a parameterized
+ * skill namespace that clients resolve via the MCP completion API.
+ */
+export interface McpResourceTemplateIndexEntry {
+  /** Template name */
+  name: string;
+  /** Entry type discriminator */
+  type: "mcp-resource-template";
+  /** Template description */
+  description: string;
+  /** URI template (e.g., "skill://docs/{product}/SKILL.md") */
+  uriTemplate: string;
+}
+
+/**
+ * An archive entry in the discovery index — a .tar.gz bundle containing
+ * a skill directory with SKILL.md at its root.
+ */
+export interface ArchiveIndexEntry {
+  /** Skill name */
+  name: string;
+  /** Entry type discriminator */
+  type: "archive";
+  /** Skill description */
+  description: string;
+  /** URL to the .tar.gz archive */
+  url: string;
+  /** Content digest for cache validation (format: "sha256:<hex>") */
+  digest?: string;
+}
+
+/**
+ * An entry in the skill://index.json discovery index.
+ * Discriminated union — use `entry.type` to narrow.
+ */
+export type SkillIndexEntry = SkillMdIndexEntry | McpResourceTemplateIndexEntry | ArchiveIndexEntry;
+
+/**
+ * Client-side summary of a discovered resource template.
+ */
+export interface SkillTemplateEntry {
+  /** Template name */
+  name: string;
+  /** Template description */
+  description: string;
+  /** URI template string */
+  uriTemplate: string;
+}
+
+/**
+ * Server-side declaration for a parameterized skill namespace.
+ * Passed to generateSkillIndex() to produce mcp-resource-template entries.
+ */
+export interface SkillTemplateDeclaration {
+  /** Template name */
+  name: string;
+  /** Template description */
+  description: string;
+  /** URI template (e.g., "skill://docs/{product}/SKILL.md") */
+  uriTemplate: string;
 }
 
 /**
@@ -126,6 +190,51 @@ export interface SkillIndex {
 
 /** Schema URI for the Agent Skills discovery index format. */
 export const SKILL_INDEX_SCHEMA = "https://schemas.agentskills.io/discovery/0.2.0/schema.json";
+
+/** Set of known schema URIs for forward-compatible validation. */
+export const KNOWN_SKILL_INDEX_SCHEMAS: ReadonlySet<string> = new Set([SKILL_INDEX_SCHEMA]);
+
+// ---------------------------------------------------------------------------
+// Well-known HTTP bridge types
+// ---------------------------------------------------------------------------
+
+/**
+ * Options for fetchFromWellKnown() / refreshFromWellKnown().
+ */
+export interface WellKnownFetchOptions {
+  /** Domain to fetch from (e.g., "example.com") */
+  domain: string;
+  /** Local directory to cache fetched skills */
+  cacheDir: string;
+  /** Injectable fetch function (defaults to globalThis.fetch) */
+  fetch?: typeof globalThis.fetch;
+  /** Skip entries whose digest matches the local cache */
+  useDigestCache?: boolean;
+}
+
+/**
+ * A single fetched skill result.
+ */
+export interface WellKnownSkillResult {
+  /** Skill name from the index entry */
+  name: string;
+  /** Skill path (derived from entry name or URL) */
+  skillPath: string;
+  /** Whether the skill was served from the digest cache (not re-downloaded) */
+  cached: boolean;
+}
+
+/**
+ * Result of fetchFromWellKnown() / refreshFromWellKnown().
+ */
+export interface WellKnownFetchResult {
+  /** Skills that were fetched or already cached */
+  skills: WellKnownSkillResult[];
+  /** Entries skipped due to unrecognized or unfetchable type */
+  skipped: Array<{ name?: string; type: string; reason: string }>;
+  /** Fetch or verification failures */
+  errors: Array<{ name: string; error: string }>;
+}
 
 /**
  * Options for registerSkillResources().

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { generateSkillIndex } from "./_server.js";
-import { listSkillsFromIndex, listSkills } from "./_client.js";
+import { listSkillsFromIndex, listSkillTemplatesFromIndex, listSkills } from "./_client.js";
 import type { SkillMetadata } from "./types.js";
 import { SKILL_INDEX_SCHEMA } from "./types.js";
 import type { SkillsClient } from "./_client.js";
@@ -176,6 +176,183 @@ describe("listSkillsFromIndex", () => {
 });
 
 // ---------------------------------------------------------------------------
+// generateSkillIndex with template declarations
+// ---------------------------------------------------------------------------
+
+describe("generateSkillIndex with templates", () => {
+  it("appends mcp-resource-template entries", () => {
+    const map = makeSkillMap([
+      makeSkill({ name: "code-review", skillPath: "code-review", description: "Review code" }),
+    ]);
+
+    const index = generateSkillIndex(map, [
+      { name: "docs", description: "Product docs", uriTemplate: "skill://docs/{product}/SKILL.md" },
+    ]);
+
+    expect(index.skills).toHaveLength(2);
+    expect(index.skills[0]).toEqual({
+      name: "code-review",
+      type: "skill-md",
+      description: "Review code",
+      url: "skill://code-review/SKILL.md",
+    });
+    expect(index.skills[1]).toEqual({
+      name: "docs",
+      type: "mcp-resource-template",
+      description: "Product docs",
+      uriTemplate: "skill://docs/{product}/SKILL.md",
+    });
+  });
+
+  it("works with empty skill map and only templates", () => {
+    const index = generateSkillIndex(new Map(), [
+      { name: "t1", description: "T1", uriTemplate: "skill://t1/{x}/SKILL.md" },
+    ]);
+
+    expect(index.skills).toHaveLength(1);
+    expect(index.skills[0].type).toBe("mcp-resource-template");
+  });
+
+  it("works with no templates (backward compat)", () => {
+    const map = makeSkillMap([
+      makeSkill({ name: "a", skillPath: "a", description: "A" }),
+    ]);
+
+    const index = generateSkillIndex(map);
+    expect(index.skills).toHaveLength(1);
+    expect(index.skills[0].type).toBe("skill-md");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listSkillTemplatesFromIndex
+// ---------------------------------------------------------------------------
+
+describe("listSkillTemplatesFromIndex", () => {
+  it("returns only mcp-resource-template entries", async () => {
+    const client = mockClientWithIndex({
+      $schema: SKILL_INDEX_SCHEMA,
+      skills: [
+        { name: "code-review", type: "skill-md", description: "Review", url: "skill://code-review/SKILL.md" },
+        { name: "docs", type: "mcp-resource-template", description: "Docs", uriTemplate: "skill://docs/{product}/SKILL.md" },
+      ],
+    });
+
+    const templates = await listSkillTemplatesFromIndex(client);
+    expect(templates).toHaveLength(1);
+    expect(templates![0]).toEqual({
+      name: "docs",
+      description: "Docs",
+      uriTemplate: "skill://docs/{product}/SKILL.md",
+    });
+  });
+
+  it("returns empty array when no templates exist", async () => {
+    const client = mockClientWithIndex({
+      $schema: SKILL_INDEX_SCHEMA,
+      skills: [
+        { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" },
+      ],
+    });
+
+    const templates = await listSkillTemplatesFromIndex(client);
+    expect(templates).toEqual([]);
+  });
+
+  it("returns null when server has no index", async () => {
+    const client: SkillsClient = {
+      listResources: vi.fn(),
+      readResource: vi.fn().mockRejectedValue(new Error("Not found")),
+    };
+
+    const templates = await listSkillTemplatesFromIndex(client);
+    expect(templates).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listSkillsFromIndex ignores template entries
+// ---------------------------------------------------------------------------
+
+describe("listSkillsFromIndex with mixed entry types", () => {
+  it("returns only skill-md entries, ignoring templates", async () => {
+    const client = mockClientWithIndex({
+      $schema: SKILL_INDEX_SCHEMA,
+      skills: [
+        { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" },
+        { name: "t1", type: "mcp-resource-template", description: "T1", uriTemplate: "skill://t1/{x}/SKILL.md" },
+        { name: "b", type: "skill-md", description: "B", url: "skill://b/SKILL.md" },
+      ],
+    });
+
+    const skills = await listSkillsFromIndex(client);
+    expect(skills).toHaveLength(2);
+    expect(skills!.map((s) => s.name)).toEqual(["a", "b"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// $schema validation in listSkillsFromIndex
+// ---------------------------------------------------------------------------
+
+describe("$schema validation", () => {
+  const validEntry = { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" };
+
+  it("does not warn for known schema URI", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const client = mockClientWithIndex({
+      $schema: SKILL_INDEX_SCHEMA,
+      skills: [validEntry],
+    });
+
+    const skills = await listSkillsFromIndex(client);
+    expect(skills).toHaveLength(1);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("warns but still returns skills for unknown schema URI", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const client = mockClientWithIndex({
+      $schema: "https://example.com/unknown-schema/1.0",
+      skills: [validEntry],
+    });
+
+    const skills = await listSkillsFromIndex(client);
+    expect(skills).toHaveLength(1);
+    expect(skills![0].name).toBe("a");
+    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(warnSpy.mock.calls[0][0]).toContain("unknown-schema");
+    warnSpy.mockRestore();
+  });
+
+  it("does not warn when $schema is missing", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const client = mockClientWithIndex({
+      skills: [validEntry],
+    });
+
+    const skills = await listSkillsFromIndex(client);
+    expect(skills).toHaveLength(1);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("does not warn when $schema is empty string", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const client = mockClientWithIndex({
+      $schema: "",
+      skills: [validEntry],
+    });
+
+    const skills = await listSkillsFromIndex(client);
+    expect(skills).toHaveLength(1);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Round-trip: generateSkillIndex → listSkillsFromIndex
 // ---------------------------------------------------------------------------
 
@@ -194,6 +371,26 @@ describe("index round-trip (server generates → client consumes)", () => {
     expect(skills!.map((s) => s.name).sort()).toEqual(["code-review", "refunds"]);
     expect(skills!.find((s) => s.name === "refunds")!.skillPath).toBe("acme/billing/refunds");
     expect(skills!.find((s) => s.name === "code-review")!.skillPath).toBe("code-review");
+  });
+
+  it("round-trips both skill-md and template entries", async () => {
+    const map = makeSkillMap([
+      makeSkill({ name: "code-review", skillPath: "code-review", description: "Review" }),
+    ]);
+    const templates = [
+      { name: "docs", description: "Product docs", uriTemplate: "skill://docs/{product}/SKILL.md" },
+    ];
+
+    const index = generateSkillIndex(map, templates);
+    const client = mockClientWithIndex(index);
+
+    const skills = await listSkillsFromIndex(client);
+    expect(skills).toHaveLength(1);
+    expect(skills![0].name).toBe("code-review");
+
+    const tmpl = await listSkillTemplatesFromIndex(client);
+    expect(tmpl).toHaveLength(1);
+    expect(tmpl![0].uriTemplate).toBe("skill://docs/{product}/SKILL.md");
   });
 });
 

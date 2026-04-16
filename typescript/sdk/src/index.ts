@@ -13,12 +13,20 @@ export type {
   SkillDocument,
   SkillMetadata,
   SkillSummary,
+  SkillMdIndexEntry,
+  McpResourceTemplateIndexEntry,
+  ArchiveIndexEntry,
   SkillIndexEntry,
   SkillIndex,
+  SkillTemplateEntry,
+  SkillTemplateDeclaration,
+  WellKnownFetchOptions,
+  WellKnownFetchResult,
+  WellKnownSkillResult,
   RegisterSkillResourcesOptions,
 } from "./types.js";
 
-export { SKILL_INDEX_SCHEMA } from "./types.js";
+export { SKILL_INDEX_SCHEMA, KNOWN_SKILL_INDEX_SCHEMAS } from "./types.js";
 
 export {
   SKILL_URI_SCHEME,

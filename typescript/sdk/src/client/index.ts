@@ -6,6 +6,7 @@ export {
   READ_RESOURCE_TOOL,
   listSkills,
   listSkillsFromIndex,
+  listSkillTemplatesFromIndex,
   readSkillUri,
   readSkillContent,
   parseSkillFrontmatter,
