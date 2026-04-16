@@ -208,6 +208,20 @@ The bridge supports:
 - **Digest caching**: skips re-downloading unchanged skills on refresh
 - **URL resolution**: relative, path-absolute, and absolute URLs per RFC 3986
 
+### Try it with a live endpoint
+
+The MCP specification site publishes skills at a well-known endpoint you can test against:
+
+```typescript
+const result = await fetchFromWellKnown({
+  domain: "modelcontextprotocol.io",
+  cacheDir: "./cache/mcp",
+});
+console.log(result.skills); // skills fetched from the live index
+```
+
+Index URL: https://modelcontextprotocol.io/.well-known/agent-skills/index.json
+
 ## URI scheme
 
 ```
