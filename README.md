@@ -1,11 +1,11 @@
-# Skills Over MCP Interest Group
+# Skills Over MCP Working Group
 
-> ⚠️ **Experimental** — This repository is an incubation space for the Skills Over MCP Interest Group. Contents are exploratory and do not represent official MCP specifications or recommendations.
+> ⚠️ **Experimental** — This repository is an incubation space for the Skills Over MCP Working Group. Contents are exploratory and do not represent official MCP specifications or recommendations.
 
 **Charter:** [modelcontextprotocol.io/community/skills-over-mcp/charter](https://modelcontextprotocol.io/community/skills-over-mcp/charter) — mission, scope, membership, active work items, and success criteria.
-**Project board:** [Skills Over MCP IG](https://github.com/orgs/modelcontextprotocol/projects/38/views/1)
-**Meeting notes:** [Skills Over MCP IG discussions](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-ig)
-**Discord:** [#skills-over-mcp-ig](https://discord.com/channels/1358869848138059966/1464745826629976084)
+**Project board:** [Skills Over MCP WG](https://github.com/orgs/modelcontextprotocol/projects/38/views/1)
+**Meeting notes:** [Skills Over MCP WG discussions](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg)
+**Discord:** [#skills-over-mcp-wg](https://discord.com/channels/1358869848138059966/1464745826629976084)
 
 ## Why Skills Over MCP?
 
