@@ -25,23 +25,13 @@ Before opening a discussion, review the [Agent Skills contributing guide](https:
 
 ## Meetings
 
-[Meeting notes](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg) are published in the main MCP repo discussions. Future meetings will be scheduled and scheduling surveys posted in the [#skills-over-mcp-wg Discord channel](https://discord.com/channels/1358869848138059966/1464745826629976084).
+Working Session cadence is defined in the [charter](https://modelcontextprotocol.io/community/skills-over-mcp/charter#operations); the schedule is published on [meet.modelcontextprotocol.io](https://meet.modelcontextprotocol.io). Meeting requirements — advance notice, agendas, and notes — follow MCP [group governance](https://modelcontextprotocol.io/community/working-interest-groups#meeting-requirements).
 
-Meeting norms:
-
-- Working Sessions are published on [meet.modelcontextprotocol.io](https://meet.modelcontextprotocol.io) at least 7 days in advance
-- Agendas are posted as GitHub Discussions ahead of each session
-- Notes published within 48 hours
+Notes are published to [Meeting Notes — Skills Over MCP WG](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg). Scheduling surveys and between-meeting coordination happen in [#skills-over-mcp-wg](https://discord.com/channels/1358869848138059966/1464745826629976084).
 
 ## Decision-Making
 
-As a Working Group, we make binding decisions on technical design and SEPs within our [charter scope](https://modelcontextprotocol.io/community/skills-over-mcp/charter). Per MCP [group governance](https://modelcontextprotocol.io/community/working-interest-groups#decision-making-process), decisions progress through:
-
-- **Lazy consensus** — proposals announced with a deadline (5 days minimum for minor items, 10 days for significant items); silence is consent; any WG Member may block with a documented objection
-- **Formal vote** — triggered by a block or by a Lead / three or more WG Members; 50% quorum of active WG Members; simple majority for routine matters, 2/3 for scope changes
-- **Escalation** — unresolved matters are escalated to Core Maintainers with documented context
-
-Authority by decision type is detailed in the [charter's Authority & Decision Rights table](https://modelcontextprotocol.io/community/skills-over-mcp/charter#authority-decision-rights).
+Scope and per-decision-type authority are defined in the [charter](https://modelcontextprotocol.io/community/skills-over-mcp/charter#authority-decision-rights). The decision progression (lazy consensus → formal vote → escalation) follows MCP [group governance](https://modelcontextprotocol.io/community/working-interest-groups#decision-making-process).
 
 Outputs include:
 
@@ -76,7 +66,7 @@ Significant decisions made during meetings or through async discussion should be
 - Sets or changes the group's scope
 - Establishes a convention or coordination mechanism
 
-Add a new entry after the meeting where the decision was made or when rough consensus is reached asynchronously. Include context, the decision itself, rationale, and links to relevant issues, PRs, or discussion threads.
+Add a new entry after the meeting where the decision was made or when consensus is reached asynchronously. Include context, the decision itself, rationale, and links to relevant issues, PRs, or discussion threads.
 
 ### Filing Issues
 
