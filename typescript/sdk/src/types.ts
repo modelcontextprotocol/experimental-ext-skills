@@ -245,6 +245,36 @@ export interface WellKnownFetchResult {
 }
 
 /**
+ * Options for buildSkillsCatalog().
+ */
+export interface SkillsCatalogOptions {
+  /** Tool name the model should call to read skill content */
+  toolName: string;
+  /** MCP server name the model should target */
+  serverName: string;
+}
+
+/**
+ * Options for discoverAndBuildCatalog().
+ */
+export interface DiscoverCatalogOptions {
+  /** MCP server name the model should target (required for activation reliability) */
+  serverName: string;
+  /** Tool name the model should call to read resources. Default: "read_resource" */
+  toolName?: string;
+}
+
+/**
+ * Result of discoverAndBuildCatalog().
+ */
+export interface DiscoverCatalogResult {
+  /** Discovered skills */
+  skills: SkillSummary[];
+  /** System prompt catalog text (empty string if no skills found) */
+  catalog: string;
+}
+
+/**
  * Options for registerSkillResources().
  */
 export interface RegisterSkillResourcesOptions {

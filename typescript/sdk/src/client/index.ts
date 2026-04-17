@@ -4,6 +4,8 @@
 
 export {
   READ_RESOURCE_TOOL,
+  discoverSkills,
+  discoverAndBuildCatalog,
   listSkills,
   listSkillsFromIndex,
   listSkillTemplatesFromIndex,
@@ -11,7 +13,14 @@ export {
   readSkillContent,
   parseSkillFrontmatter,
   buildSkillsSummary,
+  buildSkillsCatalog,
   readSkillManifest,
   readSkillDocument,
 } from "../_client.js";
 export type { SkillsClient, ToolDefinition } from "../_client.js";
+export type {
+  SkillSummary,
+  SkillsCatalogOptions,
+  DiscoverCatalogOptions,
+  DiscoverCatalogResult,
+} from "../types.js";

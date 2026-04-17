@@ -330,9 +330,9 @@ export function discoverSkills(
         }
       }
 
-      // SEP constraint: final segment of skillPath MUST equal frontmatter name
+      // SEP constraint: final segment of skillPath MUST equal frontmatter name (case-insensitive)
       const finalSegment = skillPath.split("/").pop()!;
-      if (finalSegment !== name.trim()) {
+      if (finalSegment.toLowerCase() !== name.trim().toLowerCase()) {
         console.error(
           `Skill at ${skillDir}: frontmatter name "${name.trim()}" does not match final path segment "${finalSegment}". ` +
             `Per the SEP, the final segment of the skill path must equal the frontmatter name.`,

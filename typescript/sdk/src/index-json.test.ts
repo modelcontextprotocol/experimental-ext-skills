@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { generateSkillIndex } from "./_server.js";
-import { listSkillsFromIndex, listSkillTemplatesFromIndex, listSkills } from "./_client.js";
+import { listSkillsFromIndex, listSkillTemplatesFromIndex, listSkills, discoverSkills, discoverAndBuildCatalog } from "./_client.js";
 import type { SkillMetadata } from "./types.js";
 import { SKILL_INDEX_SCHEMA } from "./types.js";
 import type { SkillsClient } from "./_client.js";
@@ -271,6 +271,61 @@ describe("listSkillTemplatesFromIndex", () => {
 });
 
 // ---------------------------------------------------------------------------
+// listSkillsFromIndex with non-skill:// URI schemes
+// ---------------------------------------------------------------------------
+
+describe("listSkillsFromIndex with non-skill:// URI schemes", () => {
+  it("handles entries with any URI scheme", async () => {
+    const client = mockClientWithIndex({
+      $schema: SKILL_INDEX_SCHEMA,
+      skills: [
+        { name: "copilot-sdk", type: "skill-md", description: "Copilot SDK guide", url: "repo://github/awesome-copilot/contents/skills/copilot-sdk/SKILL.md" },
+        { name: "code-review", type: "skill-md", description: "Review code", url: "skill://code-review/SKILL.md" },
+        { name: "deploy-guide", type: "skill-md", description: "Deployment guide", url: "github://acme/platform/skills/deploy-guide/SKILL.md" },
+      ],
+    });
+
+    const skills = await listSkillsFromIndex(client);
+
+    expect(skills).toHaveLength(3);
+
+    // Non-skill:// entry: uri preserved as-is, skillPath falls back to name
+    const copilot = skills!.find((s) => s.name === "copilot-sdk")!;
+    expect(copilot.uri).toBe("repo://github/awesome-copilot/contents/skills/copilot-sdk/SKILL.md");
+    expect(copilot.skillPath).toBe("copilot-sdk");
+    expect(copilot.description).toBe("Copilot SDK guide");
+
+    // skill:// entry: skillPath extracted from URI structure
+    const codeReview = skills!.find((s) => s.name === "code-review")!;
+    expect(codeReview.uri).toBe("skill://code-review/SKILL.md");
+    expect(codeReview.skillPath).toBe("code-review");
+
+    // Another non-skill:// scheme
+    const deploy = skills!.find((s) => s.name === "deploy-guide")!;
+    expect(deploy.uri).toBe("github://acme/platform/skills/deploy-guide/SKILL.md");
+    expect(deploy.skillPath).toBe("deploy-guide");
+  });
+
+  it("produces summaries that work with readSkillUri", async () => {
+    const readResource = vi.fn().mockResolvedValue({
+      contents: [{ text: "---\nname: copilot-sdk\ndescription: Guide\n---\n# Content" }],
+    });
+    const client: SkillsClient = {
+      listResources: vi.fn().mockResolvedValue({ resources: [] }),
+      readResource,
+    };
+
+    // Simulate reading a non-skill:// URI from an index entry
+    const { readSkillUri } = await import("./_client.js");
+    const uri = "repo://github/awesome-copilot/contents/skills/copilot-sdk/SKILL.md";
+    const content = await readSkillUri(client, uri);
+
+    expect(content).toContain("copilot-sdk");
+    expect(readResource).toHaveBeenCalledWith({ uri });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // listSkillsFromIndex ignores template entries
 // ---------------------------------------------------------------------------
 
@@ -447,5 +502,219 @@ describe("listSkills", () => {
 
     const skills = await listSkills(client);
     expect(skills).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// discoverSkills (convenience: index-first with fallback)
+// ---------------------------------------------------------------------------
+
+describe("discoverSkills", () => {
+  it("returns skills from index when available", async () => {
+    const client = mockClientWithIndex({
+      $schema: SKILL_INDEX_SCHEMA,
+      skills: [
+        { name: "code-review", type: "skill-md", description: "Review code", url: "skill://code-review/SKILL.md" },
+      ],
+    });
+
+    const skills = await discoverSkills(client);
+
+    expect(skills).toHaveLength(1);
+    expect(skills[0].name).toBe("code-review");
+    expect(client.listResources).not.toHaveBeenCalled();
+  });
+
+  it("falls back to resources/list when index is unavailable", async () => {
+    const client: SkillsClient = {
+      listResources: vi.fn().mockResolvedValue({
+        resources: [
+          { uri: "skill://git-workflow/SKILL.md", name: "git-workflow", description: "Git workflow" },
+        ],
+      }),
+      readResource: vi.fn().mockRejectedValue(new Error("Not found")),
+    };
+
+    const skills = await discoverSkills(client);
+
+    expect(skills).toHaveLength(1);
+    expect(skills[0].name).toBe("git-workflow");
+  });
+
+  it("falls back to resources/list when index returns empty skills", async () => {
+    const client: SkillsClient = {
+      readResource: vi.fn().mockResolvedValue({
+        contents: [{ text: JSON.stringify({ $schema: SKILL_INDEX_SCHEMA, skills: [] }) }],
+      }),
+      listResources: vi.fn().mockResolvedValue({
+        resources: [
+          { uri: "skill://fallback/SKILL.md", name: "fallback", description: "Fallback" },
+        ],
+      }),
+    };
+
+    const skills = await discoverSkills(client);
+
+    expect(skills).toHaveLength(1);
+    expect(skills[0].name).toBe("fallback");
+  });
+
+  it("falls back when index has only template entries", async () => {
+    const client: SkillsClient = {
+      readResource: vi.fn().mockResolvedValue({
+        contents: [{
+          text: JSON.stringify({
+            $schema: SKILL_INDEX_SCHEMA,
+            skills: [
+              { type: "mcp-resource-template", description: "Docs", url: "skill://docs/{x}/SKILL.md" },
+            ],
+          }),
+        }],
+      }),
+      listResources: vi.fn().mockResolvedValue({
+        resources: [
+          { uri: "skill://concrete/SKILL.md", name: "concrete", description: "Concrete" },
+        ],
+      }),
+    };
+
+    const skills = await discoverSkills(client);
+
+    expect(skills).toHaveLength(1);
+    expect(skills[0].name).toBe("concrete");
+  });
+
+  it("returns empty array when nothing found", async () => {
+    const client: SkillsClient = {
+      listResources: vi.fn().mockResolvedValue({ resources: [] }),
+      readResource: vi.fn().mockRejectedValue(new Error("Not found")),
+    };
+
+    const skills = await discoverSkills(client);
+
+    expect(skills).toEqual([]);
+  });
+
+  it("never returns null", async () => {
+    const client: SkillsClient = {
+      listResources: vi.fn().mockResolvedValue({ resources: [] }),
+      readResource: vi.fn().mockRejectedValue(new Error("Not found")),
+    };
+
+    const result = await discoverSkills(client);
+    expect(result).not.toBeNull();
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("prefers index over resources/list", async () => {
+    const client: SkillsClient = {
+      readResource: vi.fn().mockResolvedValue({
+        contents: [{
+          text: JSON.stringify({
+            $schema: SKILL_INDEX_SCHEMA,
+            skills: [
+              { name: "from-index", type: "skill-md", description: "From index", url: "skill://from-index/SKILL.md" },
+            ],
+          }),
+        }],
+      }),
+      listResources: vi.fn().mockResolvedValue({
+        resources: [
+          { uri: "skill://from-list/SKILL.md", name: "from-list", description: "From list" },
+        ],
+      }),
+    };
+
+    const skills = await discoverSkills(client);
+
+    expect(skills).toHaveLength(1);
+    expect(skills[0].name).toBe("from-index");
+    expect(client.listResources).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// discoverAndBuildCatalog (convenience: discover + catalog in one call)
+// ---------------------------------------------------------------------------
+
+describe("discoverAndBuildCatalog", () => {
+  it("returns skills and catalog text", async () => {
+    const client = mockClientWithIndex({
+      $schema: SKILL_INDEX_SCHEMA,
+      skills: [
+        { name: "code-review", type: "skill-md", description: "Review code", url: "skill://code-review/SKILL.md" },
+      ],
+    });
+
+    const result = await discoverAndBuildCatalog(client, {
+      serverName: "my-server",
+    });
+
+    expect(result.skills).toHaveLength(1);
+    expect(result.skills[0].name).toBe("code-review");
+    expect(result.catalog).toContain("<available_skills>");
+    expect(result.catalog).toContain("`my-server`");
+    expect(result.catalog).toContain("`read_resource`");
+  });
+
+  it("uses default toolName from READ_RESOURCE_TOOL", async () => {
+    const client = mockClientWithIndex({
+      $schema: SKILL_INDEX_SCHEMA,
+      skills: [
+        { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" },
+      ],
+    });
+
+    const result = await discoverAndBuildCatalog(client, {
+      serverName: "test-server",
+    });
+
+    expect(result.catalog).toContain("`read_resource`");
+  });
+
+  it("allows overriding toolName", async () => {
+    const client = mockClientWithIndex({
+      $schema: SKILL_INDEX_SCHEMA,
+      skills: [
+        { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" },
+      ],
+    });
+
+    const result = await discoverAndBuildCatalog(client, {
+      serverName: "test-server",
+      toolName: "ReadMcpResourceTool",
+    });
+
+    expect(result.catalog).toContain("`ReadMcpResourceTool`");
+    expect(result.catalog).not.toContain("`read_resource`");
+  });
+
+  it("returns empty catalog when no skills found", async () => {
+    const client: SkillsClient = {
+      listResources: vi.fn().mockResolvedValue({ resources: [] }),
+      readResource: vi.fn().mockRejectedValue(new Error("Not found")),
+    };
+
+    const result = await discoverAndBuildCatalog(client, {
+      serverName: "empty-server",
+    });
+
+    expect(result.skills).toEqual([]);
+    expect(result.catalog).toBe("");
+  });
+
+  it("includes server name for activation reliability", async () => {
+    const client = mockClientWithIndex({
+      $schema: SKILL_INDEX_SCHEMA,
+      skills: [
+        { name: "x", type: "skill-md", description: "X", url: "skill://x/SKILL.md" },
+      ],
+    });
+
+    const result = await discoverAndBuildCatalog(client, {
+      serverName: "production-skills",
+    });
+
+    expect(result.catalog).toContain("`production-skills`");
   });
 });

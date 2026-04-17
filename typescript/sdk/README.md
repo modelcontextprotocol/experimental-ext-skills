@@ -106,27 +106,53 @@ const index = generateSkillIndex(skillMap, [
 
 ## Client usage
 
-Discover and read skills from a connected MCP server:
+### Quick start
+
+Discover skills and build a system prompt catalog in one call:
+
+```typescript
+import { discoverAndBuildCatalog } from "@olaservo/ext-skills/client";
+
+const { skills, catalog } = await discoverAndBuildCatalog(client, {
+  serverName: "my-skills-server",
+});
+
+console.log(`Discovered ${skills.length} skill(s)`);
+// Inject `catalog` into your agent's system prompt
+```
+
+`discoverAndBuildCatalog()` handles the recommended discovery strategy (try `skill://index.json` first, fall back to `resources/list`) and builds an XML catalog with behavioral instructions for the model. The `serverName` is required — including it raises model activation reliability from ~33% to ~90%.
+
+### Step by step
+
+For more control, use the lower-level functions directly:
 
 ```typescript
 import {
+  discoverSkills,
   listSkillsFromIndex,
   listSkillTemplatesFromIndex,
+  readSkillUri,
   readSkillContent,
   readSkillManifest,
   readSkillDocument,
+  buildSkillsCatalog,
   buildSkillsSummary,
   READ_RESOURCE_TOOL,
 } from "@olaservo/ext-skills/client";
 
-// Discover skills via skill://index.json
-const skills = await listSkillsFromIndex(client);
+// Discover skills (index-first with fallback, always returns an array)
+const skills = await discoverSkills(client);
 
-// Discover resource template entries
-const templates = await listSkillTemplatesFromIndex(client);
+// Or use specific discovery mechanisms:
+const indexSkills = await listSkillsFromIndex(client);   // skill://index.json (returns null if unavailable)
+const templates = await listSkillTemplatesFromIndex(client); // mcp-resource-template entries
 
-// Read a skill's content
-const content = await readSkillContent(client, "acme/billing/refunds");
+// Read skill content by URI (works with any scheme: skill://, repo://, github://, etc.)
+const content = await readSkillUri(client, skill.uri);
+
+// Or by skill path (convenience, skill:// scheme only)
+const md = await readSkillContent(client, "acme/billing/refunds");
 
 // Read file manifest (SHA-256 hashes for each file)
 const manifest = await readSkillManifest(client, "code-review");
@@ -134,13 +160,18 @@ const manifest = await readSkillManifest(client, "code-review");
 // Read a supporting file
 const doc = await readSkillDocument(client, "acme/billing/refunds", "templates/refund-email-template.md");
 
-// Build a plain-text summary for context injection
+// Build catalog or summary for context injection
+const catalog = buildSkillsCatalog(skills, { toolName: "read_resource", serverName: "my-server" });
 const summary = buildSkillsSummary(skills);
 
 // READ_RESOURCE_TOOL — tool schema for model-driven skill loading
 // Hosts expose this so the model can call read_resource(server, uri)
 console.log(READ_RESOURCE_TOOL);
 ```
+
+### Scheme-agnostic discovery
+
+Per the SEP, `skill://` is SHOULD, not MUST. Servers may serve skills under any URI scheme (e.g., `repo://`, `github://`) provided they are listed in `skill://index.json`. The discovery functions (`discoverSkills`, `listSkillsFromIndex`) handle any scheme in index entries, and `readSkillUri()` reads any URI regardless of scheme.
 
 ## Well-known HTTP bridge
 
