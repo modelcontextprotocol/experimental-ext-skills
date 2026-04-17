@@ -1,6 +1,6 @@
 # Decision Log
 
-This document records significant decisions made by the Skills Over MCP Interest Group, using an ADR-lite (Architecture Decision Record) format. It serves as a transparent, auditable trace of the group's reasoning over time.
+This document records significant decisions made by the Skills Over MCP Working Group, using an ADR-lite (Architecture Decision Record) format. It serves as a transparent, auditable trace of the group's reasoning over time.
 
 For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 
@@ -117,3 +117,20 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 - [Issue #55](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/55)
 - [Discord discussion](https://discord.com/channels/1358869848138059966/1482008994062274610)
 - [Using `_meta` for Skill Resources](skill-meta-keys.md)
+
+---
+
+### 2026-04-16: Convert Skills Over MCP from Interest Group to Working Group
+
+**Status:** [Accepted by Core Maintainers](https://discord.com/channels/1358869848138059966/1464745826629976084/1494774410891231352)
+
+**Context:** The group formed as an Interest Group on 2026-02-01 to explore skills distribution over MCP. Over the following weeks the work moved beyond problem-framing into concrete deliverables including the Skills Extension SEP (Extensions Track). Per MCP [group governance](https://modelcontextprotocol.io/community/working-interest-groups), Interest Groups focus on "identifying problems worth solving" and produce non-binding recommendations, while Working Groups "collaborate on a SEP, a series of related SEPs, or an officially endorsed project" and make binding decisions. The group's output had crossed that boundary.
+
+**Decision:** Convert to a Working Group. The group retains its existing scope (skills discovery, distribution, and consumption through MCP) and charter location, now governed by WG rules: lazy consensus → formal vote → escalation, with WG Leads holding autonomous authority over meeting logistics, proposal prioritization, and in-scope SEP triage. Spec changes require WG consensus plus Core Maintainer approval.
+
+**Rationale:** The group was already doing WG work — shepherding SEPs, building reference implementations, and coordinating cross-WG concerns — without the matching authority structure. Aligning form with function lets the group own SEP decisions in its scope (rather than routing recommendations through other WGs), formalizes the two-Lead model already in practice, and makes responsibilities explicit under the governance doc.
+
+**References:**
+- [PR #2586](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2586) — charter conversion (merged 2026-04-16)
+- [Charter](https://modelcontextprotocol.io/community/skills-over-mcp/charter)
+- [Group governance](https://modelcontextprotocol.io/community/working-interest-groups)

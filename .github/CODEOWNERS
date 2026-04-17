@@ -8,5 +8,6 @@
 # https://github.com/modelcontextprotocol/access
 
 # Default owners for all files in the repository
-# The Skills Over MCP Interest Group has day-to-day governance
+# The Skills Over MCP Working Group has day-to-day governance
+# TODO: rename team to skills-over-mcp-wg once modelcontextprotocol/access updates (roleIds.ts, roles.ts, users.ts)
 * @modelcontextprotocol/skills-over-mcp-ig
