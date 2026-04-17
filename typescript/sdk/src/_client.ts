@@ -225,7 +225,7 @@ export async function listSkillTemplatesFromIndex(
     .map((entry) => ({
       name: entry.name,
       description: entry.description,
-      uriTemplate: entry.uriTemplate,
+      uriTemplate: entry.url,
     }));
 }
 

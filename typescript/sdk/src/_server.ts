@@ -476,10 +476,9 @@ export function generateSkillIndex(
   }));
 
   const templateEntries = (templates ?? []).map((t) => ({
-    name: t.name,
     type: "mcp-resource-template" as const,
     description: t.description,
-    uriTemplate: t.uriTemplate,
+    url: t.uriTemplate,
   }));
 
   return {

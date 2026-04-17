@@ -117,21 +117,28 @@ export interface SkillMdIndexEntry {
 /**
  * An mcp-resource-template entry in the discovery index — a parameterized
  * skill namespace that clients resolve via the MCP completion API.
+ *
+ * Per the SEP, `name` is omitted for template entries and the URI template
+ * value is carried in the `url` field (same field as skill-md entries).
  */
 export interface McpResourceTemplateIndexEntry {
-  /** Template name */
-  name: string;
+  /** Template name (optional per SEP — omitted for mcp-resource-template) */
+  name?: string;
   /** Entry type discriminator */
   type: "mcp-resource-template";
   /** Template description */
   description: string;
-  /** URI template (e.g., "skill://docs/{product}/SKILL.md") */
-  uriTemplate: string;
+  /** RFC 6570 URI template (e.g., "skill://docs/{product}/SKILL.md") */
+  url: string;
 }
 
 /**
- * An archive entry in the discovery index — a .tar.gz bundle containing
- * a skill directory with SKILL.md at its root.
+ * An archive entry in the well-known HTTP discovery index — a .tar.gz bundle
+ * containing a skill directory with SKILL.md at its root.
+ *
+ * Note: This type is used by the well-known HTTP bridge, not by the MCP
+ * skill://index.json resource. The SEP restricts skill://index.json entries
+ * to "skill-md" and "mcp-resource-template" only.
  */
 export interface ArchiveIndexEntry {
   /** Skill name */
@@ -147,17 +154,18 @@ export interface ArchiveIndexEntry {
 }
 
 /**
- * An entry in the skill://index.json discovery index.
- * Discriminated union — use `entry.type` to narrow.
+ * An entry in the skill://index.json MCP discovery index.
+ * Per the SEP, type MUST be "skill-md" or "mcp-resource-template".
+ * Use `entry.type` to narrow.
  */
-export type SkillIndexEntry = SkillMdIndexEntry | McpResourceTemplateIndexEntry | ArchiveIndexEntry;
+export type SkillIndexEntry = SkillMdIndexEntry | McpResourceTemplateIndexEntry;
 
 /**
  * Client-side summary of a discovered resource template.
  */
 export interface SkillTemplateEntry {
-  /** Template name */
-  name: string;
+  /** Template name (optional — SEP omits name for mcp-resource-template entries) */
+  name?: string;
   /** Template description */
   description: string;
   /** URI template string */

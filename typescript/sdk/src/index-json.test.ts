@@ -180,7 +180,7 @@ describe("listSkillsFromIndex", () => {
 // ---------------------------------------------------------------------------
 
 describe("generateSkillIndex with templates", () => {
-  it("appends mcp-resource-template entries", () => {
+  it("appends mcp-resource-template entries per SEP format", () => {
     const map = makeSkillMap([
       makeSkill({ name: "code-review", skillPath: "code-review", description: "Review code" }),
     ]);
@@ -196,11 +196,11 @@ describe("generateSkillIndex with templates", () => {
       description: "Review code",
       url: "skill://code-review/SKILL.md",
     });
+    // SEP: template entries use `url` (not uriTemplate) and omit `name`
     expect(index.skills[1]).toEqual({
-      name: "docs",
       type: "mcp-resource-template",
       description: "Product docs",
-      uriTemplate: "skill://docs/{product}/SKILL.md",
+      url: "skill://docs/{product}/SKILL.md",
     });
   });
 
@@ -234,14 +234,14 @@ describe("listSkillTemplatesFromIndex", () => {
       $schema: SKILL_INDEX_SCHEMA,
       skills: [
         { name: "code-review", type: "skill-md", description: "Review", url: "skill://code-review/SKILL.md" },
-        { name: "docs", type: "mcp-resource-template", description: "Docs", uriTemplate: "skill://docs/{product}/SKILL.md" },
+        { type: "mcp-resource-template", description: "Docs", url: "skill://docs/{product}/SKILL.md" },
       ],
     });
 
     const templates = await listSkillTemplatesFromIndex(client);
     expect(templates).toHaveLength(1);
     expect(templates![0]).toEqual({
-      name: "docs",
+      name: undefined,
       description: "Docs",
       uriTemplate: "skill://docs/{product}/SKILL.md",
     });
@@ -280,7 +280,7 @@ describe("listSkillsFromIndex with mixed entry types", () => {
       $schema: SKILL_INDEX_SCHEMA,
       skills: [
         { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" },
-        { name: "t1", type: "mcp-resource-template", description: "T1", uriTemplate: "skill://t1/{x}/SKILL.md" },
+        { type: "mcp-resource-template", description: "T1", url: "skill://t1/{x}/SKILL.md" },
         { name: "b", type: "skill-md", description: "B", url: "skill://b/SKILL.md" },
       ],
     });
@@ -391,6 +391,7 @@ describe("index round-trip (server generates → client consumes)", () => {
     const tmpl = await listSkillTemplatesFromIndex(client);
     expect(tmpl).toHaveLength(1);
     expect(tmpl![0].uriTemplate).toBe("skill://docs/{product}/SKILL.md");
+    expect(tmpl![0].name).toBeUndefined();
   });
 });
 
