@@ -1,7 +1,7 @@
 {
   "name": "@modelcontextprotocol/ext-skills",
   "version": "0.3.0",
-  "description": "SDK for the Skills Extension SEP — skill:// resources with multi-segment paths and SEP-2093 support",
+  "description": "SDK for the Skills Extension SEP",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
