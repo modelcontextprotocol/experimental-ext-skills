@@ -6,7 +6,7 @@
 
 MCP servers give agents access to tools. But tools alone are insufficient for complex workflows — tool descriptions tell an agent *what* a tool does, not *how to orchestrate* multiple tools together to achieve a goal. Skills bridge this gap. They are the structured "how-to" knowledge that makes tools useful: multi-step workflows, conditional logic, domain-specific patterns, and orchestration instructions that can run to hundreds of lines.
 
-Skills are *context*, and MCP is a *context protocol*. This Interest Group isn't looking for problems to solve with the MCP hammer. The question is narrower and more practical: agents already connect to remote services over MCP to get tools — can they get the know-how to use those tools through the same channel?
+Skills are *context*, and MCP is a *context protocol*. This Working Group isn't looking for problems to solve with the MCP hammer. The question is narrower and more practical: agents already connect to remote services over MCP to get tools — can they get the know-how to use those tools through the same channel?
 
 The answer matters because skills and tools are often tightly coupled. A server that provides graph-building tools is hard to use without 875 lines of orchestration instructions. A server exposing Airflow APIs needs version-specific guidance to avoid suggesting deprecated patterns. One workaround is wrapping each MCP server in a custom sub-agent with hand-written instructions — but this means independently reinventing the same orchestration guidance for the same servers. Skills over MCP makes those instructions portable and shareable: the server author ships them once, and every user benefits. See [problem-statement.md](problem-statement.md) for the full gap analysis.
 
