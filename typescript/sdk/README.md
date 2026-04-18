@@ -90,6 +90,29 @@ For each skill, the server registers:
 - `skill://{+skillFilePath}` -- resource template for supporting files (optional)
 - `skill://prompt-xml` -- XML summary for system prompt injection (optional)
 
+### Resource annotations
+
+All resources include `annotations` with `audience`, `priority`, and `lastModified` (see [`skill-meta-keys.md`](../../docs/skill-meta-keys.md)):
+
+- **`audience`** defaults to `["assistant"]`. Override globally via options, or per-skill via `SkillMetadata.audience`:
+
+```typescript
+// Global default for all skills
+registerSkillResources(server, skillMap, "./skills", {
+  audience: ["user", "assistant"],
+});
+
+// Per-skill override (e.g., set from frontmatter or config)
+const skillMap = discoverSkills("./skills");
+for (const skill of skillMap.values()) {
+  skill.audience = ["user", "assistant"];
+}
+```
+
+- **`priority`** is set per resource type: 1.0 (SKILL.md), 0.8 (index), 0.5 (manifest), 0.3 (prompt-xml), 0.2 (supporting files)
+- **`lastModified`** uses per-skill mtime for SKILL.md and manifest resources, and the most recent mtime across all skills for aggregate resources (index, template, prompt-xml)
+- **`size`** is set on all resources except the template (which varies per request)
+
 ### Resource templates in the index
 
 Servers with parameterized skill namespaces can include `mcp-resource-template` entries in the discovery index:
