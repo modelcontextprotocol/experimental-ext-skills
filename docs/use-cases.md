@@ -30,6 +30,8 @@ Skills that leverage tools from multiple off-the-shelf servers where you can't (
 
 Beyond multi-server tool orchestration, skills themselves may be composable — one skill depending on another skill's output or behavior. This extends the dependency model beyond tool availability to skill availability, and raises questions about declarative dependency metadata. See [Open Question 4](open-questions.md#4-how-should-skills-relate-to-multiple-servers) for the emerging proposal on host-mediated dependency resolution.
 
+**See also:** [#39](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/39) — Skill dependency declaration, [#45](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/45) — Worked examples for multi-server composition
+
 ## 4. Progressive Disclosure
 
 Skills broken into linked sets of files for effective context management, loaded progressively as the agent needs them rather than all at once.
@@ -45,6 +47,8 @@ Skills broken into linked sets of files for effective context management, loaded
 > "A server can contain 100s or 1000s of skills as an extreme but a client might only need handful of them." — [Kaxil Naik](https://github.com/kaxil) (Astronomer), via Discord
 
 **Related:** [Anthropic's guidance on progressive disclosure](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
+
+**See also:** [#45](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/45) — Worked examples for progressive disclosure, [#40](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/40) — Client-side reference implementation for model-driven resource loading
 
 ## 5. Server-Skill Pairing
 

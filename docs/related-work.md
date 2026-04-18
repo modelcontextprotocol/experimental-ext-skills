@@ -9,9 +9,9 @@
 | [PR #2527](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2527) | MCP Spec | Recommend clients expose resource read to models — prerequisite for the resources-based skills approach |
 | [skills.json format proposal](https://github.com/modelcontextprotocol/registry/discussions/895) | MCP Registry | Skills metadata in registry schema |
 
-## IG Member Implementations
+## Working Group Member Implementations
 
-Work by IG facilitators and active participants that directly implements the group's core patterns: SKILL.md with YAML frontmatter, `skill://` resource URIs, and progressive disclosure via MCP primitives.
+Work by WG leads and active participants that directly implements the group's core patterns: SKILL.md with YAML frontmatter, `skill://` resource URIs, and progressive disclosure via MCP primitives.
 
 | Implementation | Author | Organization | URL | Notes |
 | :--- | :--- | :--- | :--- | :--- |
@@ -21,7 +21,7 @@ Work by IG facilitators and active participants that directly implements the gro
 
 ## Alternative Approaches
 
-Work by IG members and MCP maintainers that explores skills over MCP through different technical approaches than the core SKILL.md / `skill://` pattern.
+Work by WG members and MCP maintainers that explores skills over MCP through different technical approaches than the core SKILL.md / `skill://` pattern.
 
 | Implementation | Author | Organization | URL | Notes |
 | :--- | :--- | :--- | :--- | :--- |

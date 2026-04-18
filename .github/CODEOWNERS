@@ -7,6 +7,6 @@
 # Team mappings are configured in the access repository:
 # https://github.com/modelcontextprotocol/access
 
-# Default owners for all files in the repository
-# The Skills Over MCP Interest Group has day-to-day governance
+# Default owners for all files — reviews route to the Skills Over MCP Working Group.
+# TODO: rename team to skills-over-mcp-wg once modelcontextprotocol/access updates (roleIds.ts, roles.ts, users.ts)
 * @modelcontextprotocol/skills-over-mcp-ig

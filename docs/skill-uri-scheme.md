@@ -3,13 +3,13 @@
 > Proposed convention for identifying skill resources over MCP.
 
 **Issue:** [#44](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/44)
-**Status:** Draft
+**Status:** Incorporated into the draft [Skills Extension SEP](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69). This survey informed the SEP's URI scheme design; see also [PR #70](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/70) for subsequent refinements (multi-segment paths, path-name decoupling).
 
 ---
 
 ## Summary
 
-This document surveys existing URI patterns for skill resources across implementations, analyzes their trade-offs, and proposes a recommended `skill://` URI scheme for the MCP Skills Convention.
+This document surveys existing URI patterns for skill resources across implementations, analyzes their trade-offs, and proposes a recommended `skill://` URI scheme for skill resources over MCP.
 
 ## Survey of Existing Patterns
 
@@ -218,11 +218,11 @@ The divergence is in URI structure, specifically:
 
 ### Key Design Decisions
 
-**1. Should the URI include an authority segment?**
+**1. What goes in the authority segment?**
 
-In RFC 3986, the authority component (`scheme://authority/path`) is semantically a host identifier. A skill name is not a host. However, all four existing MCP implementations use `skill://name` (double slash), placing the skill name in the authority position. While not semantically precise, this is established practice, produces clean URIs, and works well with MCP-aware parsers that don't need to resolve the authority as a network host.
+In RFC 3986, the authority component (`scheme://authority/path`) is semantically a host identifier. A skill directory path is not a host. However, all four existing MCP implementations use the double-slash form, placing the first path segment in the authority position. While not semantically precise, this is established practice, produces clean URIs, and works well with MCP-aware parsers that don't need to resolve the authority as a network host.
 
-**Recommendation:** Follow existing practice. Use `skill://skill-name/...` (double slash), with the convention that the first path-like segment identifies the skill. This matches all existing implementations and avoids the awkward triple-slash (`skill:///`) form.
+**Recommendation:** Use the double-slash form (`skill://...`). The first segment of the skill path occupies the authority position by RFC 3986 mechanics but carries no special semantics under this convention — it is just the first path segment. Clients MUST NOT attempt DNS or network resolution of it. This avoids the awkward triple-slash (`skill:///`) form while staying honest about what the segment means.
 
 **2. Should `SKILL.md` be explicit in the URI?**
 
@@ -230,13 +230,19 @@ FastMCP includes `SKILL.md` in every skill content URI. Other implementations tr
 
 Making `SKILL.md` explicit mirrors the directory structure and aligns with the Agent Skills spec, which defines a skill as a directory containing at least `SKILL.md`. Omitting it creates an abstraction that diverges from the spec and makes the relationship between the URI and the underlying skill format ambiguous.
 
-**Recommendation:** `SKILL.md` MUST be explicit in the URI. The primary skill content is always at `skill://name/SKILL.md`. This keeps the URI structure aligned with the Agent Skills spec and makes the directory model visible. Sub-resources are siblings at the same level (e.g., `skill://name/references/GUIDE.md`).
+**Recommendation:** `SKILL.md` MUST be explicit in the URI. The primary skill content is always at `skill://<skill-path>/SKILL.md`. This keeps the URI structure aligned with the Agent Skills spec and makes the directory model visible. Sub-resources are siblings at the same level (e.g., `skill://<skill-path>/references/GUIDE.md`).
 
 **3. How should sub-resources (references, scripts) be addressed?**
 
 Multiple patterns exist: trailing-slash collections (skilljack), `/document/` subpath (skills-over-mcp), direct file paths (FastMCP), and no sub-resource support (NimbleBrain).
 
 **Recommendation:** Use path-based sub-resource addressing for consistency with other URI schemes.
+
+**4. Should the URI path equal the skill name?**
+
+Early drafts coupled the two: one path segment, equal to the frontmatter `name`. That works for a server with a handful of skills but fails when a server needs hierarchy. A large organization serving both `acme/billing/refunds` and `acme/support/refunds` cannot satisfy "single segment" and "segment equals name" simultaneously without renaming one skill to dodge the collision — which defeats the point of having a hierarchy. It also fails for servers with generated skill catalogs where the navigational axes (product, version, API surface) are orthogonal to what the skill is called.
+
+**Recommendation:** Decouple. `<skill-path>` is a locator — one or more `/`-separated segments locating the skill directory within the server's namespace. The skill's identity (its `name`) lives in `SKILL.md` frontmatter and follows the Agent Skills spec naming rules. The URI says where to find it; the frontmatter says what it is.
 
 ## Proposed Convention
 
@@ -247,42 +253,51 @@ All skill resources MUST use the `skill://` URI scheme.
 ### URI Structure
 
 ```
-skill://skill-name/SKILL.md
-skill://skill-name/[path]
+skill://<skill-path>/SKILL.md
+skill://<skill-path>/<file-path>
 ```
 
 Following [RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986) structure:
 
 - **Scheme:** `skill`
-- **Authority:** The skill name, identifying which skill directory is being addressed.
-- **Path:** `SKILL.md` for the primary content, or a relative path for supporting files.
+- **Authority:** The first segment of `<skill-path>`. Carries no special semantics; clients MUST NOT resolve it as a network host.
+- **Path:** Remaining `<skill-path>` segments (if any) followed by `<file-path>`.
+
+Where:
+
+- `<skill-path>` is a `/`-separated path of one or more segments locating the skill directory within the server's namespace. MAY be a single segment (`git-workflow`) or nested to arbitrary depth (`acme/billing/refunds`). A `SKILL.md` MUST NOT appear in an ancestor directory of another `SKILL.md` — skills do not nest inside other skills.
+- `<file-path>` is the file's path relative to the skill directory root, always `SKILL.md` for the primary content.
 
 ### Naming Rules
 
-Skill names in the path MUST:
-- Be 1-64 characters
-- Use lowercase alphanumeric characters and hyphens only (`a-z`, `0-9`, `-`)
-- Not start or end with a hyphen
-- Not contain consecutive hyphens
+`<skill-path>` segments SHOULD be valid URI path segments per RFC 3986. No further constraints are imposed on the path — it is the server's organizational choice.
 
-These rules align with the [Agent Skills specification naming rules](https://agentskills.io/specification#name-field) and DNS label conventions.
+The skill's `name` (in `SKILL.md` frontmatter) is governed by the [Agent Skills specification naming rules](https://agentskills.io/specification#name-field): 1–64 characters, lowercase alphanumeric and hyphens, no leading/trailing or consecutive hyphens. The path is not required to match it.
 
 ### URI Patterns
 
-#### Single skill
+#### Flat skill path
 
 ```
 skill://git-workflow/SKILL.md
 ```
 
-The primary skill content is always at `SKILL.md` within the skill's path, matching the Agent Skills spec directory model.
+Single-segment path. The primary skill content is always at `SKILL.md` within the skill's path, matching the Agent Skills spec directory model.
+
+#### Nested skill path
+
+```
+skill://acme/billing/refunds/SKILL.md
+```
+
+Multi-segment path. The skill directory is `acme/billing/refunds`; `acme` and `billing` are organizational path segments, not skills. The frontmatter `name` inside this `SKILL.md` might be `refund-handling` — it is independent of the path.
 
 #### Sub-resources
 
 ```
-skill://pdf-processing/SKILL.md              # Primary skill content (required)
-skill://pdf-processing/references/FORMS.md   # Supporting document
-skill://pdf-processing/scripts/extract.py    # Supporting script
+skill://pdf-processing/SKILL.md                       # Primary skill content (required)
+skill://pdf-processing/references/FORMS.md            # Supporting document
+skill://acme/billing/refunds/templates/email.md       # Supporting file in nested skill
 ```
 
 Supporting files are addressed by appending their path relative to the skill directory.
@@ -290,29 +305,32 @@ Supporting files are addressed by appending their path relative to the skill dir
 #### Resource templates
 
 ```
-skill://{skill_name}/SKILL.md               # Template for skill content
-skill://{skill_name}/{+path}                # Template for any file in the skill directory
+skill://docs/{product}/SKILL.md              # Per-product documentation skills
+skill://acme/{domain}/{workflow}/SKILL.md    # Nested organizational namespace
+skill://{skill_path}/{+file}                 # Generic: any file in any skill
 ```
 
-Servers SHOULD register resource templates to enable auto-completion via MCP's completion API.
+Servers MAY register resource templates with `skill://` URI templates. These are primarily a user-facing discovery mechanism: hosts surface them in the UI with template variables wired to MCP's completion API, letting users interactively browse and select skills.
 
 ### Examples
 
 | Use Case | URI | Notes |
 |----------|-----|-------|
-| Basic skill | `skill://git-workflow/SKILL.md` | Primary skill content |
+| Flat path | `skill://git-workflow/SKILL.md` | Single-segment skill path |
+| Nested path | `skill://acme/billing/refunds/SKILL.md` | Path is locator; `name` is in frontmatter |
 | Supporting document | `skill://code-review/references/SECURITY.md` | Sub-resource within skill directory |
-| Supporting script | `skill://pdf-processing/scripts/extract.py` | Executable sub-resource |
+| Supporting file, nested | `skill://acme/billing/refunds/templates/email.md` | Sub-resource in nested skill |
 
 ### How Clients Identify Skills
 
-Clients can identify skill resources in `resources/list` responses by:
+Clients can identify skill resources by:
 
 1. **URI scheme:** Resources with URIs starting with `skill://` are skill resources.
-2. **MIME type:** Skill SKILL.md content SHOULD use `text/markdown`.
-3. **Annotations:** Servers MAY use the `_meta` field for additional skill metadata.
+2. **Entry point:** A URI ending in `/SKILL.md` is the skill's entry point; stripping that suffix gives the skill directory.
+3. **MIME type:** `SKILL.md` content SHOULD use `text/markdown`.
+4. **Annotations:** Servers MAY use the `_meta` field for additional skill metadata.
 
-This allows clients to filter, surface, and treat skills distinctly from other resources without requiring a new primitive.
+Enumeration via `resources/list` is optional. A `skill://` URI is directly readable via `resources/read` whether or not it appears in any list; clients MUST NOT treat an empty or absent enumeration as proof that a server has no skills.
 
 ### MCP Spec Alignment
 
@@ -326,9 +344,9 @@ The proposed scheme follows RFC 3986 structure. It uses existing MCP primitives 
 
 Versioning in URIs (e.g., query parameters or path segments) is intentionally deferred. The current convention focuses on establishing the base URI structure. Skill versioning is implicitly tied to the server version — when a server updates, its skill content updates with it.
 
-### Multi-Server Skill Name Collision
+### Multi-Server URI Collision
 
-Since MCP resources are scoped per-server, identical `skill://` URIs from different servers are distinguishable by their originating server connection. However, when a client aggregates resources from multiple servers, collisions become a practical concern.
+Since MCP resources are scoped per-server, identical `skill://` URIs from different servers are distinguishable by their originating server connection. With decoupled paths, the same `<skill-path>` appearing on two servers is less likely than a `name` collision would have been, but still possible.
 
 Clients SHOULD provide a `read_resource` tool that accepts both the server name and the skill resource URI, allowing the model to disambiguate which server's skill to read. Within a skill's `SKILL.md` body, references to sub-resources (e.g., `references/GUIDE.md`) are relative to the skill — similar to how file-based skills use relative paths today. The model can resolve these from context, knowing which server the skill originated from.
 
@@ -336,7 +354,7 @@ Servers MAY include provenance metadata in `_meta` to make origin explicit.
 
 ## References
 
-- [MCP Resources specification](https://modelcontextprotocol.io/specification/2025-06-18/server/resources)
+- [MCP Resources specification](https://modelcontextprotocol.io/specification/2025-11-25/server/resources)
 - [RFC 3986: URIs](https://datatracker.ietf.org/doc/html/rfc3986)
 - [RFC 6570: URI Templates](https://datatracker.ietf.org/doc/html/rfc6570)
 - [Agent Skills specification](https://agentskills.io/specification)
