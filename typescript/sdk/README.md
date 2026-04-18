@@ -44,8 +44,10 @@ declareSkillsExtension(server.server);
 
 // Register all skill resources (SKILL.md, manifests, index, templates)
 registerSkillResources(server, skillMap, "./skills", {
-  template: true,   // enable resource template for supporting files
+  template: true,    // enable resource template for supporting files
   promptXml: true,   // enable skill://prompt-xml convenience resource
+  // audience defaults to ["assistant"] — skills consumed only by the model
+  // use ["user", "assistant"] for skills also shown in a skill browser UI
 });
 
 await server.connect(new StdioServerTransport());

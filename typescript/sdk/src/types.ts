@@ -73,6 +73,8 @@ export interface SkillMetadata {
   skillDir: string;
   /** Optional extra frontmatter metadata fields */
   metadata?: Record<string, string>;
+  /** Audience annotation for this skill's resources (e.g., ["assistant"] or ["user", "assistant"]) */
+  audience?: string[];
   /** Supplementary files found in the skill directory */
   documents: SkillDocument[];
   /** Pre-computed file manifest */
@@ -282,5 +284,7 @@ export interface RegisterSkillResourcesOptions {
   template?: boolean;
   /** Register the skill://prompt-xml convenience resource. Default: false */
   promptXml?: boolean;
+  /** Audience annotation for skill resources. Default: ["assistant"] */
+  audience?: string[];
 }
 

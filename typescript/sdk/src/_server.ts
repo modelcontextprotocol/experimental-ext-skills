@@ -508,13 +508,22 @@ export function registerSkillResources(
   skillsDir: string,
   options?: RegisterSkillResourcesOptions,
 ): void {
-  const { template = true, promptXml = false } = options ?? {};
+  const { template = true, promptXml = false, audience = ["assistant"] } = options ?? {};
+
+  // Compute the most recent lastModified across all skills for aggregate resources
+  const latestModified = skillMap.size > 0
+    ? Array.from(skillMap.values())
+        .map((s) => s.lastModified)
+        .sort()
+        .pop()
+    : undefined;
 
   // Register per-skill resources
   for (const [skillPath, skill] of skillMap) {
     // Use frontmatter name as the resource name (shown in resources/list)
     // Use skillPath-based key for internal uniqueness
     const registrationKey = `skill:${skillPath}`;
+    const skillAudience = skill.audience ?? audience;
 
     server.resource(
       skill.name,
@@ -524,7 +533,7 @@ export function registerSkillResources(
         mimeType: "text/markdown",
         size: skill.manifest.files.find((f) => f.path === "SKILL.md")?.size,
         annotations: {
-          audience: ["user", "assistant"],
+          audience: skillAudience,
           priority: 1.0,
           lastModified: skill.lastModified,
         },
@@ -550,14 +559,16 @@ export function registerSkillResources(
       },
     );
 
+    const manifestJson = JSON.stringify(skill.manifest, null, 2);
     server.resource(
       `${skill.name}-manifest`,
       `skill://${skillPath}/_manifest`,
       {
         description: `File manifest for skill '${skill.name}' with content hashes`,
         mimeType: "application/json",
+        size: Buffer.byteLength(manifestJson),
         annotations: {
-          audience: ["user", "assistant"],
+          audience: skillAudience,
           priority: 0.5,
           lastModified: skill.lastModified,
         },
@@ -566,7 +577,7 @@ export function registerSkillResources(
         contents: [
           {
             uri: uri.href,
-            text: JSON.stringify(skill.manifest, null, 2),
+            text: manifestJson,
           },
         ],
       }),
@@ -575,6 +586,7 @@ export function registerSkillResources(
 
   // Well-known discovery index (SEP enumeration mechanism)
   const indexJson = generateSkillIndex(skillMap);
+  const indexJsonStr = JSON.stringify(indexJson, null, 2);
   server.resource(
     "skills-index",
     INDEX_JSON_URI,
@@ -582,16 +594,18 @@ export function registerSkillResources(
       description:
         "Discovery index of available skills, following the Agent Skills well-known URI format",
       mimeType: "application/json",
+      size: Buffer.byteLength(indexJsonStr),
       annotations: {
-        audience: ["user", "assistant"],
+        audience: ["assistant"],
         priority: 0.8,
+        lastModified: latestModified,
       },
     },
     async (uri: URL) => ({
       contents: [
         {
           uri: uri.href,
-          text: JSON.stringify(indexJson, null, 2),
+          text: indexJsonStr,
         },
       ],
     }),
@@ -624,8 +638,9 @@ export function registerSkillResources(
         description: "Fetch a supporting file from a skill directory",
         mimeType: "text/plain",
         annotations: {
-          audience: ["user", "assistant"],
+          audience,
           priority: 0.2,
+          lastModified: latestModified,
         },
       },
       async (uri: URL, variables: Record<string, string | string[]>) => {
@@ -708,6 +723,7 @@ export function registerSkillResources(
 
   // Optional prompt-xml convenience resource
   if (promptXml) {
+    const promptXmlContent = generateSkillsXML(skillMap);
     server.resource(
       "skills-prompt-xml",
       "skill://prompt-xml",
@@ -715,16 +731,18 @@ export function registerSkillResources(
         description:
           "XML representation of available skills for injecting into system prompts",
         mimeType: "application/xml",
+        size: Buffer.byteLength(promptXmlContent),
         annotations: {
-          audience: ["user", "assistant"],
+          audience,
           priority: 0.3,
+          lastModified: latestModified,
         },
       },
       async (uri: URL) => ({
         contents: [
           {
             uri: uri.href,
-            text: generateSkillsXML(skillMap),
+            text: promptXmlContent,
           },
         ],
       }),

@@ -76,6 +76,8 @@ declareSkillsExtension(server.server);
 registerSkillResources(server, skillMap, skillsDir, {
   template: true,
   promptXml: true,
+  // audience defaults to ["assistant"] — skills consumed only by the model
+  // use ["user", "assistant"] for skills also shown in a skill browser UI
 });
 
 console.error("[skills-server] Extension: io.modelcontextprotocol/skills");
