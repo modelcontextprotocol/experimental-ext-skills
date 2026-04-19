@@ -137,7 +137,7 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 
 ---
 
-### 2026-04-18: Filesystem is a host-side implementation detail
+### 2026-04-19: Filesystem is a host-side implementation detail
 
 **Status:** Proposed
 
