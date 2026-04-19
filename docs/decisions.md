@@ -137,7 +137,7 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 
 ---
 
-### 2026-04-18: Archives permitted as server-side packaging optimization
+### 2026-04-19: Archives permitted as server-side packaging optimization
 
 **Status:** Proposed
 
