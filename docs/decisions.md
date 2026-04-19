@@ -152,5 +152,5 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 **Rationale:** The value of filesystem-agnosticism is a consumer-side guarantee: a skill author writes one skill and knows it will run on any conformant host, from a cloud-code CLI with disk access to a stateless remote agent. Requiring MCP-served skills to work without a filesystem preserves this guarantee. Permitting host-side materialization preserves the use cases Peter flagged on March 24 (local server example from Jake, performance optimization for large skills, filesystem-native tooling integration). Requiring unified resolution semantics closes the gap that would otherwise make materialization a behavior-divergence source. The SEP's "Hosts: Unified Treatment" section already aspires to this at SHOULD level; this ADR promotes the semantic requirement to MUST while keeping the implementation a host choice.
 
 **References:**
-- Archive distribution ADR — companion decision on packaging (forthcoming)
+- [PR #83](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/83) — companion ADR on archive distribution
 - [SEP PR #69](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/69), "Hosts: Unified Treatment of Filesystem and MCP Skills" section
