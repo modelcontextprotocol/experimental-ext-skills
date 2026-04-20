@@ -1,5 +1,5 @@
 ---
-name: implement-skills-server
+name: implement-skills-mcp-extension-server
 description: This skill should be used when the user asks to "add skills to my MCP server", "implement the skills SEP on the server side", "expose agent skills over MCP", "serve SKILL.md files as resources", "add skill:// URIs to my server", "build a skill index.json for MCP", or needs guidance on serving Agent Skills via MCP resources per the experimental Skills-over-MCP SEP. Covers URI scheme choices, skill://index.json enumeration, per-file resource exposure, server instructions that point at skills, and update/subscription patterns.
 ---
 

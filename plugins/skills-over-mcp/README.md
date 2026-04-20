@@ -1,15 +1,13 @@
 # skills-over-mcp
 
-Placeholder Claude Code plugin that packages guidance for implementing the experimental **Skills-over-MCP** SEP on either side of the protocol.
-
-SEP draft: [modelcontextprotocol/experimental-ext-skills#69](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69)
+Experimental plugin that packages guidance for implementing the draft **Skills-over-MCP** Extension SEP on either side of the protocol.
 
 ## Skills
 
 | Skill | Triggers when the user asks about… |
 | --- | --- |
-| [`implement-skills-server`](skills/implement-skills-server/SKILL.md) | exposing Agent Skills from an MCP server — `skill://` URIs, `skill://index.json`, resource exposure, `instructions` pointers, update patterns |
-| [`implement-skills-host`](skills/implement-skills-host/SKILL.md) | consuming Agent Skills in an MCP client / agent harness — discovery, eager vs lazy loading, the `read_resource` signature pitfall, security model |
+| [`implement-skills-mcp-extension-server`](skills/implement-skills-server/SKILL.md) | exposing Agent Skills from an MCP server — `skill://` URIs, `skill://index.json`, resource exposure, `instructions` pointers, update patterns |
+| [`implement-skills-mcp-extension-host`](skills/implement-skills-host/SKILL.md) | consuming Agent Skills in an MCP client / agent harness — discovery, eager vs lazy loading, the `read_resource` signature pitfall, security model |
 
 ## Status
 
@@ -17,7 +15,7 @@ SEP draft: [modelcontextprotocol/experimental-ext-skills#69](https://github.com/
 
 ## Install (local)
 
-Until published to a marketplace, install from a local checkout — see the Claude Code plugin docs for the current syntax. On Windows you can also junction this plugin directory into `.claude/plugins/` per the repo's contributor notes.
+Until published to a marketplace, install from a local checkout — see your host's plugin docs for the current syntax.
 
 ## Authoritative sources
 
