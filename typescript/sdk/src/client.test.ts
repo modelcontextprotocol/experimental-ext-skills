@@ -148,6 +148,17 @@ describe("buildSkillsCatalog", () => {
     const catalog = buildSkillsCatalog(skills, catalogOptions);
     expect(catalog).toContain("`ReadMcpResourceTool`");
     expect(catalog).toContain("`skills-server`");
+    expect(catalog).toContain("with server `skills-server`");
+  });
+
+  it("omits the server clause when serverName is not provided", () => {
+    const skills: SkillSummary[] = [
+      { name: "code-review", skillPath: "code-review", uri: "skill://code-review/SKILL.md", description: "Review code" },
+    ];
+    const catalog = buildSkillsCatalog(skills, { toolName: "read_skill" });
+    expect(catalog).toContain("`read_skill`");
+    expect(catalog).not.toContain("with server");
+    expect(catalog).toContain("with the skill's URI");
   });
 
   it("includes XML skill entries with name, path, description, and uri", () => {

@@ -332,12 +332,17 @@ export function buildSkillsSummary(skills: SkillSummary[]): string {
  * Build a structured skill catalog for system prompt injection.
  *
  * Produces an XML `<available_skills>` block (per agentskills.io guide) with
- * behavioral instructions that tell the model which tool and server to use
- * for loading skill content on demand.
+ * behavioral instructions that tell the model which tool (and optionally
+ * which server) to use for loading skill content on demand.
  *
- * The e2e agent demo found that including the server name in the catalog
- * raises activation reliability from ~33% to ~90% — without it, the model
- * either hallucinates the server name or skips the tool call entirely.
+ * When the reader tool accepts a `server` parameter (e.g. the bundled
+ * `READ_RESOURCE_TOOL`, or Claude Code's `ReadMcpResourceTool`), pass
+ * `serverName` so the instructions name it. The e2e agent demo found that
+ * including the server name raises activation reliability from ~33% to ~90%
+ * for those tools — without it the model hallucinates a server name or
+ * skips the tool call. When the reader tool is already scoped to one
+ * server and only takes `uri`, omit `serverName`: the catalog will drop
+ * the server clause instead of telling the model about an unused argument.
  *
  * Scheme-agnostic: uses SkillSummary.uri as-is, so skills served under any
  * URI scheme (skill://, repo://, github://, etc.) are included correctly.
@@ -353,14 +358,23 @@ export function buildSkillsCatalog(
   const { toolName, serverName } = options;
   const xml = generateSkillsXMLFromSummaries(skills);
 
+  const instructions = serverName
+    ? [
+        `When a task matches a skill's description, use the \`${toolName}\` tool`,
+        `with server \`${serverName}\` and the skill's URI to load its full`,
+        "instructions before proceeding.",
+      ]
+    : [
+        `When a task matches a skill's description, use the \`${toolName}\` tool`,
+        "with the skill's URI to load its full instructions before proceeding.",
+      ];
+
   return [
     "",
     "## Available Skills",
     "",
     "The following skills provide specialized instructions for specific tasks.",
-    `When a task matches a skill's description, use the \`${toolName}\` tool`,
-    `with server \`${serverName}\` and the skill's URI to load its full`,
-    "instructions before proceeding.",
+    ...instructions,
     "",
     xml,
     "",

@@ -252,8 +252,13 @@ export interface WellKnownFetchResult {
 export interface SkillsCatalogOptions {
   /** Tool name the model should call to read skill content */
   toolName: string;
-  /** MCP server name the model should target */
-  serverName: string;
+  /**
+   * MCP server name the model should target. Omit when the configured
+   * `toolName` does not accept a `server` parameter (e.g., a host-scoped
+   * reader that only takes `uri`) — the behavioral instructions will drop
+   * the server clause so the prompt doesn't mention an unused argument.
+   */
+  serverName?: string;
 }
 
 /**

@@ -146,7 +146,9 @@ console.log(`Discovered ${skills.length} skill(s)`);
 // Inject `catalog` into your agent's system prompt
 ```
 
-`discoverAndBuildCatalog()` handles the recommended discovery strategy (try `skill://index.json` first, fall back to `resources/list`) and builds an XML catalog with behavioral instructions for the model. The `serverName` is required — including it raises model activation reliability from ~33% to ~90%.
+`discoverAndBuildCatalog()` handles the recommended discovery strategy (try `skill://index.json` first, fall back to `resources/list`) and builds an XML catalog with behavioral instructions for the model. The `serverName` is required here because the default reader tool (`READ_RESOURCE_TOOL`) takes a `server` parameter — including it in the prompt raises model activation reliability from ~33% to ~90%.
+
+If you're calling the lower-level `buildSkillsCatalog()` with a reader tool that's already scoped to one server and only takes `uri`, omit `serverName` — the catalog will drop the `with server …` clause rather than mention an argument the tool doesn't accept.
 
 ### Step by step
 
