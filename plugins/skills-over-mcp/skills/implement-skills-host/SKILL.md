@@ -3,7 +3,7 @@ name: implement-skills-host
 description: This skill should be used when the user asks to "add skills support to my MCP client", "implement the skills SEP on the host side", "consume agent skills from MCP servers", "load SKILL.md from skill:// URIs", "wire up skill discovery in my agent harness", "handle skill://index.json in a client", or needs guidance on consuming Agent Skills from MCP servers per the experimental Skills-over-MCP SEP. Covers discovery via index.json or well-known HTTP, eager vs lazy loading, the (server, uri) vs uri-only read_resource tool-signature pitfall, relative-path resolution, and treating skill content as untrusted input.
 ---
 
-# Implementing Skills-over-MCP on the Host / Client Side
+# Implementing Skills-over-MCP in a MCP Host Application (a.k.a. MCP Client)
 
 > Skills Extension SEP draft: [modelcontextprotocol/experimental-ext-skills#69](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69).
 > Note that this link will change in future versions.
