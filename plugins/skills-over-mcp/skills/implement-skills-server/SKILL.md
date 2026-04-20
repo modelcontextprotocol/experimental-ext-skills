@@ -3,9 +3,10 @@ name: implement-skills-server
 description: This skill should be used when the user asks to "add skills to my MCP server", "implement the skills SEP on the server side", "expose agent skills over MCP", "serve SKILL.md files as resources", "add skill:// URIs to my server", "build a skill index.json for MCP", or needs guidance on serving Agent Skills via MCP resources per the experimental Skills-over-MCP SEP. Covers URI scheme choices, skill://index.json enumeration, per-file resource exposure, server instructions that point at skills, and update/subscription patterns.
 ---
 
-# Implementing Skills-over-MCP on the Server Side
+# Implementing Skills-over-MCP in an MCP Server
 
-> Source: *Skills SEP server implementation guidelines* (WG notes, 2026-04-19) — reproduced verbatim below. SEP draft: [modelcontextprotocol/experimental-ext-skills#69](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69).
+> Skills Extension SEP draft: [modelcontextprotocol/experimental-ext-skills#69](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69).
+> Note that this link will change in future versions.
 
 ---
 
@@ -70,13 +71,9 @@ A skill is a directory: `SKILL.md` plus any supporting files the skill reference
 
 If you're unsure which to use, start with individual resources. Archive distribution is an optimization for servers shipping pre-built skill bundles or hitting round-trip-count issues with large multi-file skills.
 
-### Server `instructions`
-
-Use the server `instructions` field to point the agent at specific skills when relevant — especially if your server has skills tightly coupled to its tools ("Before calling the `refund_payment` tool, read the `skill://refunds/SKILL.md` for required fields and validation rules"). This works whether or not you expose an index. Hosts that don't process the index will still see these pointers in context.
-
 ### Metadata
 
-Most skill metadata lives in `SKILL.md` YAML frontmatter per the [Agent Skills specification](https://agentskills.io/specification) — that's the authoritative source for skill-level semantics (version, compatibility, allowed tools). See [Using `_meta` for Skill Resources](skill-meta-keys.md) for guidance on when MCP resource `_meta` is appropriate vs. when frontmatter suffices.
+Most skill metadata lives in `SKILL.md` YAML frontmatter per the [Agent Skills specification](https://agentskills.io/specification) — that's the authoritative source for skill-level semantics (version, compatibility, allowed tools). See [Using `_meta` for Skill Resources](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/skill-meta-keys.mdd) for guidance on when MCP resource `_meta` is appropriate vs. when frontmatter suffices.
 
 ### Updates
 
@@ -89,11 +86,8 @@ Skill content changes flow through the generic MCP Resources update mechanism. S
 The relative link `skill-meta-keys.md` above resolves to the authoritative WG doc on `modelcontextprotocol/experimental-ext-skills@main`.
 
 - [SEP draft — experimental-ext-skills#69](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69)
-- [Skill URI Scheme Proposal](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/skill-uri-scheme.md)
+- [Skill URI Scheme](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/skill-uri-scheme.md)
 - [Using `_meta` for Skill Resources](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/skill-meta-keys.md)
-- [Open Questions](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/open-questions.md)
-- [Experimental Findings](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/experimental-findings.md)
-- [Approaches](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/approaches.md)
 - [Decisions log](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/decisions.md)
 - [Agent Skills specification](https://agentskills.io/specification)
 - [Well-known URI discovery index](https://agentskills.io/well-known-uri)

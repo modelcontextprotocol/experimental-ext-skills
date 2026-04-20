@@ -47,7 +47,7 @@ If the host already exposes a model-facing resource-read tool, it should in theo
 ## References
 
 - [SEP draft — experimental-ext-skills#69](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69)
-- [Skill URI Scheme Proposal](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/skill-uri-scheme.md)
+- [Skill URI Scheme](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/skill-uri-scheme.md)
 - [Decisions log](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/decisions.md)
 - [Agent Skills specification](https://agentskills.io/specification)
 - [Well-known URI discovery index](https://agentskills.io/well-known-uri)
