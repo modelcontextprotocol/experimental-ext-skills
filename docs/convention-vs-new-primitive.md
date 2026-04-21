@@ -6,7 +6,7 @@
 
 The community is exploring two broad approaches for skills over MCP:
 
-1. **Convention on existing primitives.** Skills exposed as `skill://` resources using existing MCP methods (`resources/list`, `resources/read`), formalized via the Skills Extension SEP ([#69 - draft extension](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69)).
+1. **Convention on existing primitives.** Skills exposed as indexed `skill://`  or domain-specific resources using existing MCP methods (`resources/read`), formalized via the Skills Extension SEP ([#69 - draft extension](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69)).
 2. **New protocol primitive.** Dedicated methods for listing and activating skills, a `skills` capability, and skill-specific notifications. An earlier proposal ([SEP-2076](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076)) was closed when the IG began exploring the resources-based approach. [PR #86](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/86) reopens the primitive path with `skills/list` and `skills/activate`, adding scoped primitives (tools, prompts, resources, and nested skills) that are bundled inside a skill and only become visible after activation, rather than appearing in top-level lists.
 
 Note that these are not mutually exclusive -- convention can prove patterns that later inform a primitive.
@@ -42,7 +42,7 @@ The frontmatter/transport split is inherent to the decision (shared by both prop
 
 When evaluating which path is right for a particular use case or for the ecosystem broadly:
 
-1. **Is structural tool gating necessary, or are existing solutions for dynamic tool selection sufficient?** Scoped primitives (PR #86) hide tools from `tools/list` until activation. The convention approach delegates to other solutions for dynamic tool selection (such as tool search and other methods outside of the protocol itself).
+1. **Is structural tool gating necessary, or are existing solutions for dynamic tool selection sufficient?** Scoped primitives (PR #86) hide tools from `tools/list` until activation. The convention approach delegates to other solutions for dynamic tool selection (such as tool search and other methods outside of the protocol itself).  [The Primitive Grouping IG](https://github.com/modelcontextprotocol/experimental-ext-groupin) is also exploring general-purpose primitive grouping, which could address tool visibility at the protocol level independent of skills.
 2. **Would a new primitive accelerate client adoption, or add to the backlog?** Clients have already implemented support for resources (including model-facing tools for loading them).  Several community projects have already been naturally using resources to represent skills. A new primitive is additional surface area on top of that.
 3. **Do skills need protocol-level coordination with other primitives?** If skills need to interact with tools and prompts in ways that require dedicated protocol support (e.g., sampling with skill-aware tool visibility), convention may not be sufficient.
 
@@ -57,3 +57,4 @@ Implementation experience on the convention approach -- what works, what's awkwa
 - [PR #69: Skills Extension SEP](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69)
 - [PR #2527: Recommend clients expose resource read to models](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2527)
 - [Approaches](approaches.md) -- full landscape of approaches that the group has discussed.
+- [Primitive Grouping IG Repo](https://github.com/modelcontextprotocol/experimental-ext-grouping)
