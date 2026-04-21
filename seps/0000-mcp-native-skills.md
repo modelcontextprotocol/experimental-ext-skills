@@ -56,13 +56,14 @@ lost.
 
 ### Skills belong in the protocol, not the data plane
 
-Resources are files. A `SKILL.md` served through `resources/` can mention tool
-names, list required prompts, and point at companion resources. In that sense a
-resource *can* be used to specify other MCP primitives by reference. But pushing
-those references into file content moves protocol primitives down into the data
-plane. The client is no longer reading a structured protocol response; it is
-parsing markdown to figure out which tools a skill needs, when to gate them,
-when to reveal them, and how to tie instructions back to capabilities.
+Resources are files. A `SKILL.md` served through `resources/` or the well-known
+`skill://index.json` can mention tool names, list required prompts, and point at
+companion resources. In that sense a resource *can* be used to specify other MCP
+primitives by reference. But pushing those references into file content moves
+protocol primitives down into the data plane. The client is no longer reading a
+structured protocol response; it is parsing markdown to figure out which tools a
+skill needs, when to gate them, when to reveal them, and how to tie instructions
+back to capabilities.
 
 An MCP-native approach keeps the semantics in the protocol. A skill's tools,
 prompts, resources, and sub-skills become typed fields the client handles the
@@ -208,7 +209,8 @@ export interface ActivateSkillResult extends Result {
   /**
    * The skill's instructions. A markdown string containing the full
    * workflow the agent should follow: what to do, how to use the
-   * primitives, and any conditional branching.
+   * primitives, and any conditional branching. In file-based skills,
+   * this maps to the contents of the `SKILL.md` file.
    */
   instructions: string;
 
@@ -218,7 +220,9 @@ export interface ActivateSkillResult extends Result {
    * client needs to invoke it (e.g., `inputSchema` for Tools). Scoped
    * primitives MUST NOT appear in top-level `tools/list`,
    * `prompts/list`, or `resources/list`; they exist only within the
-   * activated skill's scope.
+   * activated skill's scope. Comparing to file-based skills, `tools`
+   * serves as the executables under scripts/, while `prompts` and
+   * `resources` can serve as the references/ and assets/, etc.
    */
   contents?: SkillContents;
 }
