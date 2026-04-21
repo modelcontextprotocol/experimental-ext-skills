@@ -136,7 +136,10 @@ This pattern could enable loading primitives (tools) without the full "server" b
 
 Use server instructions as a pointer to a resource: "If you need to do X, fetch resource Y for further instructions." This defers loading skill content until needed, managing context more efficiently.
 
-**Limitation:** May not work with off-the-shelf servers where you can't modify their instructions.
+**Limitations:** 
+
+- May not work with off-the-shelf servers where you can't modify their instructions.
+- Server instructions may become more optional as a part of changes to MCP to make it [stateless](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575)
 
 ## 6. Official Convention as Intermediate Step
 
