@@ -170,7 +170,7 @@ async function fetchAndParseIndex(
     // SEP: clients SHOULD validate $schema against known URIs before processing
     if (index.$schema && !KNOWN_SKILL_INDEX_SCHEMAS.has(index.$schema)) {
       console.warn(
-        `[ext-skills] Unrecognized skill index $schema: "${index.$schema}". ` +
+        `[experimental-ext-skills] Unrecognized skill index $schema: "${index.$schema}". ` +
         `Known schemas: ${[...KNOWN_SKILL_INDEX_SCHEMAS].join(", ")}. Proceeding anyway.`,
       );
     }

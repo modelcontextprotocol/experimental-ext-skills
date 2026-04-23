@@ -1,6 +1,6 @@
 {
-  "name": "@olaservo/ext-skills",
-  "version": "0.8.0",
+  "name": "@modelcontextprotocol/experimental-ext-skills",
+  "version": "0.1.0",
   "description": "SDK for the Skills Extension SEP",
   "type": "module",
   "main": "dist/index.js",

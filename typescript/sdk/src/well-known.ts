@@ -51,7 +51,7 @@ function saveDigestCache(cacheDir: string, cache: Record<string, string>): void 
       JSON.stringify(cache, null, 2),
     );
   } catch (err) {
-    console.warn(`[ext-skills] Failed to write digest cache: ${err}`);
+    console.warn(`[experimental-ext-skills] Failed to write digest cache: ${err}`);
   }
 }
 
@@ -203,7 +203,7 @@ export async function fetchFromWellKnown(
   // $schema validation (warn and continue)
   if (index.$schema && !KNOWN_SKILL_INDEX_SCHEMAS.has(index.$schema)) {
     console.warn(
-      `[ext-skills] Unrecognized well-known index $schema: "${index.$schema}". Proceeding anyway.`,
+      `[experimental-ext-skills] Unrecognized well-known index $schema: "${index.$schema}". Proceeding anyway.`,
     );
   }
 

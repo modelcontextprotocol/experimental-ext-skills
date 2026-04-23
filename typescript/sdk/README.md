@@ -1,23 +1,23 @@
-# @modelcontextprotocol/ext-skills
+# @modelcontextprotocol/experimental-ext-skills
 
 TypeScript SDK for the [Skills Extension SEP](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69) — serves agent skills as `skill://` resources over MCP.
 
-> **Experimental.** Published as [`@olaservo/ext-skills`](https://www.npmjs.com/package/@olaservo/ext-skills) for testing while the spec is in draft.
+> **Experimental.** Published as [`@modelcontextprotocol/experimental-ext-skills`](https://www.npmjs.com/package/@modelcontextprotocol/experimental-ext-skills) for testing while the spec is in draft.
 
 ## Install
 
 ```bash
-npm install @olaservo/ext-skills @modelcontextprotocol/sdk
+npm install @modelcontextprotocol/experimental-ext-skills @modelcontextprotocol/sdk
 ```
 
 ## Subpath exports
 
 | Import path | Purpose |
 |---|---|
-| `@olaservo/ext-skills` | Shared types, URI utilities, constants |
-| `@olaservo/ext-skills/server` | Server-side: discover skills, register MCP resources |
-| `@olaservo/ext-skills/client` | Client-side: list skills, read content, build summaries |
-| `@olaservo/ext-skills/well-known` | HTTP bridge: fetch skills from `/.well-known/agent-skills/` |
+| `@modelcontextprotocol/experimental-ext-skills` | Shared types, URI utilities, constants |
+| `@modelcontextprotocol/experimental-ext-skills/server` | Server-side: discover skills, register MCP resources |
+| `@modelcontextprotocol/experimental-ext-skills/client` | Client-side: list skills, read content, build summaries |
+| `@modelcontextprotocol/experimental-ext-skills/well-known` | HTTP bridge: fetch skills from `/.well-known/agent-skills/` |
 
 ## Server usage
 
@@ -30,7 +30,7 @@ import {
   discoverSkills,
   registerSkillResources,
   declareSkillsExtension,
-} from "@olaservo/ext-skills/server";
+} from "@modelcontextprotocol/experimental-ext-skills/server";
 
 // Recursively scan a directory for SKILL.md files
 const skillMap = discoverSkills("./skills");
@@ -118,7 +118,7 @@ for (const skill of skillMap.values()) {
 Servers with parameterized skill namespaces can include `mcp-resource-template` entries in the discovery index:
 
 ```typescript
-import { generateSkillIndex } from "@olaservo/ext-skills/server";
+import { generateSkillIndex } from "@modelcontextprotocol/experimental-ext-skills/server";
 
 const index = generateSkillIndex(skillMap, [
   {
@@ -136,7 +136,7 @@ const index = generateSkillIndex(skillMap, [
 Discover skills and build a system prompt catalog in one call:
 
 ```typescript
-import { discoverAndBuildCatalog } from "@olaservo/ext-skills/client";
+import { discoverAndBuildCatalog } from "@modelcontextprotocol/experimental-ext-skills/client";
 
 const { skills, catalog } = await discoverAndBuildCatalog(client, {
   serverName: "my-skills-server",
@@ -166,7 +166,7 @@ import {
   buildSkillsCatalog,
   buildSkillsSummary,
   READ_RESOURCE_TOOL,
-} from "@olaservo/ext-skills/client";
+} from "@modelcontextprotocol/experimental-ext-skills/client";
 
 // Discover skills (index-first with fallback, always returns an array)
 const skills = await discoverSkills(client);
@@ -234,8 +234,8 @@ flowchart TD
 Fetch skills published at `/.well-known/agent-skills/index.json` and cache them locally for serving over MCP:
 
 ```typescript
-import { fetchFromWellKnown, refreshFromWellKnown } from "@olaservo/ext-skills/well-known";
-import { discoverSkills, registerSkillResources } from "@olaservo/ext-skills/server";
+import { fetchFromWellKnown, refreshFromWellKnown } from "@modelcontextprotocol/experimental-ext-skills/well-known";
+import { discoverSkills, registerSkillResources } from "@modelcontextprotocol/experimental-ext-skills/server";
 
 // Fetch skills from a domain and cache to a local directory
 const result = await fetchFromWellKnown({
@@ -294,7 +294,7 @@ skill://prompt-xml                                # XML summary
 URI utilities are available from the main import:
 
 ```typescript
-import { parseSkillUri, buildSkillUri, isSkillContentUri } from "@olaservo/ext-skills";
+import { parseSkillUri, buildSkillUri, isSkillContentUri } from "@modelcontextprotocol/experimental-ext-skills";
 ```
 
 ## Related

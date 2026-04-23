@@ -3,8 +3,8 @@
  *
  * Exports shared types, URI utilities, and MIME utilities.
  * Server-specific and client-specific exports are available via
- * subpath imports: "@modelcontextprotocol/ext-skills/server" and
- * "@modelcontextprotocol/ext-skills/client".
+ * subpath imports: "@modelcontextprotocol/experimental-ext-skills/server"
+ * and "@modelcontextprotocol/experimental-ext-skills/client".
  */
 
 export type {
