@@ -120,13 +120,13 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 
 ---
 
-### 2026-04-16: `skill://` URI scheme convention for skill resources
+### 2026-04-16: URI scheme conventions for skills as resources
 
 **Status:** Accepted
 
-**Context:** Four independent MCP implementations (NimbleBrain, skilljack-mcp, skills-over-mcp, FastMCP 3.0) had converged on `skill://` as the URI scheme but diverged on structure — whether to use an authority segment, whether `SKILL.md` is explicit in the URI, how to address sub-resources, and whether the URI path should equal the skill's `name`. A survey of these patterns was published in [`skill-uri-scheme.md`](skill-uri-scheme.md) and incorporated into the draft [Skills Extension SEP (#69)](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69). The earlier draft coupled the path to the skill `name`, which broke for servers needing hierarchy (e.g., `acme/billing/refunds` vs. `acme/support/refunds`) or generated catalogs where the organizational axes are orthogonal to what skills are called.
+**Context:** Several independent MCP implementations (FastMCP 3.0, NimbleBrain, skilljack-mcp, skills-over-mcp, etc.) had converged on using Resources to represent skills using either `skill://` or domain-specific URI schemes, but diverged on the rest of the URI structure.  This included variations around whether to use an authority segment, whether `SKILL.md` is explicit in the URI, how to address sub-resources, and whether the URI path should equal the skill's `name`. A survey of these patterns was published in [`skill-uri-scheme.md`](skill-uri-scheme.md) and incorporated into the draft [Skills Extension SEP (#69)](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69). The earlier draft coupled the path to the skill `name`, which broke for servers needing hierarchy (e.g., `acme/billing/refunds` vs. `acme/support/refunds`) or generated catalogs where the organizational axes are orthogonal to what skills are called.
 
-**Decision:** Adopt `skill://<skill-path>/SKILL.md` as the URI convention for skill resources over MCP, with:
+**Decision:** Adopt `skill://<skill-path>/SKILL.md` as the recommended URI convention for skill resources over MCP, with:
 
 - The first path segment occupies the authority position by RFC 3986 mechanics but carries no special semantics — clients MUST NOT resolve it as a network host.
 - `SKILL.md` MUST be explicit in the URI, mirroring the Agent Skills spec's directory model.
@@ -137,7 +137,7 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 - Enumeration via `resources/list` is optional; clients MUST NOT treat an empty list as proof a server has no skills.
 - Versioning in URIs is deferred and implicitly tied to server version.
 
-**Rationale:** `skill://` convergence across four independent implementations is a strong signal worth codifying. Keeping `SKILL.md` explicit preserves alignment with the Agent Skills spec's directory model rather than introducing a divergent abstraction. Decoupling path from `name` is the key reversal from earlier drafts — it enables hierarchical organization, removes forced renames when skills share a `name` across organizational branches, and cleanly separates "where to find it" (URI) from "what it is" (frontmatter). The decision was discussed in office hours and async in Discord and held open as [PR #70](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/70) from 2026-03-18 through 2026-04-16.
+**Rationale:** `skill://` convergence across independent implementations is a strong signal worth codifying. Keeping `SKILL.md` explicit preserves alignment with the Agent Skills spec's directory model rather than introducing a divergent abstraction. Decoupling path from `name` is the key reversal from earlier drafts — it enables hierarchical organization, removes forced renames when skills share a `name` across organizational branches, and cleanly separates "where to find it" (URI) from "what it is" (frontmatter). The decision was discussed in office hours and async in Discord and held open as [PR #70](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/70) from 2026-03-18 through 2026-04-16.
 
 **References:**
 - [PR #70](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/70) — URI scheme refinements (merged 2026-04-16)
