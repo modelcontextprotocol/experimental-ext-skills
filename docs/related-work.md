@@ -13,11 +13,11 @@
 
 Work by WG leads and active participants that directly implements the group's core patterns: SKILL.md with YAML frontmatter, `skill://` resource URIs, and progressive disclosure via MCP primitives.
 
-| Implementation | Author | Organization | URL | Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| skilljack-mcp | Ola Hungerford | Nordstrom | [github.com/olaservo/skilljack-mcp](https://github.com/olaservo/skilljack-mcp) | SKILL.md, `skill://` resources, tools, and prompts; progressive disclosure (index→skill→files); file watching for dynamic updates; audience annotations |
-| skills-over-mcp | Keith Groves | | [github.com/keithagroves/skills-over-mcp](https://github.com/keithagroves/skills-over-mcp) | SKILL.md, `skill://` resources with progressive disclosure (index→skill→documents); Zod validation against Agent Skills spec |
-| skillsdotnet | Peder HP | | [github.com/PederHP/skillsdotnet](https://github.com/PederHP/skillsdotnet) | C# implementation: SKILL.md, `skill://` resources, `load_skill` tool for progressive disclosure, manifest with file hashes; published on NuGet; compatible with FastMCP 3.0 |
+| Implementation | Author | URL | Notes |
+| :--- | :--- | :--- | :--- |
+| skilljack-mcp | Ola Hungerford | [github.com/olaservo/skilljack-mcp](https://github.com/olaservo/skilljack-mcp) | SKILL.md, `skill://` resources, tools, and prompts; progressive disclosure (index→skill→files); file watching for dynamic updates; audience annotations |
+| skills-over-mcp | Keith Groves | [github.com/keithagroves/skills-over-mcp](https://github.com/keithagroves/skills-over-mcp) | SKILL.md, `skill://` resources with progressive disclosure (index→skill→documents); Zod validation against Agent Skills spec |
+| skillsdotnet | Peder HP | [github.com/PederHP/skillsdotnet](https://github.com/PederHP/skillsdotnet) | C# implementation: SKILL.md, `skill://` resources, `load_skill` tool for progressive disclosure, manifest with file hashes; published on NuGet; compatible with FastMCP 3.0 |
 
 ## Alternative Approaches
 
