@@ -73,6 +73,8 @@ export interface SkillMetadata {
   skillDir: string;
   /** Optional extra frontmatter metadata fields */
   metadata?: Record<string, string>;
+  /** Audience annotation for this skill's resources (e.g., ["assistant"] or ["user", "assistant"]) */
+  audience?: string[];
   /** Supplementary files found in the skill directory */
   documents: SkillDocument[];
   /** Pre-computed file manifest */
@@ -99,18 +101,90 @@ export interface SkillSummary {
 }
 
 /**
- * An entry in the skill://index.json discovery index.
- * Follows the Agent Skills well-known URI discovery index format.
+ * A skill-md entry in the discovery index — a concrete skill with a URI.
  */
-export interface SkillIndexEntry {
+export interface SkillMdIndexEntry {
   /** Skill name from frontmatter (= final segment of skill path) */
   name: string;
-  /** Always "skill-md" for MCP-served skills */
+  /** Entry type discriminator */
   type: "skill-md";
   /** Skill description from frontmatter */
   description: string;
   /** Full skill:// URI for the SKILL.md resource */
   url: string;
+  /** Content digest for cache validation (format: "sha256:<hex>") */
+  digest?: string;
+}
+
+/**
+ * An mcp-resource-template entry in the discovery index — a parameterized
+ * skill namespace that clients resolve via the MCP completion API.
+ *
+ * Per the SEP, `name` is omitted for template entries and the URI template
+ * value is carried in the `url` field (same field as skill-md entries).
+ */
+export interface McpResourceTemplateIndexEntry {
+  /** Template name (optional per SEP — omitted for mcp-resource-template) */
+  name?: string;
+  /** Entry type discriminator */
+  type: "mcp-resource-template";
+  /** Template description */
+  description: string;
+  /** RFC 6570 URI template (e.g., "skill://docs/{product}/SKILL.md") */
+  url: string;
+}
+
+/**
+ * An archive entry in the well-known HTTP discovery index — a .tar.gz bundle
+ * containing a skill directory with SKILL.md at its root.
+ *
+ * Note: This type is used by the well-known HTTP bridge, not by the MCP
+ * skill://index.json resource. The SEP restricts skill://index.json entries
+ * to "skill-md" and "mcp-resource-template" only.
+ */
+export interface ArchiveIndexEntry {
+  /** Skill name */
+  name: string;
+  /** Entry type discriminator */
+  type: "archive";
+  /** Skill description */
+  description: string;
+  /** URL to the .tar.gz archive */
+  url: string;
+  /** Content digest for cache validation (format: "sha256:<hex>") */
+  digest?: string;
+}
+
+/**
+ * An entry in the skill://index.json MCP discovery index.
+ * Per the SEP, type MUST be "skill-md" or "mcp-resource-template".
+ * Use `entry.type` to narrow.
+ */
+export type SkillIndexEntry = SkillMdIndexEntry | McpResourceTemplateIndexEntry;
+
+/**
+ * Client-side summary of a discovered resource template.
+ */
+export interface SkillTemplateEntry {
+  /** Template name (optional — SEP omits name for mcp-resource-template entries) */
+  name?: string;
+  /** Template description */
+  description: string;
+  /** URI template string */
+  uriTemplate: string;
+}
+
+/**
+ * Server-side declaration for a parameterized skill namespace.
+ * Passed to generateSkillIndex() to produce mcp-resource-template entries.
+ */
+export interface SkillTemplateDeclaration {
+  /** Template name */
+  name: string;
+  /** Template description */
+  description: string;
+  /** URI template (e.g., "skill://docs/{product}/SKILL.md") */
+  uriTemplate: string;
 }
 
 /**
@@ -127,6 +201,86 @@ export interface SkillIndex {
 /** Schema URI for the Agent Skills discovery index format. */
 export const SKILL_INDEX_SCHEMA = "https://schemas.agentskills.io/discovery/0.2.0/schema.json";
 
+/** Set of known schema URIs for forward-compatible validation. */
+export const KNOWN_SKILL_INDEX_SCHEMAS: ReadonlySet<string> = new Set([SKILL_INDEX_SCHEMA]);
+
+// ---------------------------------------------------------------------------
+// Well-known HTTP bridge types
+// ---------------------------------------------------------------------------
+
+/**
+ * Options for fetchFromWellKnown() / refreshFromWellKnown().
+ */
+export interface WellKnownFetchOptions {
+  /** Domain to fetch from (e.g., "example.com") */
+  domain: string;
+  /** Local directory to cache fetched skills */
+  cacheDir: string;
+  /** Injectable fetch function (defaults to globalThis.fetch) */
+  fetch?: typeof globalThis.fetch;
+  /** Skip entries whose digest matches the local cache */
+  useDigestCache?: boolean;
+}
+
+/**
+ * A single fetched skill result.
+ */
+export interface WellKnownSkillResult {
+  /** Skill name from the index entry */
+  name: string;
+  /** Skill path (derived from entry name or URL) */
+  skillPath: string;
+  /** Whether the skill was served from the digest cache (not re-downloaded) */
+  cached: boolean;
+}
+
+/**
+ * Result of fetchFromWellKnown() / refreshFromWellKnown().
+ */
+export interface WellKnownFetchResult {
+  /** Skills that were fetched or already cached */
+  skills: WellKnownSkillResult[];
+  /** Entries skipped due to unrecognized or unfetchable type */
+  skipped: Array<{ name?: string; type: string; reason: string }>;
+  /** Fetch or verification failures */
+  errors: Array<{ name: string; error: string }>;
+}
+
+/**
+ * Options for buildSkillsCatalog().
+ */
+export interface SkillsCatalogOptions {
+  /** Tool name the model should call to read skill content */
+  toolName: string;
+  /**
+   * MCP server name the model should target. Omit when the configured
+   * `toolName` does not accept a `server` parameter (e.g., a host-scoped
+   * reader that only takes `uri`) — the behavioral instructions will drop
+   * the server clause so the prompt doesn't mention an unused argument.
+   */
+  serverName?: string;
+}
+
+/**
+ * Options for discoverAndBuildCatalog().
+ */
+export interface DiscoverCatalogOptions {
+  /** MCP server name the model should target (required for activation reliability) */
+  serverName: string;
+  /** Tool name the model should call to read resources. Default: "read_resource" */
+  toolName?: string;
+}
+
+/**
+ * Result of discoverAndBuildCatalog().
+ */
+export interface DiscoverCatalogResult {
+  /** Discovered skills */
+  skills: SkillSummary[];
+  /** System prompt catalog text (empty string if no skills found) */
+  catalog: string;
+}
+
 /**
  * Options for registerSkillResources().
  */
@@ -135,5 +289,7 @@ export interface RegisterSkillResourcesOptions {
   template?: boolean;
   /** Register the skill://prompt-xml convenience resource. Default: false */
   promptXml?: boolean;
+  /** Audience annotation for skill resources. Default: ["assistant"] */
+  audience?: string[];
 }
 

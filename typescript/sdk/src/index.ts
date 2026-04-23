@@ -3,8 +3,8 @@
  *
  * Exports shared types, URI utilities, and MIME utilities.
  * Server-specific and client-specific exports are available via
- * subpath imports: "@modelcontextprotocol/ext-skills/server" and
- * "@modelcontextprotocol/ext-skills/client".
+ * subpath imports: "@modelcontextprotocol/experimental-ext-skills/server"
+ * and "@modelcontextprotocol/experimental-ext-skills/client".
  */
 
 export type {
@@ -13,12 +13,23 @@ export type {
   SkillDocument,
   SkillMetadata,
   SkillSummary,
+  SkillMdIndexEntry,
+  McpResourceTemplateIndexEntry,
+  ArchiveIndexEntry,
   SkillIndexEntry,
   SkillIndex,
+  SkillTemplateEntry,
+  SkillTemplateDeclaration,
+  SkillsCatalogOptions,
+  DiscoverCatalogOptions,
+  DiscoverCatalogResult,
+  WellKnownFetchOptions,
+  WellKnownFetchResult,
+  WellKnownSkillResult,
   RegisterSkillResourcesOptions,
 } from "./types.js";
 
-export { SKILL_INDEX_SCHEMA } from "./types.js";
+export { SKILL_INDEX_SCHEMA, KNOWN_SKILL_INDEX_SCHEMAS } from "./types.js";
 
 export {
   SKILL_URI_SCHEME,
