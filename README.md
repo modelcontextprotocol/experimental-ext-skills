@@ -38,6 +38,7 @@ See [problem-statement.md](docs/problem-statement.md) for full details.
 | [Experimental Findings](docs/experimental-findings.md) | Results from implementations and testing |
 | [Related Work](docs/related-work.md) | SEPs, implementations, and external resources |
 | [Decision Log](docs/decisions.md) | Record of key decisions with context and rationale |
+| [Draft SEP: Skills Extension](docs/sep-draft-skills-extension.md) | Pre-submission SEP draft defining the `skill://` resource convention |
 
 ## Contributing
 
