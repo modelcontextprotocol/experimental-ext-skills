@@ -121,7 +121,7 @@ See also [Approaches](approaches.md) for more notes on using resources.
 
 ## 13. What is the optimal relationship between skills and MCP?
 
-> **Tracked in:** [#75](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/75) — Skills Extension SEP (submitted as [PR #2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640))
+> **Tracked in:** [#75](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/75) — Skills Extension SEP (submitted as [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640))
 > **See also:** [#47](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/47) — Create evaluation matrix mapping approaches to requirements
 
 Skills already work as simple files that agents load directly. Adding MCP to the process should provide clear value beyond what standalone skills already offer.

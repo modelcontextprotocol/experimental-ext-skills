@@ -1,4 +1,4 @@
-# SEP-0000: Skills Extension
+# SEP-2640: Skills Extension
 
 - **Status**: Draft (submitted)
 - **Type**: Extensions Track
@@ -8,7 +8,7 @@
 - **Extension Identifier**: `io.modelcontextprotocol/skills`
 - **PR**: [#2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640)
 
-> **NOTE:** This SEP has been submitted to the main MCP repository as [PR #2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640); future review and comments happen there. This repo-local copy is the working draft maintained by the [Skills Over MCP Working Group](https://github.com/modelcontextprotocol/experimental-ext-skills) and may be revised as upstream review feedback is incorporated. Additional discussion welcome via [GitHub Issues](https://github.com/modelcontextprotocol/experimental-ext-skills/issues) or [Discord #skills-over-mcp-wg](https://discord.com/channels/1358869848138059966/1464745826629976084).
+> **NOTE:** This SEP has been submitted to the main MCP repository as [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640); future review and comments happen there. This repo-local copy is the working draft maintained by the [Skills Over MCP Working Group](https://github.com/modelcontextprotocol/experimental-ext-skills) and may be revised as upstream review feedback is incorporated. Additional discussion welcome via [GitHub Issues](https://github.com/modelcontextprotocol/experimental-ext-skills/issues) or [Discord #skills-over-mcp-wg](https://discord.com/channels/1358869848138059966/1464745826629976084).
 
 ## Abstract
 
