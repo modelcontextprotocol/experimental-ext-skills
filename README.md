@@ -34,11 +34,11 @@ See [problem-statement.md](docs/problem-statement.md) for full details.
 | [Why Skills Over MCP?](docs/why-and-when.md) | Value proposition and decision guide |
 | [Use Cases](docs/use-cases.md) | Key use cases driving this work |
 | [Approaches](docs/approaches.md) | Approaches being explored (not mutually exclusive) |
+| [SEP-2640: Skills Extension](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) | Proposal to serve skills over MCP via the Resources primitive. Original working draft: [`docs/sep-draft-skills-extension.md`](docs/sep-draft-skills-extension.md). Comments and review happen on the PR. |
 | [Open Questions](docs/open-questions.md) | Unresolved questions with community input (see also [issues](https://github.com/modelcontextprotocol/experimental-ext-skills/issues) and [meeting notes](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg)) |
 | [Experimental Findings](docs/experimental-findings.md) | Results from implementations and testing |
 | [Related Work](docs/related-work.md) | SEPs, implementations, and external resources |
 | [Decision Log](docs/decisions.md) | Record of key decisions with context and rationale |
-| [SEP-2640: Skills Extension](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) | Proposal to serve skills over MCP via the Resources primitive. Original working draft: [`docs/sep-draft-skills-extension.md`](docs/sep-draft-skills-extension.md). Comments and review happen on the PR. |
 
 ## Contributing
 
