@@ -5,10 +5,10 @@
 | Proposal | Venue | Description |
 | :--- | :--- | :--- |
 | [SEP-2076](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076) | MCP Spec | Agent Skills as a first-class MCP primitive |
-| ~~[SEP-2093](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093)~~ | MCP Spec | ~~Resource Contents Metadata and Capabilities: scoped `resources/list`, per-resource capabilities, `resources/metadata` endpoint~~ — **rejected** ([labeled upstream](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093)) |
 | [PR #2527](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2527) | MCP Spec | Recommend clients expose resource read to models — prerequisite for the resources-based skills approach |
 | [PR #2640 (Skills Extension SEP)](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) | MCP Spec | This WG's proposed extension: skills served over MCP using the Resources primitive and `skill://` URI scheme ([working draft](sep-draft-skills-extension.md)) |
 | [skills.json format proposal](https://github.com/modelcontextprotocol/registry/discussions/895) | MCP Registry | Skills metadata in registry schema |
+| ~~[SEP-2093](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093)~~ | MCP Spec | ~~Resource Contents Metadata and Capabilities: scoped `resources/list`, per-resource capabilities, `resources/metadata` endpoint~~ — **rejected** ([labeled upstream](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093)) |
 
 ## Working Group Member Implementations
 
