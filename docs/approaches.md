@@ -35,7 +35,7 @@ Add Agent Skills as a first-class, discoverable primitive in MCP. A skill is a n
 - Progressive disclosure: clients load skill summaries at startup, fetch full instructions on demand
 - Mapping to existing SKILL.md format
 
-**Status:** Closed without merge on 2026-02-24; did not find a sponsor. See [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) for this WG's alternative Resources-based approach.
+**Status:** Closed on 2026-02-24 after the WG decided to first explore a convention-based approach using existing primitives. See [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) for the resulting Resources-based proposal.
 
 **Community input:**
 
