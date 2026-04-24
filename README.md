@@ -38,7 +38,7 @@ See [problem-statement.md](docs/problem-statement.md) for full details.
 | [Experimental Findings](docs/experimental-findings.md) | Results from implementations and testing |
 | [Related Work](docs/related-work.md) | SEPs, implementations, and external resources |
 | [Decision Log](docs/decisions.md) | Record of key decisions with context and rationale |
-| [SEP-2640: Skills Extension](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) | Proposal to serve skills over MCP via the Resources primitive and `skill://` URI scheme. Original working draft: [`docs/sep-draft-skills-extension.md`](docs/sep-draft-skills-extension.md). Comments and review happen on the PR. |
+| [SEP-2640: Skills Extension](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) | Proposal to serve skills over MCP via the Resources primitive. Original working draft: [`docs/sep-draft-skills-extension.md`](docs/sep-draft-skills-extension.md). Comments and review happen on the PR. |
 
 ## Contributing
 
