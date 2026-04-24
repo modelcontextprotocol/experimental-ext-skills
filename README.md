@@ -6,6 +6,7 @@
 **Project board:** [Skills Over MCP WG](https://github.com/orgs/modelcontextprotocol/projects/38/views/1)
 **Meeting notes:** [Skills Over MCP WG discussions](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg)
 **Discord:** [#skills-over-mcp-wg](https://discord.com/channels/1358869848138059966/1464745826629976084)
+**Open work:** [Pull requests](https://github.com/modelcontextprotocol/experimental-ext-skills/pulls) — proposals, decisions, implementations, and other in-flight contributions welcome.
 
 ## Why Skills Over MCP?
 
