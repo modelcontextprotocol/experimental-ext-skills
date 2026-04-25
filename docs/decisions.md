@@ -120,6 +120,33 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 
 ---
 
+### 2026-04-16: URI scheme conventions for skills as resources
+
+**Status:** Accepted
+
+**Context:** Several independent MCP implementations (FastMCP 3.0, NimbleBrain, skilljack-mcp, skills-over-mcp, etc.) had converged on using Resources to represent skills using either `skill://` or domain-specific URI schemes, but diverged on the rest of the URI structure. This included variations around whether to use an authority segment, whether `SKILL.md` is explicit in the URI, how to address sub-resources, and how the URI path relates to the skill's frontmatter `name`. A survey of these patterns was published in [`skill-uri-scheme.md`](skill-uri-scheme.md) and informed the draft [Skills Extension SEP (#69)](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69). The path↔name relationship went through two drafts before settling: the first required a single path segment equal to the `name`, which broke for servers needing hierarchy (e.g., `acme/billing/refunds` vs. `acme/support/refunds`); a second draft fully decoupled path from `name`, which was too loose — a URI like `skill://a/b/c/SKILL.md` revealed nothing about what the skill was called without a frontmatter round trip.
+
+**Decision:** Adopt `skill://<skill-path>/SKILL.md` as the recommended URI convention for skill resources over MCP, with:
+
+- The first path segment occupies the authority position by RFC 3986 mechanics but carries no special semantics — clients MUST NOT resolve it as a network host.
+- `SKILL.md` MUST be explicit in the URI, mirroring the Agent Skills spec's directory model.
+- `<skill-path>` is one or more `/`-separated segments. Its **final segment MUST equal the skill's `name`** as declared in `SKILL.md` frontmatter (matching the Agent Skills spec's requirement that `name` match the parent directory). Preceding segments, if any, are a server-chosen organizational prefix (by domain, team, version, or any other axis).
+- No-nesting constraint: a `SKILL.md` MUST NOT appear in any descendant directory of a skill.
+- Sub-resources are addressed by path relative to the skill directory (e.g., `skill://<skill-path>/references/GUIDE.md`).
+- Servers MAY serve skills under a domain-specific URI scheme (e.g., `github://owner/repo/skills/refunds/SKILL.md`) instead of `skill://`, provided each such skill is listed in the server's `skill://index.json`. The structural constraints above apply regardless of scheme.
+- Servers SHOULD expose a well-known `skill://index.json` resource enumerating the skills they serve (following the [Agent Skills well-known URI index](https://agentskills.io/well-known-uri) format), but MAY decline or expose only a partial index when the catalog is large, generated on demand, or otherwise unenumerable; hosts MUST NOT treat an absent or empty index as proof a server has no skills. The index MAY include parameterized template entries for servers that also register matching MCP resource templates (a user-facing discovery mechanism via the completion API).
+- Versioning in URIs is deferred and implicitly tied to server version.
+
+**Rationale:** `skill://` convergence across independent implementations is a strong signal worth codifying. Keeping `SKILL.md` explicit preserves alignment with the Agent Skills spec's directory model. Constraining the final path segment to equal `name` — while allowing a prefix — is the key settlement: it enables hierarchical organization (fixing the single-segment rule's collision problem) while keeping the skill's identity readable from the URI alone (fixing the fully-decoupled draft's opacity problem). Allowing domain-specific schemes accommodates servers whose natural URI space already carries organizational meaning, without forcing a rewrite into `skill://`. Making enumeration optional accommodates servers with large, generated, or unenumerable skill catalogs. The decision was discussed in office hours and async in Discord and held open as [PR #70](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/70) from 2026-03-18 through 2026-04-16.
+
+**References:**
+- [PR #70](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/70) — URI scheme refinements (merged 2026-04-16)
+- [Issue #44](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/44) — URI scheme discussion
+- [Draft Skills Extension SEP (#69)](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69)
+- [Skill URI Scheme Proposal](skill-uri-scheme.md)
+
+---
+
 ### 2026-04-16: Convert Skills Over MCP from Interest Group to Working Group
 
 **Status:** [Accepted by Core Maintainers](https://discord.com/channels/1358869848138059966/1464745826629976084/1494774410891231352)
