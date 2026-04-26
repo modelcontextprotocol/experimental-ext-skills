@@ -5,12 +5,11 @@ description: This skill should be used when the user asks to "add skills to my M
 
 # Implementing Skills-over-MCP in an MCP Server
 
-> Skills Extension SEP draft: [modelcontextprotocol/experimental-ext-skills#69](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69).
-> Note that this link will change in future versions.
+> Skills Extension SEP: [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640).
 
 ---
 
-Three concerns determine how an MCP server exposes skills: what URI scheme and structure to use, how to make skills discoverable, and how to distribute multi-file skills. Most authors can accept defaults on all three.  This section covers when and why to deviate.
+Three concerns determine how an MCP server exposes skills: what URI scheme and structure to use, how to make skills discoverable, and how to distribute multi-file skills.
 
 ### URI structure
 
@@ -20,12 +19,13 @@ Skills are exposed as MCP resources. Servers SHOULD use the `skill://` URI schem
 
 The final segment of `<skill-path>` MUST match the skill's `name` as declared in its `SKILL.md` frontmatter. Preceding segments are a server-chosen organizational prefix — use them if the server has meaningful hierarchy (by team, product, domain, or version), omit them for flat catalogs.
 
+Servers MAY serve skills under a domain-native scheme (`github://owner/repo/skills/refunds/SKILL.md`) provided every skill is listed in `skill://index.json`. The structural constraints above (final segment matches name, `SKILL.md` explicit, no skill nesting inside another skill) apply regardless of scheme.
+
 | Server shape | Example URI |
 |---|---|
 | Single flat catalog | `skill://git-workflow/SKILL.md` |
 | Organizational hierarchy | `skill://acme/billing/refunds/SKILL.md` |
 | Per-product documentation | `skill://docs/widget-api/SKILL.md` |
-Servers MAY serve skills under a domain-native scheme (`github://owner/repo/skills/refunds/SKILL.md`) provided every skill is listed in `skill://index.json`. The structural constraints above (final segment matches name, `SKILL.md` explicit, no skill nesting inside another skill) apply regardless of scheme.
 
 ### Enumeration
 
@@ -65,15 +65,26 @@ Register the same URI as an MCP resource template so hosts can wire the `{produc
 
 A skill is a directory: `SKILL.md` plus any supporting files the skill references (additional markdown, scripts, templates, examples). Two ways to distribute these:
 
-**Individual resources (default).** Each file is its own `skill://` resource. Simple, composable, and gives hosts fine-grained control over what they fetch and when. Appropriate for most multi-file skills.
+**Individual resources (default).** Each file is its own `skill://` resource (`type: "skill-md"` in the index). Simple, composable, and gives hosts fine-grained control over what they fetch and when. Appropriate for most multi-file skills.
 
-**Archive distribution.** For skills with many supporting files or where atomicity across the bundle matters, the server publishes a single archive resource (`.tar.gz` or `.zip`) that the host unpacks into the skill's URI namespace. The host-facing namespace is identical to individual-file distribution after unpacking.
+**Archive distribution.** For skills with many supporting files, where atomicity across the bundle matters, or where UNIX file metadata (executable bits, symlinks) needs to round-trip, declare the skill as `type: "archive"` in `skill://index.json` with `url` pointing at a single archive resource:
 
-If you're unsure which to use, start with individual resources. Archive distribution is an optimization for servers shipping pre-built skill bundles or hitting round-trip-count issues with large multi-file skills.
+```json
+{
+  "name": "pdf-processing",
+  "type": "archive",
+  "description": "Extract and transform PDF documents",
+  "url": "skill://pdf-processing.tar.gz"
+}
+```
+
+The archive MUST be `.tar.gz` (`mimeType: application/gzip`) or `.zip` (`mimeType: application/zip`). `SKILL.md` MUST be at the archive root — no wrapper directory — and the archive MUST NOT contain path-traversal sequences (`..`) or absolute paths. The `<skill-path>` the host exposes is the entry's `url` with the archive suffix stripped: `skill://pdf-processing.tar.gz` unpacks to `skill://pdf-processing/`, `skill://acme/billing/refunds.zip` to `skill://acme/billing/refunds/`. The host-facing namespace is identical to individual-file distribution after unpacking.
+
+If you're unsure which to use, always start with individual resources. Archive distribution is an optimization for servers shipping pre-built skill bundles, hitting round-trip-count issues with large multi-file skills, or needing UNIX file metadata that individual-resource distribution can't represent. The trade-off is per-file `resources/subscribe` granularity, which the skill reading model does not depend on.
 
 ### Metadata
 
-Most skill metadata lives in `SKILL.md` YAML frontmatter per the [Agent Skills specification](https://agentskills.io/specification) — that's the authoritative source for skill-level semantics (version, compatibility, allowed tools). See [Using `_meta` for Skill Resources](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/skill-meta-keys.mdd) for guidance on when MCP resource `_meta` is appropriate vs. when frontmatter suffices.
+Most skill metadata lives in `SKILL.md` YAML frontmatter per the [Agent Skills specification](https://agentskills.io/specification) — that's the authoritative source for skill-level semantics (version, compatibility, allowed tools). See [Using `_meta` for Skill Resources](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/skill-meta-keys.md) for guidance on when MCP resource `_meta` is appropriate vs. when frontmatter suffices.
 
 ### Updates
 
@@ -85,7 +96,7 @@ Skill content changes flow through the generic MCP Resources update mechanism. S
 
 The relative link `skill-meta-keys.md` above resolves to the authoritative WG doc on `modelcontextprotocol/experimental-ext-skills@main`.
 
-- [SEP draft — experimental-ext-skills#69](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69)
+- [SEP-2640 — Skills Extension](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640)
 - [Skill URI Scheme](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/skill-uri-scheme.md)
 - [Using `_meta` for Skill Resources](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/skill-meta-keys.md)
 - [Decisions log](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/decisions.md)
