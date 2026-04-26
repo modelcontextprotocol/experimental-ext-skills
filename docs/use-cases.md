@@ -58,7 +58,7 @@ Servers that are difficult or impossible to use effectively without an accompany
 
 > "Clients of the registry presumably understand MCP, but there is no guarantee that they understand skills. So if it is going to be hard for an agent to use the server without the 'skill' then doesn't it make sense for the MCP server to contain all the instructions necessary to use it?" — [Cliff Hall](https://github.com/cliffhall)
 
-**Example:** [chrome-devtools-mcp](https://github.com/anthropics/anthropic-quickstarts/tree/main/mcp-servers/chrome-devtools-mcp) ships with a skills/ folder that requires a separate install path from the MCP server itself.
+**Example:** [chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) ships with a skills/ folder that requires a separate install path from the MCP server itself.
 
 ## 6. Skill Versioning and Updates
 
