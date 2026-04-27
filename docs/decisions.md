@@ -161,3 +161,23 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 - [PR #2586](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2586) — charter conversion (merged 2026-04-16)
 - [Charter](https://modelcontextprotocol.io/community/skills-over-mcp/charter)
 - [Group governance](https://modelcontextprotocol.io/community/working-interest-groups)
+
+---
+
+### 2026-04-19: Filesystem is a host-side implementation detail
+
+**Status:** Proposed
+
+**Context:** Previous meetings surfaced an open question: whether the Skills Extension SEP should require, forbid, or remain silent on a local filesystem as a host capability. The SEP as drafted is de facto filesystem-agnostic (resources are URI-addressable, `read_resource` is the recommended loading path) but does not state this as a normative requirement, leaving skill authors without a portability guarantee and hosts without clear scope.
+
+**Decision:** The Skills Extension SEP treats the filesystem as a host-side implementation detail. Specifically:
+
+- A skill served over MCP MUST function correctly on hosts that have no access to a local filesystem. Skill content, supporting files, and relative-path resolution MUST be expressible entirely through MCP resource operations.
+- Hosts MAY materialize skill resources into a local filesystem as a performance or compatibility optimization.
+- Regardless of materialization strategy, relative-path resolution within a skill MUST produce the same result as URI-based resolution. A skill that references `references/guide.md` from its `SKILL.md` resolves to the same content whether the host loads it from disk or from `resources/read` on the originating server.
+
+**Rationale:** The value of filesystem-agnosticism is a consumer-side guarantee: a skill author writes one skill and knows it will run on any conformant host, from a cloud-code CLI with disk access to a stateless remote agent. Requiring MCP-served skills to work without a filesystem preserves this guarantee. Permitting host-side materialization preserves the use cases Peter flagged on March 24 (local server example from Jake, performance optimization for large skills, filesystem-native tooling integration). Requiring unified resolution semantics closes the gap that would otherwise make materialization a behavior-divergence source. The SEP's "Hosts: Unified Treatment" section already aspires to this at SHOULD level; this ADR promotes the semantic requirement to MUST while keeping the implementation a host choice.
+
+**References:**
+- [PR #83](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/83) — companion ADR on archive distribution
+- [SEP PR #69](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/69), "Hosts: Unified Treatment of Filesystem and MCP Skills" section
