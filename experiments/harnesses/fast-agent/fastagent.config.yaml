@@ -1,0 +1,34 @@
+default_model: anthropic.claude-sonnet-4-6
+
+logger:
+  progress_display: false
+  show_chat: true
+  show_tools: true
+  truncate_tools: true
+
+mcp:
+  servers:
+    github_skills:
+      transport: http
+      url: http://localhost:8082/mcp
+      headers:
+        Authorization: "Bearer ${GITHUB_TOKEN}"
+      # Contamination guarantee for the activation test: suppress the
+      # server's `instructions` field from the system prompt so the model's
+      # only signal that the pull-requests skill exists comes from the host's
+      # `<available_skills>` block (built from `skill://index.json`).
+      # If the model still calls `read_skill` with the skill:// URI and
+      # surfaces SKILL.md-only method names, the activation went through the
+      # SEP integration end-to-end, not via inlined server text.
+      include_instructions: false
+
+    hf_skills:
+      transport: http
+      url: http://localhost:8083/mcp
+      headers:
+        Authorization: "Bearer ${HF_TOKEN}"
+      # Same contamination control as github_skills — the HF MCP server
+      # (skills-over-mcp-experiment branch) already drops the skills
+      # pointer from its instructions field, but suppress the rest too
+      # so the only signal is `<available_skills>`.
+      include_instructions: false

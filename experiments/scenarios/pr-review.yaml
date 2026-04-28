@@ -1,0 +1,38 @@
+# Scenario #1 — PR review happy path.
+# See docs/findings/scenarios/pr-review.md for what this probes and why.
+
+id: pr-review
+kind: pr-review
+description: >-
+  Agent activates the pull-requests skill bundled with olaservo/github-mcp-server,
+  reviews a PR with four intentional seams, and posts a real review via the
+  three-step pending-review workflow.
+
+# Subject repo — produced fresh by scaffolding_script on each experiment iteration.
+repo: olaservo/code-review-subject
+head_branch: feature/input-validation-enhancement
+scaffolding_script: experiments/code-review-subject/scripts/create-pr-input-validation.sh
+
+mcp_server:
+  endpoint: http://localhost:8082/mcp
+  alias: github_skills
+
+# {pr_number} + {repo} are substituted by the client. The phrasing matches
+# the experiment doc template verbatim — do not paraphrase. `>-` folds the
+# soft-wrapped lines back into a single sentence at runtime.
+prompt_template: >-
+  Review PR #{pr_number} on {repo}. Read the diff, then leave comments on
+  any issues you find, and submit the review with an appropriate verdict
+  (APPROVE, REQUEST_CHANGES, or COMMENT).
+
+# Smallest model per client that reliably activates the skill, so we
+# measure the activation primitive rather than raw capability. Override
+# with <CLIENT>_MODEL=<id>. Notes: goose regresses on haiku (needs
+# sonnet); codex needs gpt-5.1-codex (mini trips 200K-TPM here).
+models:
+  fast-agent: anthropic.claude-haiku-4-5-20251001
+  gemini-cli: gemini-2.5-flash
+  goose: claude-sonnet-4-6
+  codex: gpt-5.1-codex
+
+expected_skill_uri: skill://pull-requests/SKILL.md

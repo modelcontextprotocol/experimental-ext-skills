@@ -1,0 +1,17 @@
+[project]
+name = "skills-e2e-fast-agent"
+version = "0.0.0"
+description = "Scenario #1 end-to-end harness for the Skills-over-MCP fast-agent fork"
+requires-python = ">=3.13.5,<3.15"
+dependencies = [
+    "fast-agent-mcp",
+    "pyyaml",
+]
+
+# Git-dep against the fork branch carrying the skills-over-MCP changes.
+# uv clones to its cache on first `uv sync`; subsequent runs reuse it
+# until the branch HEAD advances. For iteration against a local clone
+# of the fork, swap this for `{ path = "<abs-path>", editable = true }`
+# in your working tree (don't commit the override).
+[tool.uv.sources]
+fast-agent-mcp = { git = "https://github.com/olaservo/fast-agent.git", branch = "experimental/skills-over-mcp" }
