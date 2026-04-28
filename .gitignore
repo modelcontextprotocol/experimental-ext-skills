@@ -1,1 +1,16 @@
 .claude/settings.local.json
+
+# Python / uv virtualenvs + caches inside harness directories.
+experiments/harnesses/**/.venv/
+experiments/harnesses/**/__pycache__/
+experiments/harnesses/**/.pytest_cache/
+*.pyc
+
+# fast-agent session history — per-run conversation dumps, runtime state.
+experiments/harnesses/**/.fast-agent/
+
+# Per-scenario run outputs (summarized elsewhere; don't bloat the repo).
+experiments/results/
+
+# Bootstrap-cloned dependency repos (subject, MCP server, optional gemini-cli).
+experiments/.workspace/
