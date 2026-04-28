@@ -1,0 +1,54 @@
+# Scenario #4 — Transformers.js browser demo (read-only, code-output).
+# See docs/findings/scenarios/transformers-js-demo.md for what this
+# probes and why. Read-only — no hf_jobs / DRY_RUN dependency.
+
+id: transformers-js-demo
+kind: plan
+description: >-
+  Agent activates the `transformers-js` skill and produces a
+  self-contained browser HTML/JS file using the @huggingface/transformers
+  package. Read-only — no tool execution required; the artifact is the
+  agent's final assistant response. Tests the SEP loading mechanism on
+  a JavaScript-output skill, complementing the Python-output #2/#3.
+
+mcp_server:
+  endpoint: http://localhost:8083/mcp
+  alias: hf_skills
+
+# Natural request — no "read skills first" hint. Browser sentiment
+# analysis is the canonical Transformers.js demo, in-domain for the
+# skill's "When to Use" list.
+prompt_template: >-
+  Write a small self-contained HTML file that uses Transformers.js
+  to run sentiment analysis on user input from a textarea, with a
+  button to trigger inference and a place to render the result.
+
+expected_skill_uri: skill://transformers-js/SKILL.md
+
+# Phrase-grep inputs to plan-covers-prescriptions. All three are
+# distinctive to the transformers-js skill rather than generic JS:
+#   - `@huggingface/transformers` is the package name the skill prescribes
+#     (the non-skill default would be `@xenova/transformers`, the older
+#     pre-4.x package — agents working from stale training data miss this)
+#   - `pipeline` matches the Pipeline API the skill leads with
+#   - `dispose()` enforces the skill's emphasized memory-management rule
+#     (⚠️ "Always dispose when done to free memory")
+required_phrases:
+  - key: package_name
+    any_of:
+      - "@huggingface/transformers"
+  - key: pipeline_api
+    any_of:
+      - "pipeline("
+      - "pipeline ("
+      - "import { pipeline"
+  - key: dispose_rule
+    any_of:
+      - ".dispose()"
+      - "dispose("
+
+models:
+  fast-agent: anthropic.claude-haiku-4-5-20251001
+  gemini-cli: gemini-2.5-flash
+  goose: claude-sonnet-4-6
+  codex: gpt-5.1-codex-mini

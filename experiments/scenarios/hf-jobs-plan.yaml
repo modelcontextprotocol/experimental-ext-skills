@@ -1,0 +1,66 @@
+# Scenario #2 — HF Jobs LLM training (dry-run).
+# See docs/findings/scenarios/hf-jobs-plan.md for what this probes and why.
+# Pre-req: HF MCP server must run with HF_JOBS_DRY_RUN=true so submissions
+# are intercepted server-side and no compute is spent.
+
+id: hf-jobs-plan
+kind: plan
+description: >-
+  Agent activates the huggingface-llm-trainer skill bundled with
+  olaservo/hf-mcp-server (branch `skills-over-mcp-experiment`) and
+  submits an `hf_jobs` invocation to fine-tune a gated model. The
+  server runs with HF_JOBS_DRY_RUN=true so no actual compute is spent;
+  we grade skill reads plus the submission's prescriptions.
+
+mcp_server:
+  endpoint: http://localhost:8083/mcp
+  alias: hf_skills
+
+# Natural training request — no "read skills first" hint, no
+# "do not launch" instruction. The skill's `<available_skills>`
+# entry should drive activation organically, and the server's
+# HF_JOBS_DRY_RUN intercept keeps execution safe. Phrased exactly
+# how a real user would ask.
+prompt_template: >-
+  Fine-tune `meta-llama/Llama-3.2-1B-Instruct` on the
+  `databricks/databricks-dolly-15k` dataset using Hugging Face Jobs.
+
+expected_skill_uri: skill://huggingface-llm-trainer/SKILL.md
+
+# `gate_tools` anchors `skill-read-before-plan` — the agent must read
+# SKILL.md before any `hf_jobs` call. Housekeeping calls (todo writes,
+# whoami, repo inspections) don't gate, which matters for agentic
+# clients like goose that plan before activating skills.
+gate_tools:
+  - hf_jobs
+
+# Phrase-grep inputs to `plan-covers-prescriptions`. With dry-run
+# scenarios the agent's submitted script (in the `hf_jobs` call's
+# `script` arg) is part of the haystack alongside the final assistant
+# text — so prescriptions land via the captured spec even when the
+# final response is just "Job submitted!".
+required_phrases:
+  - key: uv_script
+    # The skill prescribes UV scripts with PEP 723 inline dependency
+    # metadata (`# /// script` block) for the `hf_jobs("uv", ...)` tool.
+    any_of:
+      - "/// script"
+      - "PEP 723"
+      - "uv script"
+  - key: secrets_forwarding
+    any_of:
+      - "HF_TOKEN"
+      - "$HF_TOKEN"
+      - "${HF_TOKEN}"
+  - key: trackio
+    any_of:
+      - "trackio"
+
+# Per-client model identifiers — same policy as pr-review: smallest
+# tier per client that reliably activates the skill, so we measure
+# the SEP primitive rather than raw capability.
+models:
+  fast-agent: anthropic.claude-haiku-4-5-20251001
+  gemini-cli: gemini-2.5-flash
+  goose: claude-sonnet-4-6
+  codex: gpt-5.1-codex-mini

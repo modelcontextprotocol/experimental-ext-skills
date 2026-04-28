@@ -1,0 +1,63 @@
+# Scenario #3 — Cross-skill composition (LLM training + Trackio alerts).
+# See docs/findings/scenarios/hf-train-with-monitoring.md for what this
+# probes and why. Pre-req: HF MCP server with HF_JOBS_DRY_RUN=true.
+
+id: hf-train-with-monitoring
+kind: plan
+description: >-
+  Tests cross-skill composition. The agent should activate both
+  `huggingface-llm-trainer` (for HF Jobs structure) and
+  `huggingface-trackio` (for the alerts API specifically) — driven by
+  catalog visibility, not by an explicit cross-skill URI. Server-side
+  HF_JOBS_DRY_RUN intercepts the submission so no compute is spent.
+
+mcp_server:
+  endpoint: http://localhost:8083/mcp
+  alias: hf_skills
+
+# Natural training request that hooks into both domains. The "alerts on
+# loss spikes" phrasing is what should pull the agent into the trackio
+# skill — alerts are not covered in detail in the trainer skill.
+prompt_template: >-
+  Fine-tune `meta-llama/Llama-3.2-1B-Instruct` on the
+  `databricks/databricks-dolly-15k` dataset using Hugging Face Jobs,
+  with Trackio alerts that fire on loss spikes during training.
+
+# Both skills must be activated before the gate. The plan evaluator's
+# skill-read-before-plan criterion will report `read=[...] missed=[...]`
+# in the banner note when either is missing.
+expected_skill_uris:
+  - skill://huggingface-llm-trainer/SKILL.md
+  - skill://huggingface-trackio/SKILL.md
+
+gate_tools:
+  - hf_jobs
+
+# Phrases come from BOTH skills:
+# - uv_script and secrets_forwarding are llm-trainer prescriptions
+# - alert_level / trackio.alert come from trackio's references/alerts.md
+#   and prove that skill was actually read deeply, not just activated
+required_phrases:
+  - key: uv_script
+    any_of:
+      - "/// script"
+      - "PEP 723"
+      - "uv script"
+  - key: secrets_forwarding
+    any_of:
+      - "HF_TOKEN"
+      - "$HF_TOKEN"
+      - "${HF_TOKEN}"
+  - key: trackio_alert
+    # `trackio.alert(...)` and AlertLevel are distinctive to the trackio
+    # skill's alerts.md reference — generic ML knowledge wouldn't surface them.
+    any_of:
+      - "trackio.alert"
+      - "AlertLevel"
+      - "alert_level"
+
+models:
+  fast-agent: anthropic.claude-haiku-4-5-20251001
+  gemini-cli: gemini-2.5-flash
+  goose: claude-sonnet-4-6
+  codex: gpt-5.1-codex-mini
