@@ -1,7 +1,7 @@
 {
   "name": "@modelcontextprotocol/ext-skills",
-  "version": "0.2.0",
-  "description": "SDK for the Skills as Resources MCP extension pattern",
+  "version": "0.1.0",
+  "description": "SDK for SEP-2640 (Skills Extension) — serving Agent Skills via MCP resources",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

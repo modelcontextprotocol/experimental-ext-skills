@@ -1,99 +1,184 @@
 /**
- * Type definitions for the Skills as Resources SDK.
- *
- * URI scheme:
- *   - skill://{name}/SKILL.md   — listed resource for skill content
- *   - skill://{name}/_manifest  — listed resource for file inventory
- *   - skill://{name}/{+path}    — template for supporting files
+ * Type definitions for SEP-2640 (Skills Extension).
  */
 
 import type { RegisteredResource } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-/**
- * A file entry in the skill manifest, including content hash.
- * Used in the skill://{name}/_manifest resource.
- */
-export interface ManifestFileEntry {
-  /** Relative path from skill root (e.g., "SKILL.md", "references/REFERENCE.md") */
-  path: string;
-  /** File size in bytes */
-  size: number;
-  /** Content hash in format "sha256:<hex>" */
-  hash: string;
-}
-
-/**
- * Pre-computed manifest for a skill, listing all files with hashes.
- * Served at skill://{name}/_manifest.
- */
-export interface SkillManifest {
-  /** Skill name */
-  skill: string;
-  /** All files in the skill directory, including SKILL.md */
-  files: ManifestFileEntry[];
-}
-
-/**
- * A supplementary document found in a skill's subdirectories.
- */
+/** A supplementary file within a skill directory. */
 export interface SkillDocument {
-  /** Relative path from skill root (e.g., "references/REFERENCE.md") */
+  /** Path relative to the skill root (e.g. "references/REFERENCE.md"). */
   path: string;
-  /** MIME type based on file extension */
+  /** MIME type derived from extension. */
   mimeType: string;
-  /** File size in bytes */
+  /** File size in bytes. */
   size: number;
-  /** SHA256 hash of file content in format "sha256:<hex>" */
-  hash: string;
 }
 
 /**
- * Metadata extracted from a skill's SKILL.md YAML frontmatter,
- * extended with document scanning results and pre-computed manifest.
+ * Server-side metadata for a discovered skill.
  */
 export interface SkillMetadata {
+  /** Skill path (e.g. "git-workflow" or "acme/billing/refunds"). */
+  skillPath: string;
+  /** Frontmatter `name`; equals the final segment of skillPath. */
   name: string;
+  /** Frontmatter `description`. */
   description: string;
-  path: string; // Absolute path to the SKILL.md file
-  skillDir: string; // Absolute path to the skill's directory
-  metadata?: Record<string, string>; // Optional extra frontmatter fields
-  documents: SkillDocument[]; // Supplementary files found in subdirectories
-  manifest: SkillManifest; // Pre-computed file manifest
-  lastModified: string; // ISO 8601 timestamp from SKILL.md file mtime
+  /** Absolute path to SKILL.md. */
+  path: string;
+  /** Absolute path to the skill's directory. */
+  skillDir: string;
+  /** Optional extra frontmatter fields (string values only). */
+  metadata?: Record<string, string>;
+  /** Supporting files in the skill directory (excluding SKILL.md). */
+  documents: SkillDocument[];
+  /** ISO 8601 mtime of SKILL.md. */
+  lastModified: string;
 }
 
 /**
  * Lightweight client-side summary of a discovered skill.
- * Built from resources/list results and optional frontmatter parsing.
  */
 export interface SkillSummary {
-  /** Skill name (parsed from URI or frontmatter) */
+  /** Skill path parsed from URI. */
+  skillPath: string;
+  /** Final segment of skillPath. */
   name: string;
-  /** Full skill:// URI for the SKILL.md resource */
+  /** Full skill:// URI for the SKILL.md resource. */
   uri: string;
-  /** Skill description (from resource metadata or frontmatter) */
   description?: string;
-  /** MIME type of the resource */
   mimeType?: string;
 }
 
-/**
- * Options for registerSkillResources().
- */
-export interface RegisterSkillResourcesOptions {
-  /** Register the resource template for supporting files (skill://{name}/{+path}). Default: true */
-  template?: boolean;
-  /** Register the skill://prompt-xml convenience resource. Default: false */
-  promptXml?: boolean;
+/* ---------- skill://index.json (SEP-2640 §Discovery) ---------- */
+
+/** Concrete file-served skill. */
+export interface SkillMdIndexEntry {
+  type: "skill-md";
+  name: string;
+  description: string;
+  url: string;
 }
 
-/**
- * Return type for registerSkillResources() — maps skill name to resource handles.
- */
+/** Archive-distributed skill (.tar.gz or .zip). */
+export interface ArchiveIndexEntry {
+  type: "archive";
+  name: string;
+  description: string;
+  url: string;
+}
+
+/** Parameterized skill namespace; `url` is an RFC 6570 URI template. */
+export interface ResourceTemplateIndexEntry {
+  type: "mcp-resource-template";
+  description: string;
+  url: string;
+}
+
+export type SkillIndexEntry =
+  | SkillMdIndexEntry
+  | ArchiveIndexEntry
+  | ResourceTemplateIndexEntry;
+
+export interface SkillIndex {
+  $schema: string;
+  skills: SkillIndexEntry[];
+}
+
+/* ---------- registerSkillResources options ---------- */
+
+export interface RegisterSkillResourcesOptions {
+  /**
+   * Register a per-skill resource template `skill://<skillPath>/{+filePath}`
+   * for supporting files. Default: true.
+   */
+  templates?: boolean;
+  /**
+   * Register `skill://index.json` listing all discovered skills.
+   * Default: true.
+   */
+  index?: boolean;
+  /**
+   * Override the index `$schema` URL. Defaults to the agentskills.io schema.
+   */
+  indexSchema?: string;
+  /**
+   * Additional entries to merge into `skill://index.json` (e.g. archive or
+   * mcp-resource-template entries). Re-evaluated on each read so the caller
+   * can register archives / templates after `registerSkillResources()` and
+   * still have them appear.
+   */
+  extraIndexEntries?: SkillIndexEntry[] | (() => SkillIndexEntry[]);
+}
+
+/** Map skill path → registered resource handles. */
 export type SkillResourceHandles = Map<
   string,
-  {
-    skill: RegisteredResource;
-    manifest: RegisteredResource;
-  }
+  { skill: RegisteredResource }
 >;
+
+/* ---------- archive + template helpers ---------- */
+
+export interface RegisterSkillArchiveOptions {
+  /** Archive format. Currently only "tar.gz" is supported by this SDK. */
+  format?: "tar.gz";
+}
+
+export interface RegisterSkillArchiveResult {
+  /** The full URI the archive is served at, e.g. `skill://acme/refunds.tar.gz`. */
+  uri: string;
+  /** Index entry describing this archive (merge into skill://index.json). */
+  entry: ArchiveIndexEntry;
+  /** Resource handle for later removal / update. */
+  handle: RegisteredResource;
+}
+
+export interface SkillTemplateContext {
+  variables: Record<string, string | string[]>;
+  uri: URL;
+}
+
+export type SkillTemplateContent =
+  | {
+      uri: string;
+      mimeType?: string;
+      text: string;
+      _meta?: Record<string, unknown>;
+    }
+  | {
+      uri: string;
+      mimeType?: string;
+      blob: string;
+      _meta?: Record<string, unknown>;
+    };
+
+export interface RegisterSkillTemplateOptions {
+  /** Human-readable description of the addressable skill space. */
+  description: string;
+  /**
+   * RFC 6570 URI template, e.g. `skill://docs/{product}/SKILL.md`.
+   * The same value is used as the index entry's `url`.
+   */
+  uriTemplate: string;
+  /** Resolve a concrete URI to skill content. */
+  resolve: (
+    ctx: SkillTemplateContext,
+  ) => Promise<{ contents: SkillTemplateContent[] }>;
+  /**
+   * Optional completion callbacks for template variables, wired to the
+   * MCP completion API. Keys are template variable names.
+   */
+  complete?: Record<
+    string,
+    (
+      value: string,
+      context?: { arguments?: Record<string, string> },
+    ) => string[] | Promise<string[]>
+  >;
+  /** SDK-internal name for the registered resource template. Defaults to a derivation of `uriTemplate`. */
+  resourceName?: string;
+}
+
+export interface RegisterSkillTemplateResult {
+  entry: ResourceTemplateIndexEntry;
+}

@@ -1,6 +1,8 @@
 # @modelcontextprotocol/ext-skills
 
-TypeScript SDK for the **Skills as Resources** MCP extension pattern — exposing agent skills via MCP resources using the `skill://` URI scheme.
+TypeScript SDK for **SEP-2640 (Skills Extension)** — serving [Agent Skills](https://agentskills.io/) via MCP resources under the `skill://` URI scheme.
+
+Tracks the spec at [modelcontextprotocol/modelcontextprotocol#2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640).
 
 ## Installation
 
@@ -10,179 +12,230 @@ npm install @modelcontextprotocol/ext-skills
 
 Requires `@modelcontextprotocol/sdk` ^1.0.0 as a peer dependency.
 
-## Quick Start
+## URI scheme
 
-### Server: Discover and register skills
+| Pattern | Description |
+|---------|-------------|
+| `skill://<skillPath>/SKILL.md` | Skill content (exact resource) |
+| `skill://<skillPath>/<filePath>` | Supporting file (per-skill resource template) |
+| `skill://index.json` | Discovery index of skills (well-known) |
+
+`<skillPath>` may be one segment (`git-workflow`) or nested (`acme/billing/refunds`). Per SEP-2640 §Resource Mapping, the **final segment** of `<skillPath>` MUST equal the skill's frontmatter `name`.
+
+## Quick start
+
+### Server: discover and register
 
 ```typescript
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { discoverSkills, registerSkillResources } from "@modelcontextprotocol/ext-skills/server";
+import {
+  discoverSkills,
+  registerSkillResources,
+  SKILLS_EXTENSION,
+} from "@modelcontextprotocol/ext-skills/server";
 
 const server = new McpServer(
   { name: "my-skills-server", version: "1.0.0" },
-  { capabilities: { resources: {} } },
+  {
+    capabilities: {
+      resources: {},
+      // SEP-2640 §Capability Declaration
+      extensions: { [SKILLS_EXTENSION]: {} },
+    },
+  },
 );
 
 const skillsDir = "./skills";
 const skillMap = discoverSkills(skillsDir);
-const handles = registerSkillResources(server, skillMap, skillsDir);
+registerSkillResources(server, skillMap, skillsDir);
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
+await server.connect(new StdioServerTransport());
 ```
 
-### Client: List and summarize skills
+### Client: discover and read
 
 ```typescript
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
-  listSkillResources,
+  listSkills,
+  readSkillContent,
+  readSkillDocument,
   buildSkillsSummary,
-  generateSkillsXMLFromSummaries,
 } from "@modelcontextprotocol/ext-skills/client";
 
-// After connecting to a skills server...
-const skills = await listSkillResources(client);
+// Reads skill://index.json when available; falls back to resources/list.
+const skills = await listSkills(client);
 console.log(buildSkillsSummary(skills));
 
-// Or generate XML for system prompt injection:
-const xml = generateSkillsXMLFromSummaries(skills);
+const content = await readSkillContent(client, "acme/billing/refunds");
+const doc = await readSkillDocument(
+  client,
+  "acme/billing/refunds",
+  "templates/email.md",
+);
 ```
 
-## API
-
-### Types
-
-- `SkillMetadata` — Full server-side skill metadata (name, description, path, documents, manifest)
-- `SkillSummary` — Lightweight client-side type: `{ name, uri, description?, mimeType? }`
-- `SkillDocument` — Supplementary file entry (path, mimeType, size, hash)
-- `SkillManifest` / `ManifestFileEntry` — File inventory with SHA256 hashes
-- `RegisterSkillResourcesOptions` — Options for `registerSkillResources()`
-- `SkillResourceHandles` — Return type mapping skill names to resource handles
-
-### URI Utilities
-
-```typescript
-import { parseSkillUri, buildSkillUri, isSkillContentUri, isSkillManifestUri } from "@modelcontextprotocol/ext-skills";
-
-parseSkillUri("skill://code-review/SKILL.md");
-// → { name: "code-review", path: "SKILL.md" }
-
-buildSkillUri("code-review");
-// → "skill://code-review/SKILL.md"
-
-buildSkillUri("code-review", "_manifest");
-// → "skill://code-review/_manifest"
-
-isSkillContentUri("skill://code-review/SKILL.md"); // true
-isSkillManifestUri("skill://code-review/_manifest"); // true
-```
-
-### MIME Utilities
-
-```typescript
-import { getMimeType, isTextMimeType } from "@modelcontextprotocol/ext-skills";
-
-getMimeType("doc.md");     // "text/markdown"
-getMimeType("image.png");  // "image/png"
-isTextMimeType("text/markdown");      // true
-isTextMimeType("application/json");   // true
-isTextMimeType("image/png");          // false
-```
-
-### XML Generation
-
-```typescript
-import { generateSkillsXML } from "@modelcontextprotocol/ext-skills/server";
-import { generateSkillsXMLFromSummaries } from "@modelcontextprotocol/ext-skills/client";
-
-// Server-side: from SkillMetadata map
-const xml = generateSkillsXML(skillMap);
-
-// Client-side: from SkillSummary array
-const xml = generateSkillsXMLFromSummaries(skills);
-```
-
-### Server
-
-```typescript
-import { discoverSkills, registerSkillResources } from "@modelcontextprotocol/ext-skills/server";
-
-// Discover all skills in a directory
-const skillMap = discoverSkills("./skills");
-
-// Register resources on an McpServer
-const handles = registerSkillResources(server, skillMap, "./skills", {
-  template: true,   // Register resource template for supporting files (default: true)
-  promptXml: false,  // Register skill://prompt-xml resource (default: false)
-});
-```
-
-### Client
+## Server API
 
 ```typescript
 import {
-  READ_RESOURCE_TOOL,
-  listSkillResources,
-  readSkillContent,
-  readSkillManifest,
-  readSkillDocument,
-  parseSkillFrontmatter,
-  buildSkillsSummary,
-} from "@modelcontextprotocol/ext-skills/client";
-
-// List all skills from an MCP client (handles pagination)
-const skills = await listSkillResources(client);
-
-// Parse frontmatter from skill content (no yaml dependency needed)
-const meta = parseSkillFrontmatter(content);
-// → { name: "code-review", description: "Review code" }
-
-// Build plain-text summary for context injection
-const summary = buildSkillsSummary(skills);
-
-// Read skill content, manifest, and supporting files
-const skillContent = await readSkillContent(client, "code-review");
-const manifest = await readSkillManifest(client, "code-review");
-const doc = await readSkillDocument(client, "code-review", "references/REFERENCE.md");
+  discoverSkills,
+  registerSkillResources,
+  registerSkillArchive,
+  registerSkillTemplate,
+  generateSkillIndex,
+  packSkillTarGz,
+  SKILL_INDEX_SCHEMA,
+  SKILL_META_PREFIX,
+  SKILLS_EXTENSION,
+} from "@modelcontextprotocol/ext-skills/server";
 ```
 
-### Tool Schema
+### `discoverSkills(skillsDir)`
 
-The SDK exports a `READ_RESOURCE_TOOL` constant — an MCP `Tool` definition matching the pattern used by Claude Code's built-in `read_resource` tool: `(uri, server_name)`.
+Walks `skillsDir` recursively and treats any directory containing `SKILL.md` (case-insensitively) as a skill. Per SEP-2640, skills do not nest: once a `SKILL.md` is found, recursion stops at that subtree. The skill's `skillPath` is the directory's path relative to `skillsDir` (using `/` separators).
 
-Some clients provide this tool natively. For other clients, register the schema and wire the handler to route calls to the appropriate MCP Client:
+Validates that the final path segment matches the frontmatter `name`. Skills that fail this check are skipped with a warning.
+
+Returns `Map<skillPath, SkillMetadata>`.
+
+### `registerSkillResources(server, skillMap, skillsDir, options?)`
+
+For each skill, registers:
+
+- `skill://<skillPath>/SKILL.md` — exact resource. Frontmatter `name` and `description` are mapped to the resource's `name` and `description`. Extra string-valued frontmatter fields are exposed via `_meta` keyed under `io.modelcontextprotocol.skills/`.
+- `skill://<skillPath>/{+filePath}` — per-skill resource template for supporting files. Disable with `{ templates: false }`.
+
+Also registers `skill://index.json` (per SEP-2640 §Discovery) listing every discovered skill as a `type: "skill-md"` entry. Disable with `{ index: false }`. Override the index `$schema` URL with `{ indexSchema }`.
+
+### `generateSkillIndex(skillMap, options?)`
+
+Returns the `SkillIndex` object (untyped JSON-ready) for serving at `skill://index.json`. Useful when you want to merge in additional entries (`type: "archive"` or `type: "mcp-resource-template"`).
 
 ```typescript
-import { READ_RESOURCE_TOOL } from "@modelcontextprotocol/ext-skills/client";
-
-// Register with your AI provider (pseudocode)
-registerTool(READ_RESOURCE_TOOL, async (params) => {
-  const client = getClientForServer(params.server_name);
-  return client.readResource({ uri: params.uri });
+const index = generateSkillIndex(skillMap, {
+  extraEntries: [
+    {
+      type: "mcp-resource-template",
+      description: "Per-product documentation skill",
+      url: "skill://docs/{product}/SKILL.md",
+    },
+  ],
 });
 ```
 
-See [PR #53](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/53) for the URI scheme discussion and rationale.
+### `registerSkillArchive(server, skill, skillsDir, options?)`
 
-## URI Scheme
+Registers `skill://<skillPath>.tar.gz` as an exact resource that returns a gzip-compressed POSIX USTAR tar of the skill directory. Returns `{ uri, entry, handle }` — pass `entry` through `registerSkillResources({ extraIndexEntries })` so the archive shows up in the discovery index.
 
-| Pattern | Description |
-|---------|-------------|
-| `skill://{name}/SKILL.md` | Skill content (listed resource) |
-| `skill://{name}/_manifest` | File manifest with SHA256 hashes (listed resource) |
-| `skill://{name}/{+path}` | Supporting file (resource template) |
-| `skill://prompt-xml` | XML for system prompt injection (optional) |
+```typescript
+const archives = [];
+registerSkillResources(server, skillMap, skillsDir, {
+  extraIndexEntries: () => archives,
+});
+for (const skill of skillMap.values()) {
+  archives.push(registerSkillArchive(server, skill, skillsDir).entry);
+}
+```
 
-## Future Work (TODO)
+Currently emits `tar.gz` only. SEP-2640 hosts must support `.zip` as well, but server-side a single format is sufficient.
 
-- Subscription manager for resource change notifications
-- File watcher for dynamic skill hot-reload
-- Caching layer for skill content
-- Multi-server skill aggregation
-- Hash verification on client side
-- Extended frontmatter metadata fields beyond name/description
+Limitation: file paths within a skill must be ≤ 100 bytes (USTAR `name` field). Skills with long internal paths need a more complete tar library.
+
+### `registerSkillTemplate(server, options)`
+
+Registers an MCP resource template for parameterized skill namespaces (SEP-2640 §Discovery). The same URI template is also added to `skill://index.json` as an `mcp-resource-template` entry — this is what makes the namespace discoverable.
+
+```typescript
+const templates = [];
+registerSkillResources(server, skillMap, skillsDir, {
+  extraIndexEntries: () => templates,
+});
+
+templates.push(
+  registerSkillTemplate(server, {
+    description: "Per-product documentation skill",
+    uriTemplate: "skill://docs/{product}/SKILL.md",
+    resolve: async ({ variables }) => {
+      const product = String(variables.product);
+      return {
+        contents: [
+          {
+            uri: `skill://docs/${product}/SKILL.md`,
+            mimeType: "text/markdown",
+            text: await fetchSkillMarkdown(product),
+          },
+        ],
+      };
+    },
+    complete: {
+      product: (value) => listAvailableProducts().filter((p) => p.startsWith(value)),
+    },
+  }).entry,
+);
+```
+
+### `packSkillTarGz(skill, skillsDir)`
+
+Lower-level helper that returns a `Buffer` containing the gzipped tar of a skill directory. Use directly when you want to pre-generate or cache archives instead of regenerating on each read.
+
+## Client API
+
+```typescript
+import {
+  listSkills,
+  readSkillIndex,
+  readSkillContent,
+  readSkillDocument,
+  parseSkillFrontmatter,
+  buildSkillsSummary,
+  generateSkillsXMLFromSummaries,
+  READ_RESOURCE_TOOL,
+} from "@modelcontextprotocol/ext-skills/client";
+```
+
+### `listSkills(client)`
+
+SEP-2640 §Discovery. Tries `skill://index.json` first; falls back to filtering `resources/list` for `skill://<path>/SKILL.md` URIs. Returns `SkillSummary[]`.
+
+### `readSkillContent(client, skillPath)` / `readSkillDocument(client, skillPath, filePath)`
+
+Thin wrappers over `client.readResource` with the right URI shape.
+
+### `READ_RESOURCE_TOOL`
+
+An MCP `Tool` schema for hosts that need to expose `read_resource` to the model — `(uri, server_name)` pattern. Some hosts (e.g. Claude Code) provide this natively.
+
+## Shared utilities
+
+```typescript
+import {
+  parseSkillContentUri,
+  buildSkillUri,
+  buildSkillContentUri,
+  extractSkillName,
+  isSkillContentUri,
+  isSkillIndexUri,
+  getMimeType,
+  isTextMimeType,
+} from "@modelcontextprotocol/ext-skills";
+
+parseSkillContentUri("skill://acme/billing/refunds/SKILL.md");
+// → { skillPath: "acme/billing/refunds", name: "refunds" }
+
+buildSkillUri("acme/billing/refunds", "templates/email.md");
+// → "skill://acme/billing/refunds/templates/email.md"
+
+extractSkillName("acme/billing/refunds");  // → "refunds"
+```
+
+## Future work
+
+- Zip archive distribution (`.zip`) — currently only `.tar.gz` is supported server-side
+- Resource subscription helpers
+- Hot-reload utilities for skill directories
+- Long-path support in the tar packer (PAX or GNU `LongLink` extensions)
 
 ## License
 

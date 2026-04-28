@@ -48,37 +48,25 @@ export function createSkillDirectoryWatcher(
 
   /**
    * Determine whether a filesystem event is relevant to skill discovery.
-   * We care about:
-   *  - Directories added/removed directly under skillsDir
-   *  - SKILL.md files added/removed one level deep
+   * Skills may be nested at any depth (SEP-2640 §Resource Mapping), so we
+   * react to any directory add/remove or any SKILL.md add/remove anywhere
+   * under skillsDir.
    */
   function isRelevantEvent(eventPath: string, eventType: string): boolean {
     const normalized = eventPath.replace(/\\/g, "/");
     const base = skillsDir.replace(/\\/g, "/");
-    const relative = normalized.startsWith(base + "/")
-      ? normalized.slice(base.length + 1)
-      : null;
+    if (!normalized.startsWith(base + "/")) return false;
 
-    if (!relative) return false;
-
-    const segments = relative.split("/");
-
-    // Direct subdirectory added/removed: "my-skill"
-    if (segments.length === 1 && (eventType === "addDir" || eventType === "unlinkDir")) {
+    if (eventType === "addDir" || eventType === "unlinkDir") {
       return true;
     }
 
-    // SKILL.md added/removed inside a direct subdirectory: "my-skill/SKILL.md"
-    if (segments.length === 2 && SKILL_FILE_NAMES.has(segments[1])) {
-      return true;
-    }
-
-    return false;
+    const fileName = path.basename(normalized);
+    return SKILL_FILE_NAMES.has(fileName);
   }
 
   const watcher = watch(skillsDir, {
     ignoreInitial: true,
-    depth: 1,
   });
 
   watcher.on("addDir", (p) => {

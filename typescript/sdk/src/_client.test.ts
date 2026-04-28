@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
+  listSkills,
   listSkillResources,
   parseSkillFrontmatter,
   buildSkillsSummary,
@@ -14,8 +15,7 @@ description: Perform structured code reviews
 ---
 # Code Review Skill
 `;
-    const result = parseSkillFrontmatter(content);
-    expect(result).toEqual({
+    expect(parseSkillFrontmatter(content)).toEqual({
       name: "code-review",
       description: "Perform structured code reviews",
     });
@@ -28,8 +28,7 @@ description: 'A skill with quotes'
 ---
 Body
 `;
-    const result = parseSkillFrontmatter(content);
-    expect(result).toEqual({
+    expect(parseSkillFrontmatter(content)).toEqual({
       name: "my-skill",
       description: "A skill with quotes",
     });
@@ -41,8 +40,7 @@ name: minimal-skill
 ---
 Body
 `;
-    const result = parseSkillFrontmatter(content);
-    expect(result).toEqual({
+    expect(parseSkillFrontmatter(content)).toEqual({
       name: "minimal-skill",
       description: "",
     });
@@ -65,7 +63,7 @@ Body
     expect(parseSkillFrontmatter(content)).toBeNull();
   });
 
-  it("handles additional frontmatter fields", () => {
+  it("ignores additional frontmatter fields", () => {
     const content = `---
 name: extended
 description: Extended skill
@@ -74,8 +72,7 @@ author: Test
 ---
 Body
 `;
-    const result = parseSkillFrontmatter(content);
-    expect(result).toEqual({
+    expect(parseSkillFrontmatter(content)).toEqual({
       name: "extended",
       description: "Extended skill",
     });
@@ -90,14 +87,16 @@ describe("buildSkillsSummary", () => {
   it("builds summary with descriptions", () => {
     const skills: SkillSummary[] = [
       {
+        skillPath: "code-review",
         name: "code-review",
         uri: "skill://code-review/SKILL.md",
         description: "Review code",
       },
       {
-        name: "test-writer",
-        uri: "skill://test-writer/SKILL.md",
-        description: "Write tests",
+        skillPath: "acme/billing/refunds",
+        name: "refunds",
+        uri: "skill://acme/billing/refunds/SKILL.md",
+        description: "Process refunds",
       },
     ];
 
@@ -107,24 +106,117 @@ describe("buildSkillsSummary", () => {
       "- code-review (skill://code-review/SKILL.md): Review code",
     );
     expect(result).toContain(
-      "- test-writer (skill://test-writer/SKILL.md): Write tests",
+      "- refunds (skill://acme/billing/refunds/SKILL.md): Process refunds",
     );
   });
 
   it("builds summary without descriptions", () => {
     const skills: SkillSummary[] = [
-      { name: "basic", uri: "skill://basic/SKILL.md" },
+      {
+        skillPath: "basic",
+        name: "basic",
+        uri: "skill://basic/SKILL.md",
+      },
     ];
-
     const result = buildSkillsSummary(skills);
     const lines = result.split("\n");
-    // The skill line should NOT end with ": description" — just the URI
     expect(lines[1]).toBe("- basic (skill://basic/SKILL.md)");
   });
 });
 
-describe("listSkillResources", () => {
-  it("lists skill resources from a mock client", async () => {
+describe("listSkills", () => {
+  it("reads skill://index.json and returns skill-md entries", async () => {
+    const indexJson = {
+      $schema: "https://schemas.agentskills.io/discovery/0.2.0/schema.json",
+      skills: [
+        {
+          type: "skill-md",
+          name: "code-review",
+          description: "Review code",
+          url: "skill://code-review/SKILL.md",
+        },
+        {
+          type: "skill-md",
+          name: "refunds",
+          description: "Process refunds",
+          url: "skill://acme/billing/refunds/SKILL.md",
+        },
+        {
+          type: "mcp-resource-template",
+          description: "Per-product docs",
+          url: "skill://docs/{product}/SKILL.md",
+        },
+      ],
+    };
+
+    const mockClient = {
+      readResource: vi.fn().mockResolvedValue({
+        contents: [
+          {
+            uri: "skill://index.json",
+            mimeType: "application/json",
+            text: JSON.stringify(indexJson),
+          },
+        ],
+      }),
+      listResources: vi.fn(),
+    };
+
+    const skills = await listSkills(
+      mockClient as unknown as Parameters<typeof listSkills>[0],
+    );
+
+    expect(skills).toHaveLength(2);
+    expect(skills[0]).toMatchObject({
+      skillPath: "code-review",
+      name: "code-review",
+      uri: "skill://code-review/SKILL.md",
+      description: "Review code",
+    });
+    expect(skills[1]).toMatchObject({
+      skillPath: "acme/billing/refunds",
+      name: "refunds",
+      uri: "skill://acme/billing/refunds/SKILL.md",
+      description: "Process refunds",
+    });
+    expect(mockClient.listResources).not.toHaveBeenCalled();
+  });
+
+  it("falls back to resources/list when index is unavailable", async () => {
+    const mockClient = {
+      readResource: vi.fn().mockRejectedValue(new Error("not found")),
+      listResources: vi.fn().mockResolvedValue({
+        resources: [
+          {
+            uri: "skill://code-review/SKILL.md",
+            name: "code-review",
+            description: "Review code",
+            mimeType: "text/markdown",
+          },
+          {
+            uri: "https://example.com/other",
+            name: "not-a-skill",
+          },
+        ],
+      }),
+    };
+
+    const skills = await listSkills(
+      mockClient as unknown as Parameters<typeof listSkills>[0],
+    );
+
+    expect(skills).toHaveLength(1);
+    expect(skills[0]).toMatchObject({
+      skillPath: "code-review",
+      name: "code-review",
+      uri: "skill://code-review/SKILL.md",
+    });
+    expect(mockClient.listResources).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("listSkillResources (fallback)", () => {
+  it("filters resources/list for SKILL.md URIs", async () => {
     const mockClient = {
       listResources: vi.fn().mockResolvedValue({
         resources: [
@@ -135,18 +227,17 @@ describe("listSkillResources", () => {
             mimeType: "text/markdown",
           },
           {
-            uri: "skill://code-review/_manifest",
-            name: "code-review-manifest",
-            mimeType: "application/json",
+            uri: "skill://acme/billing/refunds/SKILL.md",
+            name: "refunds",
+            description: "Process refunds",
           },
           {
-            uri: "skill://test-writer/SKILL.md",
-            name: "test-writer",
-            description: "Write tests",
+            uri: "skill://code-review/refs/doc.md",
+            name: "doc",
           },
           {
-            uri: "https://example.com/other",
-            name: "not-a-skill",
+            uri: "skill://index.json",
+            name: "index",
           },
         ],
       }),
@@ -157,18 +248,10 @@ describe("listSkillResources", () => {
     );
 
     expect(skills).toHaveLength(2);
-    expect(skills[0]).toEqual({
-      name: "code-review",
-      uri: "skill://code-review/SKILL.md",
-      description: "Review code",
-      mimeType: "text/markdown",
-    });
-    expect(skills[1]).toEqual({
-      name: "test-writer",
-      uri: "skill://test-writer/SKILL.md",
-      description: "Write tests",
-      mimeType: undefined,
-    });
+    expect(skills.map((s) => s.skillPath).sort()).toEqual([
+      "acme/billing/refunds",
+      "code-review",
+    ]);
   });
 
   it("handles pagination", async () => {
@@ -176,21 +259,11 @@ describe("listSkillResources", () => {
       listResources: vi
         .fn()
         .mockResolvedValueOnce({
-          resources: [
-            {
-              uri: "skill://skill-a/SKILL.md",
-              name: "skill-a",
-            },
-          ],
+          resources: [{ uri: "skill://skill-a/SKILL.md", name: "skill-a" }],
           nextCursor: "page2",
         })
         .mockResolvedValueOnce({
-          resources: [
-            {
-              uri: "skill://skill-b/SKILL.md",
-              name: "skill-b",
-            },
-          ],
+          resources: [{ uri: "skill://skill-b/SKILL.md", name: "skill-b" }],
         }),
     };
 
@@ -199,25 +272,9 @@ describe("listSkillResources", () => {
     );
 
     expect(skills).toHaveLength(2);
-    expect(skills[0].name).toBe("skill-a");
-    expect(skills[1].name).toBe("skill-b");
+    expect(skills[0].skillPath).toBe("skill-a");
+    expect(skills[1].skillPath).toBe("skill-b");
     expect(mockClient.listResources).toHaveBeenCalledTimes(2);
     expect(mockClient.listResources).toHaveBeenCalledWith({ cursor: "page2" });
-  });
-
-  it("returns empty array when no skills found", async () => {
-    const mockClient = {
-      listResources: vi.fn().mockResolvedValue({
-        resources: [
-          { uri: "https://example.com/other", name: "not-a-skill" },
-        ],
-      }),
-    };
-
-    const skills = await listSkillResources(
-      mockClient as unknown as Parameters<typeof listSkillResources>[0],
-    );
-
-    expect(skills).toHaveLength(0);
   });
 });

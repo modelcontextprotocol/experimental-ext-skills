@@ -1,15 +1,15 @@
 /**
- * XML generation utilities for system prompt injection.
+ * Helpers for system prompt injection.
  *
- * Provides functions to generate <available_skills> XML from both
- * server-side SkillMetadata maps and client-side SkillSummary arrays.
+ * SEP-2640 hosts inject available skill metadata into the model's context so
+ * the model can decide when to load a skill via `read_resource`. These helpers
+ * generate an `<available_skills>` XML block from server-side or client-side
+ * skill data.
  */
 
 import type { SkillMetadata, SkillSummary } from "./types.js";
+import { buildSkillContentUri } from "./uri.js";
 
-/**
- * Escape XML special characters.
- */
 export function escapeXml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -20,18 +20,7 @@ export function escapeXml(text: string): string {
 }
 
 /**
- * Generate <available_skills> XML from a server-side skill map.
- *
- * Format:
- * ```xml
- * <available_skills>
- *   <skill>
- *     <name>code-review</name>
- *     <description>Perform structured code reviews...</description>
- *     <uri>skill://code-review/SKILL.md</uri>
- *   </skill>
- * </available_skills>
- * ```
+ * Generate `<available_skills>` XML from a server-side skill map.
  */
 export function generateSkillsXML(
   skillMap: Map<string, SkillMetadata>,
@@ -44,7 +33,9 @@ export function generateSkillsXML(
     lines.push(
       `    <description>${escapeXml(skill.description)}</description>`,
     );
-    lines.push(`    <uri>skill://${escapeXml(skill.name)}/SKILL.md</uri>`);
+    lines.push(
+      `    <uri>${escapeXml(buildSkillContentUri(skill.skillPath))}</uri>`,
+    );
     lines.push("  </skill>");
   }
 
@@ -53,10 +44,7 @@ export function generateSkillsXML(
 }
 
 /**
- * Generate <available_skills> XML from client-side SkillSummary array.
- *
- * Same format as generateSkillsXML but works with the lightweight
- * SkillSummary type used on the client side.
+ * Generate `<available_skills>` XML from client-side SkillSummary array.
  */
 export function generateSkillsXMLFromSummaries(
   skills: SkillSummary[],

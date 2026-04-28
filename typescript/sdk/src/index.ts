@@ -1,36 +1,48 @@
 /**
  * @modelcontextprotocol/ext-skills
  *
- * SDK for the Skills as Resources MCP extension pattern.
+ * SDK for the Skills Extension (SEP-2640) — exposing Agent Skills via MCP
+ * resources under the `skill://` URI scheme.
  *
  * Entry points:
- *   - "@modelcontextprotocol/ext-skills"          — Shared types, URI, and MIME utilities
- *   - "@modelcontextprotocol/ext-skills/server"    — Server-side discovery and registration
- *   - "@modelcontextprotocol/ext-skills/client"    — Client-side reading, tool schema, and summaries
+ *   - "@modelcontextprotocol/ext-skills"          — Shared types & URI utilities
+ *   - "@modelcontextprotocol/ext-skills/server"   — Discovery & resource registration
+ *   - "@modelcontextprotocol/ext-skills/client"   — Discovery & reading helpers
  *
  * @license Apache-2.0
  */
 
-// Types
 export type {
-  ManifestFileEntry,
-  SkillManifest,
   SkillDocument,
   SkillMetadata,
   SkillSummary,
+  SkillIndex,
+  SkillIndexEntry,
+  SkillMdIndexEntry,
+  ArchiveIndexEntry,
+  ResourceTemplateIndexEntry,
   RegisterSkillResourcesOptions,
+  RegisterSkillArchiveOptions,
+  RegisterSkillArchiveResult,
+  RegisterSkillTemplateOptions,
+  RegisterSkillTemplateResult,
+  SkillTemplateContext,
+  SkillTemplateContent,
   SkillResourceHandles,
 } from "./types.js";
 
-// URI utilities
 export {
+  SKILL_SCHEME,
   SKILL_FILENAME,
-  MANIFEST_PATH,
-  parseSkillUri,
+  SKILL_INDEX_URI,
+  parseSkillContentUri,
   buildSkillUri,
+  buildSkillContentUri,
+  extractSkillName,
   isSkillContentUri,
-  isSkillManifestUri,
+  isSkillIndexUri,
 } from "./uri.js";
 
-// MIME utilities
+export type { ParsedSkillContentUri } from "./uri.js";
+
 export { getMimeType, isTextMimeType } from "./mime.js";

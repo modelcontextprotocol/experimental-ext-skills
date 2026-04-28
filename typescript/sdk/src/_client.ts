@@ -1,55 +1,38 @@
 /**
- * Client-side utilities for discovering, reading, and summarizing skills
- * exposed as MCP resources by a skills server.
+ * Client-side helpers for SEP-2640.
  *
- * Each MCP Client instance is inherently server-scoped — it represents a
- * connection to a single MCP server. This is the architectural basis for
- * excluding server names from skill:// URIs: disambiguation happens at
- * the call site, not in the URI. Claude Code's built-in read_resource
- * tool follows this pattern with (uri, server_name) parameters, routing
- * each call to the correct Client instance.
- *
- * See: https://github.com/modelcontextprotocol/experimental-ext-skills/pull/53
+ * Each MCP Client is server-scoped — it represents a connection to a single
+ * server. Skill URIs are not prefixed with a server name; disambiguation
+ * happens at the call site by routing to the correct Client.
  */
 
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
-import type { SkillManifest, SkillSummary } from "./types.js";
-import { buildSkillUri, MANIFEST_PATH, parseSkillUri, SKILL_FILENAME } from "./uri.js";
+import type { SkillIndex, SkillSummary } from "./types.js";
+import {
+  buildSkillContentUri,
+  buildSkillUri,
+  parseSkillContentUri,
+  SKILL_INDEX_URI,
+} from "./uri.js";
 
 /**
  * MCP Tool definition for a generic read_resource tool.
  *
- * The model calls read_resource(uri, server_name) and the host routes
- * to the correct MCP Client instance based on server_name.
- *
- * Clients should register this tool with their AI provider and wire the
- * handler to route calls to the appropriate Client's readResource() method.
- *
- * Example wiring (pseudocode):
- * ```typescript
- * registerTool(READ_RESOURCE_TOOL, async (params) => {
- *   const client = getClientForServer(params.server_name);
- *   return client.readResource({ uri: params.uri });
- * });
- * ```
- *
- * Note: Some clients this tool natively — this schema is for
- * other clients that need to expose read_resource to the model.
- *
- * See: https://github.com/modelcontextprotocol/experimental-ext-skills/pull/53
+ * The model calls read_resource(uri, server_name); the host routes
+ * to the correct MCP Client based on server_name.
  */
 export const READ_RESOURCE_TOOL: Tool = {
   name: "read_resource",
   description:
     "Read a resource from an MCP server by its URI. " +
-    "Use this to load skill content, manifests, and supporting files.",
+    "Use this to load skill content and supporting files.",
   inputSchema: {
     type: "object",
     properties: {
       uri: {
         type: "string",
-        description: "The resource URI (e.g., skill://code-review/SKILL.md)",
+        description: "The resource URI (e.g., skill://git-workflow/SKILL.md)",
       },
       server_name: {
         type: "string",
@@ -65,12 +48,57 @@ export const READ_RESOURCE_TOOL: Tool = {
   },
 };
 
+/* -------------------- discovery -------------------- */
+
 /**
- * List all skill resources available from an MCP client.
+ * Read `skill://index.json` if available.
+ * Returns null when the resource is not served (server doesn't expose an index).
+ */
+export async function readSkillIndex(
+  client: Client,
+): Promise<SkillIndex | null> {
+  try {
+    const result = await client.readResource({ uri: SKILL_INDEX_URI });
+    const content = result.contents[0];
+    if (content && "text" in content) {
+      return JSON.parse(content.text) as SkillIndex;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Discover skills served by an MCP server.
  *
- * Calls resources/list, filters for skill://{name}/SKILL.md URIs,
- * and returns lightweight SkillSummary objects. Handles pagination
- * automatically if the server returns a nextCursor.
+ * Tries `skill://index.json` first (SEP-2640 §Discovery). Falls back to
+ * `resources/list` filtering when the index is absent.
+ */
+export async function listSkills(client: Client): Promise<SkillSummary[]> {
+  const index = await readSkillIndex(client);
+  if (index?.skills) {
+    const summaries: SkillSummary[] = [];
+    for (const entry of index.skills) {
+      if (entry.type !== "skill-md") continue;
+      const parsed = parseSkillContentUri(entry.url);
+      if (!parsed) continue;
+      summaries.push({
+        skillPath: parsed.skillPath,
+        name: entry.name,
+        uri: entry.url,
+        description: entry.description,
+        mimeType: "text/markdown",
+      });
+    }
+    return summaries;
+  }
+  return listSkillResources(client);
+}
+
+/**
+ * Fallback discovery: list all resources and filter for skill SKILL.md URIs.
+ * Handles pagination automatically.
  */
 export async function listSkillResources(
   client: Client,
@@ -84,10 +112,10 @@ export async function listSkillResources(
     );
 
     for (const resource of result.resources) {
-      const parsed = parseSkillUri(resource.uri);
-      if (!parsed || parsed.path !== SKILL_FILENAME) continue;
-
+      const parsed = parseSkillContentUri(resource.uri);
+      if (!parsed) continue;
       skills.push({
+        skillPath: parsed.skillPath,
         name: parsed.name,
         uri: resource.uri,
         description: resource.description,
@@ -101,13 +129,11 @@ export async function listSkillResources(
   return skills;
 }
 
+/* -------------------- frontmatter parsing -------------------- */
+
 /**
- * Parse name and description from SKILL.md YAML frontmatter content.
- *
- * Uses a simple regex approach — no yaml dependency required on the client side.
- * Handles the common case of `name: value` and `description: value` in frontmatter.
- *
- * Returns null if the content doesn't contain valid frontmatter.
+ * Parse `name` and `description` from SKILL.md YAML frontmatter.
+ * Returns null when the content has no closed frontmatter or no `name` field.
  */
 export function parseSkillFrontmatter(
   content: string,
@@ -132,16 +158,9 @@ export function parseSkillFrontmatter(
   return { name, description };
 }
 
-/**
- * Build a plain-text summary of available skills for context injection.
- *
- * Format:
- * ```
- * Available skills:
- * - code-review (skill://code-review/SKILL.md): Perform structured code reviews
- * - test-writer (skill://test-writer/SKILL.md): Generate unit tests
- * ```
- */
+/* -------------------- summary helpers -------------------- */
+
+/** Build a plain-text summary of available skills for context injection. */
 export function buildSkillsSummary(skills: SkillSummary[]): string {
   if (skills.length === 0) return "No skills available.";
 
@@ -153,53 +172,27 @@ export function buildSkillsSummary(skills: SkillSummary[]): string {
   return lines.join("\n");
 }
 
-/**
- * Read a skill's SKILL.md content from an MCP server.
- *
- * Constructs the skill:// URI and calls client.readResource().
- * Returns the full SKILL.md text including YAML frontmatter.
- */
+/* -------------------- read helpers -------------------- */
+
+/** Read a skill's SKILL.md content given its skill path. */
 export async function readSkillContent(
   client: Client,
-  skillName: string,
+  skillPath: string,
 ): Promise<string> {
-  const uri = buildSkillUri(skillName);
+  const uri = buildSkillContentUri(skillPath);
   const result = await client.readResource({ uri });
   const content = result.contents[0];
   if (content && "text" in content) return content.text;
   throw new Error(`Expected text content for ${uri}`);
 }
 
-/**
- * Read a skill's file manifest from an MCP server.
- *
- * Returns the parsed SkillManifest with file paths, sizes, and SHA256 hashes.
- * Useful for discovering supporting files and verifying content integrity.
- */
-export async function readSkillManifest(
-  client: Client,
-  skillName: string,
-): Promise<SkillManifest> {
-  const uri = buildSkillUri(skillName, MANIFEST_PATH);
-  const result = await client.readResource({ uri });
-  const content = result.contents[0];
-  if (content && "text" in content)
-    return JSON.parse(content.text) as SkillManifest;
-  throw new Error(`Expected JSON content for ${uri}`);
-}
-
-/**
- * Read a supporting file from a skill directory.
- *
- * The documentPath is relative to the skill root (e.g., "references/REFERENCE.md").
- * Returns text content for text MIME types and base64-encoded blob for binary files.
- */
+/** Read a supporting file from a skill directory (text or base64 blob). */
 export async function readSkillDocument(
   client: Client,
-  skillName: string,
-  documentPath: string,
+  skillPath: string,
+  filePath: string,
 ): Promise<{ text?: string; blob?: string; mimeType?: string }> {
-  const uri = buildSkillUri(skillName, documentPath);
+  const uri = buildSkillUri(skillPath, filePath);
   const result = await client.readResource({ uri });
   const content = result.contents[0];
   if (!content) throw new Error(`No content returned for ${uri}`);
