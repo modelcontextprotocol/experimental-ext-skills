@@ -35,7 +35,8 @@ See [problem-statement.md](docs/problem-statement.md) for full details.
 | [Use Cases](docs/use-cases.md) | Key use cases driving this work |
 | [Approaches](docs/approaches.md) | Approaches being explored (not mutually exclusive) |
 | [Open Questions](docs/open-questions.md) | Unresolved questions with community input |
-| [Experimental Findings](docs/experimental-findings.md) | Results from implementations and testing |
+| [Cross-Client Scenarios](docs/findings/scenarios/index.md) | Scenarios and findings with forked versions of open-source clients and servers demonstrating skills as resources. |
+| [Experimental Findings](docs/experimental-findings.md) | Findings from external implementations + cross-cutting community observations |
 | [Related Work](docs/related-work.md) | SEPs, implementations, and external resources |
 | [Decision Log](docs/decisions.md) | Record of key decisions with context and rationale |
 

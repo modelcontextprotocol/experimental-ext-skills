@@ -2,6 +2,11 @@
 
 > **Contributing findings?** See [#50](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/50) for the contribution template proposal.
 
+This page collects findings from **external implementations** and
+cross-cutting community observations. For the WG's own cross-client
+scenarios — what each one probes, why a particular MCP server, and
+results per host — see **[findings/scenarios/](findings/scenarios/index.md)**.
+
 ## McpGraph: Skills in MCP Server Repo
 
 **Repo:** [TeamSparkAI/mcpGraph](https://github.com/TeamSparkAI/mcpGraph)
