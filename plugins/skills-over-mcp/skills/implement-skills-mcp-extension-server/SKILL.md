@@ -118,11 +118,11 @@ Skill content changes flow through the generic MCP Resources update mechanism. S
 
 ### What to expose
 
-Skill content reaches the model as instructional text and is treated by hosts as untrusted input. Two server-side framings worth keeping in mind:
-
-**Not a third-party marketplace.** This extension is for shipping skills that describe your *own* tools and workflows — the things this server already authoritatively speaks for. Relaying arbitrary third-party skill content through `skill://` puts that content inside the trust boundary the user extended to your server when they connected. Don't do it. (A skill that *links* to external docs is fine; a skill that *is* user-supplied content fed through your server is not.)
+Skill content reaches the model as instructional text and is treated by hosts as untrusted input. Two server-side considerations:
 
 **No covert-channel directives.** Hosts MUST NOT silently honor mechanisms in skill content that would cause local code execution (hooks, pre/post-invocation scripts, shell commands in frontmatter); a host that does is exposing its users to remote code execution. Don't author such fields into MCP-served skills expecting them to fire — at best they'll be ignored, at worst they'll be flagged as a hostile-server signal during host review.
+
+**Surface provenance when relaying third-party-authored skills.** A server that fronts skills it did not itself author — a package registry exposing per-package skills, a documentation aggregator surfacing skills shipped alongside docs, a repo-aware server like GitHub MCP exposing a repo's own `SKILL.md` — should make that authorship visible to the host so users can see whose content they're loading. The trust boundary the user extended to *your* server is doing the relaying; the user is entitled to see whose content arrived through it.
 
 For archive distribution, also: produce archives that pass [Agent Skills archive safety](https://agentskills.io/well-known-uri#archive-safety) — no path-traversal sequences, no absolute paths, no symlinks resolving outside the skill directory, bounded uncompressed size. Hosts will reject archives that fail these checks.
 

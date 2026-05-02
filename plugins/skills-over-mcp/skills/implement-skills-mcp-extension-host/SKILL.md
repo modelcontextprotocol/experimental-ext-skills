@@ -60,9 +60,7 @@ Skill bodies are model-facing instructional text supplied by a connected server.
 
 **Data, not directives.** Skill content carries no higher authority than other context. Whether to load a skill at all is user policy, not server fiat.
 
-**Provenance and inspection.** Show which server a skill came from when surfacing it to the user. Let users inspect skill content before it is loaded into model context. Per-skill / per-server enable/disable is recommended; loading a skill MAY be gated behind explicit user approval.
-
-**Not a third-party marketplace.** This extension is for servers shipping skills that describe their *own* tools, not for relaying arbitrary third-party content through a connected server. The trust boundary is the connected server.
+**Provenance and inspection.** Show which server a skill came from when surfacing it to the user. If the server signals that a skill was authored by a third party (a package registry surfacing per-package skills, a repo-aware server like GitHub MCP exposing a repo's `SKILL.md`), surface that authorship alongside the originating server so the user can see whose content arrived through whose trust boundary. Let users inspect skill content before it is loaded into model context. Per-skill / per-server enable/disable is recommended; loading a skill MAY be gated behind explicit user approval.
 
 ## Reuse your existing resource-read tool
 
