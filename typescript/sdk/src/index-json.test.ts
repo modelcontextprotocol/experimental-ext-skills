@@ -111,6 +111,7 @@ describe("listSkillsFromIndex", () => {
       name: "code-review",
       skillPath: "code-review",
       uri: "skill://code-review/SKILL.md",
+      type: "skill-md",
       description: "Review code",
       mimeType: "text/markdown",
     });
@@ -118,6 +119,7 @@ describe("listSkillsFromIndex", () => {
       name: "refunds",
       skillPath: "acme/billing/refunds",
       uri: "skill://acme/billing/refunds/SKILL.md",
+      type: "skill-md",
       description: "Refunds",
       mimeType: "text/markdown",
     });
@@ -221,6 +223,195 @@ describe("generateSkillIndex with templates", () => {
     const index = generateSkillIndex(map);
     expect(index.skills).toHaveLength(1);
     expect(index.skills[0].type).toBe("skill-md");
+  });
+
+  it("accepts options object form", () => {
+    const map = makeSkillMap([
+      makeSkill({ name: "a", skillPath: "a", description: "A" }),
+    ]);
+
+    const index = generateSkillIndex(map, {
+      templates: [
+        { name: "docs", description: "D", uriTemplate: "skill://docs/{x}/SKILL.md" },
+      ],
+    });
+
+    expect(index.skills).toHaveLength(2);
+    expect(index.skills[1].type).toBe("mcp-resource-template");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// generateSkillIndex with archive entries (SEP-2640 normative type)
+// ---------------------------------------------------------------------------
+
+describe("generateSkillIndex with archives", () => {
+  it("emits archive entries with correct shape", () => {
+    const index = generateSkillIndex(new Map(), {
+      archives: [
+        {
+          name: "pdf-processing",
+          description: "Extract and assemble PDFs",
+          skillPath: "pdf-processing",
+          archivePath: "/tmp/pdf-processing.tar.gz",
+        },
+      ],
+    });
+
+    expect(index.skills).toHaveLength(1);
+    expect(index.skills[0]).toEqual({
+      name: "pdf-processing",
+      type: "archive",
+      description: "Extract and assemble PDFs",
+      url: "skill://pdf-processing.tar.gz",
+    });
+  });
+
+  it("derives URL suffix from archivePath extension", () => {
+    const index = generateSkillIndex(new Map(), {
+      archives: [
+        { name: "x", description: "X", skillPath: "x", archivePath: "/tmp/x.zip" },
+        { name: "y", description: "Y", skillPath: "y", archivePath: "/tmp/y.tgz" },
+      ],
+    });
+
+    expect(index.skills[0].url).toBe("skill://x.zip");
+    expect(index.skills[1].url).toBe("skill://y.tar.gz");
+  });
+
+  it("respects explicit format override", () => {
+    const index = generateSkillIndex(new Map(), {
+      archives: [
+        {
+          name: "x",
+          description: "X",
+          skillPath: "x",
+          archivePath: "/tmp/x.bundle",
+          format: "zip",
+        },
+      ],
+    });
+
+    expect(index.skills[0].url).toBe("skill://x.zip");
+  });
+
+  it("preserves multi-segment skillPath in URL", () => {
+    const index = generateSkillIndex(new Map(), {
+      archives: [
+        {
+          name: "refunds",
+          description: "Refunds",
+          skillPath: "acme/billing/refunds",
+          archivePath: "/tmp/refunds.tar.gz",
+        },
+      ],
+    });
+
+    expect(index.skills[0].url).toBe("skill://acme/billing/refunds.tar.gz");
+  });
+
+  it("rejects archive whose skillPath final segment != name", () => {
+    expect(() =>
+      generateSkillIndex(new Map(), {
+        archives: [
+          {
+            name: "wrong-name",
+            description: "X",
+            skillPath: "acme/billing/refunds",
+            archivePath: "/tmp/x.tar.gz",
+          },
+        ],
+      }),
+    ).toThrow(/final segment "refunds" does not match name "wrong-name"/);
+  });
+
+  it("emits all three SEP entry types in one index", () => {
+    const map = makeSkillMap([
+      makeSkill({ name: "a", skillPath: "a", description: "A" }),
+    ]);
+
+    const index = generateSkillIndex(map, {
+      archives: [
+        { name: "b", description: "B", skillPath: "b", archivePath: "/tmp/b.tar.gz" },
+      ],
+      templates: [
+        { name: "c", description: "C", uriTemplate: "skill://docs/{x}/SKILL.md" },
+      ],
+    });
+
+    expect(index.skills).toHaveLength(3);
+    expect(index.skills[0].type).toBe("skill-md");
+    expect(index.skills[1].type).toBe("archive");
+    expect(index.skills[2].type).toBe("mcp-resource-template");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listSkillsFromIndex with archive entries
+// ---------------------------------------------------------------------------
+
+describe("listSkillsFromIndex with archives", () => {
+  it("returns archive entries with type set", async () => {
+    const client = mockClientWithIndex({
+      $schema: SKILL_INDEX_SCHEMA,
+      skills: [
+        {
+          name: "pdf-processing",
+          type: "archive",
+          description: "PDFs",
+          url: "skill://pdf-processing.tar.gz",
+        },
+      ],
+    });
+
+    const skills = await listSkillsFromIndex(client);
+    expect(skills).toHaveLength(1);
+    expect(skills![0]).toMatchObject({
+      name: "pdf-processing",
+      skillPath: "pdf-processing",
+      uri: "skill://pdf-processing.tar.gz",
+      type: "archive",
+      description: "PDFs",
+      mimeType: "application/gzip",
+    });
+  });
+
+  it("derives skillPath by stripping archive suffix", async () => {
+    const client = mockClientWithIndex({
+      $schema: SKILL_INDEX_SCHEMA,
+      skills: [
+        {
+          name: "refunds",
+          type: "archive",
+          description: "Refunds",
+          url: "skill://acme/billing/refunds.zip",
+        },
+      ],
+    });
+
+    const skills = await listSkillsFromIndex(client);
+    expect(skills![0].skillPath).toBe("acme/billing/refunds");
+    expect(skills![0].mimeType).toBe("application/zip");
+  });
+
+  it("returns mixed skill-md and archive entries", async () => {
+    const client = mockClientWithIndex({
+      $schema: SKILL_INDEX_SCHEMA,
+      skills: [
+        { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" },
+        {
+          name: "b",
+          type: "archive",
+          description: "B",
+          url: "skill://b.tar.gz",
+        },
+        { type: "mcp-resource-template", description: "T", url: "skill://docs/{x}/SKILL.md" },
+      ],
+    });
+
+    const skills = await listSkillsFromIndex(client);
+    expect(skills).toHaveLength(2); // template excluded; archive included
+    expect(skills!.map((s) => s.type)).toEqual(["skill-md", "archive"]);
   });
 });
 

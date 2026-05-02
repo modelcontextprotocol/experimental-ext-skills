@@ -114,19 +114,39 @@ for (const skill of skillMap.values()) {
 
 ### Resource templates in the index
 
-Servers with parameterized skill namespaces can include `mcp-resource-template` entries in the discovery index:
+Servers with parameterized skill namespaces can include `mcp-resource-template` entries in the discovery index. Pass them to `registerSkillResources()` and they are automatically included in `skill://index.json`:
 
 ```typescript
-import { generateSkillIndex } from "@modelcontextprotocol/experimental-ext-skills/server";
-
-const index = generateSkillIndex(skillMap, [
-  {
-    name: "docs",
-    description: "Product documentation",
-    uriTemplate: "skill://docs/{product}/SKILL.md",
-  },
-]);
+registerSkillResources(server, skillMap, "./skills", {
+  templates: [
+    {
+      name: "docs",
+      description: "Product documentation",
+      uriTemplate: "skill://docs/{product}/SKILL.md",
+    },
+  ],
+});
 ```
+
+### Archive distribution
+
+Per SEP-2640, a skill MAY also be distributed as a single packed resource (`.tar.gz` or `.zip`). Pass declarations to `registerSkillResources()`; the SDK reads each archive at startup, registers it as an MCP resource at `skill://<skillPath>.<format>`, and includes it in `skill://index.json` with `type: "archive"`:
+
+```typescript
+registerSkillResources(server, skillMap, "./skills", {
+  archives: [
+    {
+      name: "pdf-processing",
+      description: "Extract and assemble PDFs",
+      skillPath: "pdf-processing",
+      archivePath: "./archives/pdf-processing.tar.gz",
+      // format inferred from extension; pass "tar.gz" | "zip" to override
+    },
+  ],
+});
+```
+
+The SEP requires that the final segment of `skillPath` equals the skill's frontmatter `name`; the SDK validates this and throws on mismatch.
 
 ## Client usage
 
@@ -160,6 +180,7 @@ import {
   listSkillTemplatesFromIndex,
   readSkillUri,
   readSkillContent,
+  readSkillArchive,
   readSkillManifest,
   readSkillDocument,
   buildSkillsCatalog,
@@ -168,6 +189,7 @@ import {
 } from "@modelcontextprotocol/experimental-ext-skills/client";
 
 // Discover skills (index-first with fallback, always returns an array)
+// Includes both type: "skill-md" and type: "archive" entries.
 const skills = await discoverSkills(client);
 
 // Or use specific discovery mechanisms:
@@ -179,6 +201,10 @@ const content = await readSkillUri(client, skill.uri);
 
 // Or by skill path (convenience, skill:// scheme only)
 const md = await readSkillContent(client, "acme/billing/refunds");
+
+// Fetch + unpack an archive-distributed skill
+const archive = await readSkillArchive(client, "skill://pdf-processing.tar.gz");
+const archiveSkillMd = archive.files.get("SKILL.md")!.toString("utf-8");
 
 // Read file manifest (SHA-256 hashes for each file)
 const manifest = await readSkillManifest(client, "code-review");
@@ -194,6 +220,26 @@ const summary = buildSkillsSummary(skills);
 // Hosts expose this so the model can call read_resource(server, uri)
 console.log(READ_RESOURCE_TOOL);
 ```
+
+### Reading archive-distributed skills
+
+`listSkillsFromIndex()` returns archive entries with `type: "archive"`. Use `readSkillArchive()` to fetch and unpack:
+
+```typescript
+import { readSkillArchive } from "@modelcontextprotocol/experimental-ext-skills/client";
+
+const skills = await listSkillsFromIndex(client) ?? [];
+for (const summary of skills) {
+  if (summary.type === "archive") {
+    const archive = await readSkillArchive(client, summary.uri);
+    const skillMd = archive.files.get("SKILL.md")!.toString("utf-8");
+    // Other files in archive.files keyed by relative path —
+    // identical namespace to skill://<skillPath>/<file-path>
+  }
+}
+```
+
+The host MUST support both `.tar.gz` (`application/gzip`) and `.zip` (`application/zip`); the SDK dispatches on `mimeType` (with URL-suffix fallback). Archive safety is enforced: path traversal, absolute paths, and out-of-tree symlinks are rejected, with bounded total size, per-file size, and entry count to defend against decompression bombs.
 
 ### Scheme-agnostic discovery
 

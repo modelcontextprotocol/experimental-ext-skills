@@ -92,8 +92,24 @@ export interface SkillSummary {
   name: string;
   /** Multi-segment skill path parsed from URI */
   skillPath: string;
-  /** Full skill:// URI for the SKILL.md resource */
+  /**
+   * URI to read this skill from.
+   *
+   * For `type: "skill-md"`: the SKILL.md resource URI — read directly via
+   * `resources/read` to get the markdown content.
+   *
+   * For `type: "archive"`: the archive resource URI (e.g.
+   * `skill://pdf-processing.tar.gz`) — fetch and unpack via
+   * `readSkillArchive()`. The post-unpack SKILL.md lives at
+   * `skill://<skillPath>/SKILL.md`.
+   */
   uri: string;
+  /**
+   * Distribution type, mirroring the index entry type. When omitted (e.g.
+   * skills discovered via `resources/list` without an index), assume
+   * `"skill-md"`.
+   */
+  type?: "skill-md" | "archive";
   /** Skill description (from resource metadata) */
   description?: string;
   /** MIME type of the resource */
@@ -135,11 +151,34 @@ export interface McpResourceTemplateIndexEntry {
 }
 
 /**
+ * An archive entry in the discovery index — a single packed resource
+ * (.tar.gz or .zip) whose contents populate the skill directory.
+ *
+ * Per SEP-2640, `<skill-path>` is the entry `url` with the archive suffix
+ * (`.tar.gz` or `.zip`) stripped: `skill://pdf-processing.tar.gz` unpacks
+ * to `skill://pdf-processing/`. Post-unpack files are addressable as
+ * `skill://<skill-path>/<file-path>` exactly as if served individually.
+ */
+export interface ArchiveIndexEntry {
+  /** Skill name from frontmatter (= final segment of post-unpack skill path) */
+  name: string;
+  /** Entry type discriminator */
+  type: "archive";
+  /** Skill description from frontmatter */
+  description: string;
+  /** Resource URI for the archive (e.g. skill://pdf-processing.tar.gz) */
+  url: string;
+}
+
+/**
  * An entry in the skill://index.json MCP discovery index.
- * Per the SEP, type MUST be "skill-md" or "mcp-resource-template".
+ * Per SEP-2640, type MUST be "skill-md", "archive", or "mcp-resource-template".
  * Use `entry.type` to narrow.
  */
-export type SkillIndexEntry = SkillMdIndexEntry | McpResourceTemplateIndexEntry;
+export type SkillIndexEntry =
+  | SkillMdIndexEntry
+  | ArchiveIndexEntry
+  | McpResourceTemplateIndexEntry;
 
 /**
  * Client-side summary of a discovered resource template.
@@ -164,6 +203,70 @@ export interface SkillTemplateDeclaration {
   description: string;
   /** URI template (e.g., "skill://docs/{product}/SKILL.md") */
   uriTemplate: string;
+}
+
+/**
+ * Archive format. Per SEP-2640, hosts MUST support both. Format determines
+ * the served `mimeType` (`application/gzip` or `application/zip`) and
+ * the URL suffix (`.tar.gz` or `.zip`).
+ */
+export type ArchiveFormat = "tar.gz" | "zip";
+
+/**
+ * Server-side declaration for an archive-distributed skill.
+ * Passed to registerSkillResources() to register the archive as an MCP
+ * resource and include it in skill://index.json.
+ *
+ * The archive is served as a single resource at
+ * `skill://<skillPath>.<format>`. After the host unpacks it, files are
+ * addressable at `skill://<skillPath>/<file-path>` — identical namespace
+ * to individual-file distribution.
+ */
+export interface SkillArchiveDeclaration {
+  /**
+   * Skill name from frontmatter; MUST equal the final segment of `skillPath`
+   * per SEP-2640.
+   */
+  name: string;
+  /** Skill description from frontmatter */
+  description: string;
+  /**
+   * Multi-segment skill path that the archive unpacks to. The final segment
+   * MUST equal `name`.
+   */
+  skillPath: string;
+  /**
+   * Local filesystem path to the prebuilt archive. The SDK reads this once
+   * at registration and serves the bytes on `resources/read`.
+   */
+  archivePath: string;
+  /**
+   * Archive format. Defaults to inference from `archivePath` suffix
+   * (`.tar.gz`/`.tgz` → `tar.gz`, `.zip` → `zip`).
+   */
+  format?: ArchiveFormat;
+}
+
+/**
+ * Result of unpacking a skill archive.
+ * Maps file paths (relative to skill root, forward-slash separated) to
+ * raw byte contents.
+ */
+export interface UnpackedSkillArchive {
+  /** Files in the archive, keyed by relative path. */
+  files: Map<string, Buffer>;
+  /** Total uncompressed bytes across all entries. */
+  totalSize: number;
+}
+
+/** Options for archive extraction. */
+export interface ExtractArchiveOptions {
+  /** Maximum total uncompressed bytes. Default: 50MB. */
+  maxTotalSize?: number;
+  /** Maximum bytes per single file. Default: 10MB. */
+  maxFileSize?: number;
+  /** Maximum number of entries. Default: 1024. */
+  maxEntries?: number;
 }
 
 /**
@@ -228,5 +331,17 @@ export interface RegisterSkillResourcesOptions {
   promptXml?: boolean;
   /** Audience annotation for skill resources. Default: ["assistant"] */
   audience?: string[];
+  /**
+   * Archive-distributed skills to register and include in `skill://index.json`.
+   * Each declaration's archive file is read from disk and served as a single
+   * resource at `skill://<skillPath>.<format>`.
+   */
+  archives?: SkillArchiveDeclaration[];
+  /**
+   * Resource template entries to include in `skill://index.json`. Each entry
+   * describes a parameterized skill namespace; servers SHOULD also register
+   * the same `uriTemplate` as an MCP resource template.
+   */
+  templates?: SkillTemplateDeclaration[];
 }
 

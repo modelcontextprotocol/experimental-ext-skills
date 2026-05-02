@@ -11,6 +11,7 @@ export {
   listSkillTemplatesFromIndex,
   readSkillUri,
   readSkillContent,
+  readSkillArchive,
   parseSkillFrontmatter,
   buildSkillsSummary,
   buildSkillsCatalog,
@@ -23,4 +24,6 @@ export type {
   SkillsCatalogOptions,
   DiscoverCatalogOptions,
   DiscoverCatalogResult,
+  UnpackedSkillArchive,
+  ExtractArchiveOptions,
 } from "../types.js";

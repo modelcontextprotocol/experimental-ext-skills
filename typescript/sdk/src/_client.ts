@@ -19,7 +19,17 @@
  *   - SDK wrappers per the SEP: listSkills(), listSkillsFromIndex(), readSkillUri()
  */
 
-import type { SkillManifest, SkillSummary, SkillIndex, SkillTemplateEntry, SkillsCatalogOptions, DiscoverCatalogOptions, DiscoverCatalogResult } from "./types.js";
+import type {
+  SkillManifest,
+  SkillSummary,
+  SkillIndex,
+  SkillTemplateEntry,
+  SkillsCatalogOptions,
+  DiscoverCatalogOptions,
+  DiscoverCatalogResult,
+  UnpackedSkillArchive,
+  ExtractArchiveOptions,
+} from "./types.js";
 import { KNOWN_SKILL_INDEX_SCHEMAS } from "./types.js";
 import { generateSkillsXMLFromSummaries } from "./xml.js";
 import {
@@ -29,6 +39,11 @@ import {
   parseSkillUri,
   SKILL_FILENAME,
 } from "./uri.js";
+import {
+  extractSkillArchive,
+  stripArchiveSuffix,
+  detectArchiveFormat,
+} from "./archive.js";
 
 /**
  * Minimal structural interface for an MCP Client.
@@ -205,23 +220,46 @@ export async function listSkillsFromIndex(
   const index = await fetchAndParseIndex(client);
   if (!index) return null;
 
-  return index.skills
-    .filter((entry) => entry.type === "skill-md")
-    .map((entry) => {
+  const summaries: SkillSummary[] = [];
+  for (const entry of index.skills) {
+    if (entry.type === "skill-md") {
       // For skill:// URIs, extract the multi-segment skillPath from URI structure.
       // For other schemes (github://, repo://, etc.), use entry.name — the SEP
       // allows any scheme in index entries, and name is always the skill identity.
       const parsed = parseSkillUri(entry.url);
       const skillPath = parsed?.skillPath ?? entry.name;
-
-      return {
+      summaries.push({
         name: entry.name,
         skillPath,
         uri: entry.url,
+        type: "skill-md",
         description: entry.description,
         mimeType: "text/markdown",
-      };
-    });
+      });
+    } else if (entry.type === "archive") {
+      // Per SEP-2640, the archive URL has its archive suffix stripped to get
+      // the post-unpack skill path: skill://pdf-processing.tar.gz unpacks to
+      // skill://pdf-processing/. We expose the archive URL on `uri` so callers
+      // know how to fetch; the post-unpack `skillPath` is derived from the URL.
+      const stripped = stripArchiveSuffix(entry.url);
+      const parsed = parseSkillUri(stripped + "/SKILL.md");
+      const skillPath = parsed?.skillPath ?? entry.name;
+      summaries.push({
+        name: entry.name,
+        skillPath,
+        uri: entry.url,
+        type: "archive",
+        description: entry.description,
+        mimeType: detectArchiveFormat(undefined, entry.url) === "zip"
+          ? "application/zip"
+          : "application/gzip",
+      });
+    }
+    // Template entries are returned by listSkillTemplatesFromIndex().
+    // Unknown types are skipped per SEP ("clients SHOULD skip entries
+    // with an unrecognized type").
+  }
+  return summaries;
 }
 
 /**
@@ -379,6 +417,61 @@ export function buildSkillsCatalog(
     xml,
     "",
   ].join("\n");
+}
+
+/**
+ * Fetch a skill archive from an MCP server and unpack it in memory.
+ *
+ * Per SEP-2640, archive entries in `skill://index.json` reference a single
+ * resource that contains a packed skill directory (`.tar.gz` or `.zip`).
+ * This fetches the archive via `resources/read`, dispatches on the
+ * resource's `mimeType` (falling back to URL suffix), and unpacks with
+ * archive safety: rejects path-traversal, absolute paths, symlinks
+ * resolving outside the skill directory, and decompression bombs.
+ *
+ * The returned `files` map is keyed by paths relative to the skill root.
+ * After unpacking, `files.get("SKILL.md")` is the skill's content, and
+ * other entries correspond to `skill://<skillPath>/<file-path>` exactly
+ * as if served as individual resources.
+ *
+ * @example
+ * ```typescript
+ * const summary = (await listSkillsFromIndex(client))!
+ *   .find((s) => s.type === "archive")!;
+ * const archive = await readSkillArchive(client, summary.uri);
+ * const skillMd = archive.files.get("SKILL.md")!.toString("utf-8");
+ * ```
+ */
+export async function readSkillArchive(
+  client: SkillsClient,
+  archiveUri: string,
+  options?: ExtractArchiveOptions,
+): Promise<UnpackedSkillArchive> {
+  const result = await client.readResource({ uri: archiveUri });
+  const content = result.contents[0];
+  if (!content) {
+    throw new Error(`No content returned for archive ${archiveUri}`);
+  }
+
+  let bytes: Buffer;
+  if ("blob" in content && content.blob) {
+    bytes = Buffer.from(content.blob, "base64");
+  } else if ("text" in content && content.text !== undefined) {
+    // Fallback: some servers may serve archives as base64 text. The
+    // resources/read content shape is either text or blob; we don't
+    // expect text for archives but accept it as a courtesy.
+    bytes = Buffer.from(content.text, "base64");
+  } else {
+    throw new Error(
+      `Archive resource ${archiveUri} returned neither blob nor text content`,
+    );
+  }
+
+  return extractSkillArchive(
+    bytes,
+    { mimeType: content.mimeType, url: archiveUri },
+    options,
+  );
 }
 
 /**

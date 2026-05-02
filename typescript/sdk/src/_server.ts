@@ -22,12 +22,15 @@ import type {
   SkillManifest,
   SkillIndex,
   SkillTemplateDeclaration,
+  SkillArchiveDeclaration,
+  ArchiveFormat,
   RegisterSkillResourcesOptions,
 } from "./types.js";
 import { SKILL_INDEX_SCHEMA } from "./types.js";
 import { getMimeType, isTextMimeType } from "./mime.js";
 import { generateSkillsXML } from "./xml.js";
-import { buildSkillUri, INDEX_JSON_URI } from "./uri.js";
+import { buildSkillUri, INDEX_JSON_URI, SKILL_URI_SCHEME } from "./uri.js";
+import { archiveMimeType, archiveSuffix } from "./archive.js";
 
 /** Maximum file size for skill files (1MB). */
 const MAX_FILE_SIZE = 1 * 1024 * 1024;
@@ -455,19 +458,59 @@ export function loadDocument(
 }
 
 /**
+ * Options for generateSkillIndex().
+ */
+export interface GenerateSkillIndexOptions {
+  /** Resource template declarations → mcp-resource-template entries. */
+  templates?: SkillTemplateDeclaration[];
+  /** Archive declarations → archive entries. */
+  archives?: SkillArchiveDeclaration[];
+}
+
+/**
+ * Resolve an archive declaration's format, defaulting from the file
+ * extension when not explicitly set.
+ */
+function resolveArchiveFormat(decl: SkillArchiveDeclaration): ArchiveFormat {
+  if (decl.format) return decl.format;
+  const lower = decl.archivePath.toLowerCase();
+  if (lower.endsWith(".tar.gz") || lower.endsWith(".tgz")) return "tar.gz";
+  if (lower.endsWith(".zip")) return "zip";
+  throw new Error(
+    `Cannot infer archive format from path "${decl.archivePath}". Set format: "tar.gz" | "zip" explicitly.`,
+  );
+}
+
+/**
+ * Build the resource URI an archive is served under, per SEP-2640
+ * (`skill://<skillPath>.<format>`).
+ */
+function archiveResourceUri(decl: SkillArchiveDeclaration): string {
+  const format = resolveArchiveFormat(decl);
+  return `${SKILL_URI_SCHEME}${decl.skillPath}${archiveSuffix(format)}`;
+}
+
+/**
  * Generate the skill://index.json discovery index.
  *
- * Follows the Agent Skills well-known URI discovery index format.
- * Each entry contains the skill name, description, type ("skill-md"),
- * and the full skill:// URI for the SKILL.md resource.
+ * Follows the Agent Skills well-known URI discovery index format. Includes
+ * one entry per skill in `skillMap` (`type: "skill-md"`), one per archive
+ * declaration (`type: "archive"`), and one per template declaration
+ * (`type: "mcp-resource-template"`) — all three SEP-defined entry types.
  *
- * Optionally includes "mcp-resource-template" entries for parameterized
- * skill namespaces (e.g., skill://docs/{product}/SKILL.md).
+ * Backwards-compat: a bare `SkillTemplateDeclaration[]` may be passed as
+ * the second argument in place of an options object.
  */
 export function generateSkillIndex(
   skillMap: Map<string, SkillMetadata>,
-  templates?: SkillTemplateDeclaration[],
+  optionsOrTemplates?:
+    | GenerateSkillIndexOptions
+    | SkillTemplateDeclaration[],
 ): SkillIndex {
+  const options: GenerateSkillIndexOptions = Array.isArray(optionsOrTemplates)
+    ? { templates: optionsOrTemplates }
+    : optionsOrTemplates ?? {};
+
   const skillEntries = Array.from(skillMap.entries()).map(([skillPath, skill]) => ({
     name: skill.name,
     type: "skill-md" as const,
@@ -475,7 +518,23 @@ export function generateSkillIndex(
     url: buildSkillUri(skillPath),
   }));
 
-  const templateEntries = (templates ?? []).map((t) => ({
+  const archiveEntries = (options.archives ?? []).map((a) => {
+    // SEP constraint: final segment of skillPath MUST equal frontmatter name
+    const finalSegment = a.skillPath.split("/").pop()!;
+    if (finalSegment !== a.name) {
+      throw new Error(
+        `Archive declaration: skillPath "${a.skillPath}" final segment "${finalSegment}" does not match name "${a.name}". Per SEP-2640, the final segment of the skill path MUST equal the frontmatter name.`,
+      );
+    }
+    return {
+      name: a.name,
+      type: "archive" as const,
+      description: a.description,
+      url: archiveResourceUri(a),
+    };
+  });
+
+  const templateEntries = (options.templates ?? []).map((t) => ({
     type: "mcp-resource-template" as const,
     description: t.description,
     url: t.uriTemplate,
@@ -483,7 +542,7 @@ export function generateSkillIndex(
 
   return {
     $schema: SKILL_INDEX_SCHEMA,
-    skills: [...skillEntries, ...templateEntries],
+    skills: [...skillEntries, ...archiveEntries, ...templateEntries],
   };
 }
 
@@ -508,7 +567,13 @@ export function registerSkillResources(
   skillsDir: string,
   options?: RegisterSkillResourcesOptions,
 ): void {
-  const { template = true, promptXml = false, audience = ["assistant"] } = options ?? {};
+  const {
+    template = true,
+    promptXml = false,
+    audience = ["assistant"],
+    archives = [],
+    templates = [],
+  } = options ?? {};
 
   // Compute the most recent lastModified across all skills for aggregate resources
   const latestModified = skillMap.size > 0
@@ -517,6 +582,54 @@ export function registerSkillResources(
         .sort()
         .pop()
     : undefined;
+
+  // Register archive resources before the index, so the index can reference them.
+  for (const archive of archives) {
+    const format = resolveArchiveFormat(archive);
+    const uri = archiveResourceUri(archive);
+    const mimeType = archiveMimeType(format);
+
+    let archiveBytes: Buffer;
+    try {
+      archiveBytes = fs.readFileSync(archive.archivePath);
+    } catch (err) {
+      throw new Error(
+        `Failed to read archive "${archive.archivePath}" for skill "${archive.name}": ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    const archiveBase64 = archiveBytes.toString("base64");
+    let archiveModified: string;
+    try {
+      archiveModified = fs.statSync(archive.archivePath).mtime.toISOString();
+    } catch {
+      archiveModified = new Date().toISOString();
+    }
+
+    server.resource(
+      `${archive.name}-archive`,
+      uri,
+      {
+        description: `${archive.description} (archive distribution)`,
+        mimeType,
+        size: archiveBytes.length,
+        annotations: {
+          audience,
+          priority: 0.9,
+          lastModified: archiveModified,
+        },
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      async (resourceUri: URL): Promise<any> => ({
+        contents: [
+          {
+            uri: resourceUri.href,
+            mimeType,
+            blob: archiveBase64,
+          },
+        ],
+      }),
+    );
+  }
 
   // Register per-skill resources
   for (const [skillPath, skill] of skillMap) {
@@ -585,7 +698,7 @@ export function registerSkillResources(
   }
 
   // Well-known discovery index (SEP enumeration mechanism)
-  const indexJson = generateSkillIndex(skillMap);
+  const indexJson = generateSkillIndex(skillMap, { archives, templates });
   const indexJsonStr = JSON.stringify(indexJson, null, 2);
   server.resource(
     "skills-index",

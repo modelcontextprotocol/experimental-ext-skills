@@ -15,10 +15,15 @@ export type {
   SkillSummary,
   SkillMdIndexEntry,
   McpResourceTemplateIndexEntry,
+  ArchiveIndexEntry,
   SkillIndexEntry,
   SkillIndex,
   SkillTemplateEntry,
   SkillTemplateDeclaration,
+  SkillArchiveDeclaration,
+  ArchiveFormat,
+  UnpackedSkillArchive,
+  ExtractArchiveOptions,
   SkillsCatalogOptions,
   DiscoverCatalogOptions,
   DiscoverCatalogResult,
@@ -26,6 +31,14 @@ export type {
 } from "./types.js";
 
 export { SKILL_INDEX_SCHEMA, KNOWN_SKILL_INDEX_SCHEMAS } from "./types.js";
+
+export {
+  detectArchiveFormat,
+  stripArchiveSuffix,
+  archiveMimeType,
+  archiveSuffix,
+  extractSkillArchive,
+} from "./archive.js";
 
 export {
   SKILL_URI_SCHEME,
