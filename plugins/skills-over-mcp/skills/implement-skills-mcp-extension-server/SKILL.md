@@ -1,6 +1,6 @@
 ---
 name: implement-skills-mcp-extension-server
-description: This skill should be used when the user asks to "add skills to my MCP server", "implement the skills SEP on the server side", "expose agent skills over MCP", "serve SKILL.md files as resources", "add skill:// URIs to my server", "build a skill index.json for MCP", or needs guidance on serving Agent Skills via MCP resources per the experimental Skills-over-MCP SEP. Covers URI scheme choices, skill://index.json enumeration, per-file resource exposure, server instructions that point at skills, and update/subscription patterns.
+description: This skill should be used when the user asks to "add skills to my MCP server", "implement the skills SEP on the server side", "expose agent skills over MCP", "serve SKILL.md files as resources", "add skill:// URIs to my server", "build a skill index.json for MCP", or needs guidance on serving Agent Skills via MCP resources per the experimental Skills-over-MCP SEP. Covers the io.modelcontextprotocol/skills capability declaration, URI scheme and structure (final-segment-equals-name rule), skill://index.json enumeration with skill-md / archive / mcp-resource-template entry types, per-file resource exposure, server instructions that point at skills, archive distribution constraints, base resource metadata fields (mimeType, name, description) and _meta usage, update/subscription patterns, and the trust-boundary framing for what to expose under skill://.
 ---
 
 # Implementing Skills-over-MCP in an MCP Server
@@ -9,7 +9,23 @@ description: This skill should be used when the user asks to "add skills to my M
 
 ---
 
-Three concerns determine how an MCP server exposes skills: what URI scheme and structure to use, how to make skills discoverable, and how to distribute multi-file skills.
+Three concerns determine how an MCP server exposes skills: what URI scheme and structure to use, how to make skills discoverable, and how to distribute multi-file skills. Before any of that, the server declares the extension.
+
+### Capability declaration
+
+Per [SEP-2133](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2133) extension negotiation, a server advertises support for this extension in its `initialize` response:
+
+```json
+{
+  "capabilities": {
+    "extensions": {
+      "io.modelcontextprotocol/skills": {}
+    }
+  }
+}
+```
+
+The empty object indicates support; no extension-specific settings are defined. Hosts use this signal to decide which connected servers to register as skill origins, so omitting it means hosts that gate on the capability won't surface your skills even if `skill://index.json` is reachable. SDKs that implement this SEP set the capability for you when you declare any skill.
 
 ### URI structure
 
@@ -84,11 +100,31 @@ If you're unsure which to use, always start with individual resources. Archive d
 
 ### Metadata
 
-Most skill metadata lives in `SKILL.md` YAML frontmatter per the [Agent Skills specification](https://agentskills.io/specification) — that's the authoritative source for skill-level semantics (version, compatibility, allowed tools). See [Using `_meta` for Skill Resources](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/skill-meta-keys.md) for guidance on when MCP resource `_meta` is appropriate vs. when frontmatter suffices.
+Most skill metadata lives in `SKILL.md` YAML frontmatter per the [Agent Skills specification](https://agentskills.io/specification) — that's the authoritative source for skill-level semantics (version, compatibility, allowed tools).
+
+For each `skill://<skill-path>/SKILL.md` resource, the server SHOULD set the following on the MCP `Resource` object:
+
+- `mimeType: "text/markdown"`
+- `name` — copied from the frontmatter `name` field (which by the URI rule always equals the final segment of `<skill-path>`).
+- `description` — copied from the frontmatter `description` field.
+
+Other files in the skill use the `mimeType` appropriate to their content. SDKs that implement this SEP populate these fields automatically from the `SKILL.md` you declare; you only need to set them by hand on a hand-rolled server.
+
+Additional frontmatter fields MAY be exposed via the resource's `_meta` object using the `io.modelcontextprotocol.skills/` reverse-domain prefix. See [Using `_meta` for Skill Resources](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/skill-meta-keys.md) for when `_meta` is appropriate vs. when frontmatter suffices.
 
 ### Updates
 
 Skill content changes flow through the generic MCP Resources update mechanism. Servers MAY support `resources/subscribe` for hosts that want push-style invalidation, or rely on the host's cache TTL for pull-style refresh. The SEP does not mandate a specific update model; pick what fits your deployment.
+
+### What to expose
+
+Skill content reaches the model as instructional text and is treated by hosts as untrusted input. Two server-side framings worth keeping in mind:
+
+**Not a third-party marketplace.** This extension is for shipping skills that describe your *own* tools and workflows — the things this server already authoritatively speaks for. Relaying arbitrary third-party skill content through `skill://` puts that content inside the trust boundary the user extended to your server when they connected. Don't do it. (A skill that *links* to external docs is fine; a skill that *is* user-supplied content fed through your server is not.)
+
+**No covert-channel directives.** Hosts MUST NOT silently honor mechanisms in skill content that would cause local code execution (hooks, pre/post-invocation scripts, shell commands in frontmatter); a host that does is exposing its users to remote code execution. Don't author such fields into MCP-served skills expecting them to fire — at best they'll be ignored, at worst they'll be flagged as a hostile-server signal during host review.
+
+For archive distribution, also: produce archives that pass [Agent Skills archive safety](https://agentskills.io/well-known-uri#archive-safety) — no path-traversal sequences, no absolute paths, no symlinks resolving outside the skill directory, bounded uncompressed size. Hosts will reject archives that fail these checks.
 
 ---
 
