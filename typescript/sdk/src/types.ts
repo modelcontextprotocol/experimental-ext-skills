@@ -135,27 +135,6 @@ export interface McpResourceTemplateIndexEntry {
 }
 
 /**
- * An archive entry in the well-known HTTP discovery index — a .tar.gz bundle
- * containing a skill directory with SKILL.md at its root.
- *
- * Note: This type is used by the well-known HTTP bridge, not by the MCP
- * skill://index.json resource. The SEP restricts skill://index.json entries
- * to "skill-md" and "mcp-resource-template" only.
- */
-export interface ArchiveIndexEntry {
-  /** Skill name */
-  name: string;
-  /** Entry type discriminator */
-  type: "archive";
-  /** Skill description */
-  description: string;
-  /** URL to the .tar.gz archive */
-  url: string;
-  /** Content digest for cache validation (format: "sha256:<hex>") */
-  digest?: string;
-}
-
-/**
  * An entry in the skill://index.json MCP discovery index.
  * Per the SEP, type MUST be "skill-md" or "mcp-resource-template".
  * Use `entry.type` to narrow.
@@ -203,48 +182,6 @@ export const SKILL_INDEX_SCHEMA = "https://schemas.agentskills.io/discovery/0.2.
 
 /** Set of known schema URIs for forward-compatible validation. */
 export const KNOWN_SKILL_INDEX_SCHEMAS: ReadonlySet<string> = new Set([SKILL_INDEX_SCHEMA]);
-
-// ---------------------------------------------------------------------------
-// Well-known HTTP bridge types
-// ---------------------------------------------------------------------------
-
-/**
- * Options for fetchFromWellKnown() / refreshFromWellKnown().
- */
-export interface WellKnownFetchOptions {
-  /** Domain to fetch from (e.g., "example.com") */
-  domain: string;
-  /** Local directory to cache fetched skills */
-  cacheDir: string;
-  /** Injectable fetch function (defaults to globalThis.fetch) */
-  fetch?: typeof globalThis.fetch;
-  /** Skip entries whose digest matches the local cache */
-  useDigestCache?: boolean;
-}
-
-/**
- * A single fetched skill result.
- */
-export interface WellKnownSkillResult {
-  /** Skill name from the index entry */
-  name: string;
-  /** Skill path (derived from entry name or URL) */
-  skillPath: string;
-  /** Whether the skill was served from the digest cache (not re-downloaded) */
-  cached: boolean;
-}
-
-/**
- * Result of fetchFromWellKnown() / refreshFromWellKnown().
- */
-export interface WellKnownFetchResult {
-  /** Skills that were fetched or already cached */
-  skills: WellKnownSkillResult[];
-  /** Entries skipped due to unrecognized or unfetchable type */
-  skipped: Array<{ name?: string; type: string; reason: string }>;
-  /** Fetch or verification failures */
-  errors: Array<{ name: string; error: string }>;
-}
 
 /**
  * Options for buildSkillsCatalog().

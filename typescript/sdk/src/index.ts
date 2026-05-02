@@ -15,7 +15,6 @@ export type {
   SkillSummary,
   SkillMdIndexEntry,
   McpResourceTemplateIndexEntry,
-  ArchiveIndexEntry,
   SkillIndexEntry,
   SkillIndex,
   SkillTemplateEntry,
@@ -23,9 +22,6 @@ export type {
   SkillsCatalogOptions,
   DiscoverCatalogOptions,
   DiscoverCatalogResult,
-  WellKnownFetchOptions,
-  WellKnownFetchResult,
-  WellKnownSkillResult,
   RegisterSkillResourcesOptions,
 } from "./types.js";
 

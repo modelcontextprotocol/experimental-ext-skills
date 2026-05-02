@@ -25,6 +25,5 @@ Index entries may use any URI scheme. Functions that accept URIs from the index 
 - `experimental-ext-skills` — shared types, URI utilities
 - `experimental-ext-skills/client` — client-side discovery, reading, catalog building
 - `experimental-ext-skills/server` — server-side discovery, resource registration
-- `experimental-ext-skills/well-known` — HTTP bridge for well-known URI fetching
 
 Client and server exports are intentionally separate. Types used by exported functions should be re-exported from the same subpath so users don't need multiple imports.

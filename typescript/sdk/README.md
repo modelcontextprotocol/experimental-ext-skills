@@ -17,7 +17,6 @@ npm install @modelcontextprotocol/experimental-ext-skills @modelcontextprotocol/
 | `@modelcontextprotocol/experimental-ext-skills` | Shared types, URI utilities, constants |
 | `@modelcontextprotocol/experimental-ext-skills/server` | Server-side: discover skills, register MCP resources |
 | `@modelcontextprotocol/experimental-ext-skills/client` | Client-side: list skills, read content, build summaries |
-| `@modelcontextprotocol/experimental-ext-skills/well-known` | HTTP bridge: fetch skills from `/.well-known/agent-skills/` |
 
 ## Server usage
 
@@ -199,86 +198,6 @@ console.log(READ_RESOURCE_TOOL);
 ### Scheme-agnostic discovery
 
 Per the SEP, `skill://` is SHOULD, not MUST. Servers may serve skills under any URI scheme (e.g., `repo://`, `github://`) provided they are listed in `skill://index.json`. The discovery functions (`discoverSkills`, `listSkillsFromIndex`) handle any scheme in index entries, and `readSkillUri()` reads any URI regardless of scheme.
-
-## Well-known HTTP bridge
-
-The bridge connects HTTP-based skill publishing to MCP-based skill serving:
-
-```mermaid
-flowchart TD
-    subgraph HTTP["HTTP Discovery (install time)"]
-        H1["GET /.well-known/\nagent-skills/index.json"] --> H2["Validate $schema,\nparse entries"]
-        H2 --> H3["Fetch each skill artifact"]
-        H3 --> H4["Verify SHA-256 digest"]
-        H4 --> H5["Cache locally with digest"]
-    end
-
-    subgraph MCP["MCP Runtime (conversation time)"]
-        M1["Register cached skills\nas skill:// resources"] --> M2["Load frontmatter\n(name, description)\ninto model context"]
-        M2 --> M3["Model calls read_resource\n(server, skill://name/SKILL.md)"]
-        M3 --> M4["Host serves\nfrom local cache"]
-        M4 --> M5["Full SKILL.md\nin context"]
-    end
-
-    H5 -- "BRIDGE" --> M1
-
-    subgraph Updates["Ongoing Updates"]
-        U1["TTL expires on\nindex cache"] --> U2["Re-fetch index\nover HTTP"]
-        U2 --> U3["Compare digests\nto cached values"]
-        U3 --> U4["Re-download\nchanged skills only"]
-        U4 --> U5["Update local cache\nand MCP resources"]
-        U5 --> U6["Fire notifications/\nresources/updated"]
-    end
-```
-
-Fetch skills published at `/.well-known/agent-skills/index.json` and cache them locally for serving over MCP:
-
-```typescript
-import { fetchFromWellKnown, refreshFromWellKnown } from "@modelcontextprotocol/experimental-ext-skills/well-known";
-import { discoverSkills, registerSkillResources } from "@modelcontextprotocol/experimental-ext-skills/server";
-
-// Fetch skills from a domain and cache to a local directory
-const result = await fetchFromWellKnown({
-  domain: "example.com",
-  cacheDir: "./cache/example.com",
-});
-
-// result.skills   — fetched skills [{name, skillPath, cached}]
-// result.skipped  — entries skipped (templates, unknown types)
-// result.errors   — fetch/verification failures
-
-// Feed the cache directory into the existing server pipeline
-const skillMap = discoverSkills("./cache/example.com");
-registerSkillResources(server, skillMap, "./cache/example.com");
-
-// On subsequent calls, use refreshFromWellKnown to skip unchanged skills
-const refresh = await refreshFromWellKnown({
-  domain: "example.com",
-  cacheDir: "./cache/example.com",
-});
-// refresh.skills.filter(s => !s.cached) — only changed skills
-```
-
-The bridge supports:
-- **skill-md** entries: downloads `SKILL.md` directly
-- **archive** entries: downloads and extracts `.tar.gz` bundles
-- **Digest verification**: SHA-256 integrity checks against the `digest` field
-- **Digest caching**: skips re-downloading unchanged skills on refresh
-- **URL resolution**: relative, path-absolute, and absolute URLs per RFC 3986
-
-### Try it with a live endpoint
-
-The MCP specification site publishes skills at a well-known endpoint you can test against:
-
-```typescript
-const result = await fetchFromWellKnown({
-  domain: "modelcontextprotocol.io",
-  cacheDir: "./cache/mcp",
-});
-console.log(result.skills); // skills fetched from the live index
-```
-
-Index URL: https://modelcontextprotocol.io/.well-known/agent-skills/index.json
 
 ## URI scheme
 
