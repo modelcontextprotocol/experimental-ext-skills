@@ -4,20 +4,21 @@
 
 | Proposal | Venue | Description |
 | :--- | :--- | :--- |
-| [SEP-2076](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076) | MCP Spec | Agent Skills as a first-class MCP primitive |
-| [SEP-2093](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093) | MCP Spec | Resource Contents Metadata and Capabilities: scoped `resources/list`, per-resource capabilities, `resources/metadata` endpoint |
+| [SEP-2640 (Skills Extension)](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) | MCP Spec | This WG's proposed extension: skills served over MCP using the Resources primitive and `skill://` URI scheme ([working draft](sep-draft-skills-extension.md)) |
 | [PR #2527](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2527) | MCP Spec | Recommend clients expose resource read to models — prerequisite for the resources-based skills approach |
 | [skills.json format proposal](https://github.com/modelcontextprotocol/registry/discussions/895) | MCP Registry | Skills metadata in registry schema |
+| ~~[SEP-2093](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093)~~ | MCP Spec | ~~Resource Contents Metadata and Capabilities: scoped `resources/list`, per-resource capabilities, `resources/metadata` endpoint~~ — **rejected** ([labeled upstream](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093)) |
+| ~~[SEP-2076](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076)~~ | MCP Spec | ~~Agent Skills as a first-class MCP primitive~~ — **closed** (2026-02-24, without merge) |
 
 ## Working Group Member Implementations
 
 Work by WG leads and active participants that directly implements the group's core patterns: SKILL.md with YAML frontmatter, `skill://` resource URIs, and progressive disclosure via MCP primitives.
 
-| Implementation | Author | Organization | URL | Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| skilljack-mcp | Ola Hungerford | Nordstrom | [github.com/olaservo/skilljack-mcp](https://github.com/olaservo/skilljack-mcp) | SKILL.md, `skill://` resources, tools, and prompts; progressive disclosure (index→skill→files); file watching for dynamic updates; audience annotations |
-| skills-over-mcp | Keith Groves | | [github.com/keithagroves/skills-over-mcp](https://github.com/keithagroves/skills-over-mcp) | SKILL.md, `skill://` resources with progressive disclosure (index→skill→documents); Zod validation against Agent Skills spec |
-| skillsdotnet | Peder HP | | [github.com/PederHP/skillsdotnet](https://github.com/PederHP/skillsdotnet) | C# implementation: SKILL.md, `skill://` resources, `load_skill` tool for progressive disclosure, manifest with file hashes; published on NuGet; compatible with FastMCP 3.0 |
+| Implementation | Author | URL | Notes |
+| :--- | :--- | :--- | :--- |
+| skilljack-mcp | Ola Hungerford | [github.com/olaservo/skilljack-mcp](https://github.com/olaservo/skilljack-mcp) | SKILL.md, `skill://` resources, tools, and prompts; progressive disclosure (index→skill→files); file watching for dynamic updates; audience annotations |
+| skills-over-mcp | Keith Groves | [github.com/keithagroves/skills-over-mcp](https://github.com/keithagroves/skills-over-mcp) | SKILL.md, `skill://` resources with progressive disclosure (index→skill→documents); Zod validation against Agent Skills spec |
+| skillsdotnet | Peder HP | [github.com/PederHP/skillsdotnet](https://github.com/PederHP/skillsdotnet) | C# implementation: SKILL.md, `skill://` resources, `load_skill` tool for progressive disclosure, manifest with file hashes; published on NuGet; compatible with FastMCP 3.0 |
 
 ## Alternative Approaches
 
@@ -51,7 +52,7 @@ Projects that illustrate the problem space or use adjacent patterns.
 
 | Project | Author | URL | Notes |
 | :--- | :--- | :--- | :--- |
-| chrome-devtools-mcp | Anthropic | [github.com/anthropics/anthropic-quickstarts/…/chrome-devtools-mcp](https://github.com/anthropics/anthropic-quickstarts/tree/main/mcp-servers/chrome-devtools-mcp) | Real-world example of the problem: `skills/` folder requires separate install path |
+| chrome-devtools-mcp | Google (ChromeDevTools) | [github.com/ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) | Real-world example of the problem: `skills/` folder requires separate install path |
 | Strands Agents MCP server | AWS | [github.com/strands-agents/mcp-server](https://github.com/strands-agents/mcp-server/) | Docs-as-MCP: TF-IDF search + doc fetch |
 | AWS MCP server | AWS | [docs.aws.amazon.com/aws-mcp/…](https://docs.aws.amazon.com/aws-mcp/latest/userguide/understanding-mcp-server-tools.html) | `retrieve_agent_sop` (skills) + `call_aws` (tool) |
 

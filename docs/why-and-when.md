@@ -26,7 +26,7 @@ See [NimbleBrain findings](experimental-findings.md#nimblebrain-skill-resource-c
 
 Users installing MCP servers from a registry today don't know if there's a companion skill they should also install. Skills over MCP creates a natural discovery path: connect to a server, discover its skills through the same interface. No separate search, no documentation hunting, no hoping someone mentioned the skill in a README.
 
-See [Use Case 5: Server-Skill Pairing](use-cases.md#5-server-skill-pairing) for examples including Anthropic's [chrome-devtools-mcp](https://github.com/anthropics/anthropic-quickstarts/tree/main/mcp-servers/chrome-devtools-mcp), which ships a `skills/` folder that requires a separate install path from the server itself.
+See [Use Case 5: Server-Skill Pairing](use-cases.md#5-server-skill-pairing) for examples including the Chrome DevTools team's [chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp), which ships a `skills/` folder that requires a separate install path from the server itself.
 
 ### Dynamic Updates Without Reinstall
 

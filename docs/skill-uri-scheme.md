@@ -3,7 +3,7 @@
 > Proposed convention for identifying skill resources over MCP.
 
 **Issue:** [#44](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/44)
-**Status:** Incorporated into the draft [Skills Extension SEP](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69). This survey informed the SEP's URI scheme design; see also [PR #70](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/70) for subsequent refinements (multi-segment paths, path-name decoupling).
+**Status:** Incorporated into the draft [Skills Extension SEP](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69), now submitted to the MCP spec as [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640). This survey informed the SEP's URI scheme design; see also [PR #70](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/70) for subsequent refinements (multi-segment paths, path-name decoupling).
 
 ---
 
