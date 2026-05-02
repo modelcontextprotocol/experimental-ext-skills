@@ -161,3 +161,21 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 - [PR #2586](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2586) — charter conversion (merged 2026-04-16)
 - [Charter](https://modelcontextprotocol.io/community/skills-over-mcp/charter)
 - [Group governance](https://modelcontextprotocol.io/community/working-interest-groups)
+
+---
+
+### 2026-04-19: Archives permitted as server-side packaging optimization
+
+**Status:** Proposed
+
+**Context:** On 2026-03-24, a commit to the Skills Extension SEP (PR #69, [`9e73838c`](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69/commits/9e73838cda478f3bba4996a06a69d3142fb0a91c)) removed `type: "archive"` from the `skill://index.json` schema with the rationale that archives do not apply when files are individually addressable. On further review, there are four costs not addressed in the original commit: asymmetry with the Agent Skills discovery RFC, which defines both `skill-md` and `archive` distribution types; loss of atomicity across multi-file skill reads; N+1 round trips for hosts that pre-materialize skills; and loss of UNIX file metadata (executable bits, symlinks) that has no representation when each file is served as an individual MCP resource.
+
+**Decision:** Permit `type: "archive"` entries in `skill://index.json`, matching the Agent Skills discovery RFC. An archive entry's `url` points to a single resource (mime type `application/zip` or `application/x-tar`) whose content unpacks into the skill's URI namespace at `skill://<skill-path>/<file-path>`. Servers choose per-skill between individual-file and archive distribution; hosts observe an identical virtual namespace either way.
+
+**Rationale:** The SEP is positioned as a pure transport binding that delegates format to the Agent Skills specification. Dropping a distribution type the format spec defines contradicts that framing. Reinstating archives as a server-side packaging option — rather than a client-visible mode split — preserves the "skills as virtual filesystem" model (post-unpack view is identical to individual-file distribution) while recovering atomicity and round-trip properties. The main property lost is per-file subscription granularity, which is acceptable because subscription is not currently part of the skill reading model in the SEP.
+
+**References:**
+- Commit [`9e73838c`](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69/commits/9e73838cda478f3bba4996a06a69d3142fb0a91c) — original removal, PR #69
+- [Issue #61](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/61) — thread weighing archive vs. individual-file distribution
+- [Agent Skills discovery RFC](https://github.com/cloudflare/agent-skills-discovery-rfc) — upstream format source
+- April 14, 2026 office hours — discussion treated archives as supported
