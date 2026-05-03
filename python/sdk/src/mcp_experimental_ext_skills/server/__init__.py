@@ -27,6 +27,7 @@ from .._server import (
     register_skill,
     register_skill_resources,
     scan_documents,
+    skill,
 )
 from .._types import (
     ArchiveFormat,
@@ -64,4 +65,5 @@ __all__ = [
     "register_skill",
     "register_skill_resources",
     "scan_documents",
+    "skill",
 ]

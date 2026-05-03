@@ -363,7 +363,7 @@ def extract_skill_archive(
     opts = options if options is not None else ExtractArchiveOptions()
     archive = _extract_tar_gz(data, opts) if fmt == "tar.gz" else _extract_zip(data, opts)
 
-    if "SKILL.md" not in archive.files and "skill.md" not in archive.files:
+    if "SKILL.md" not in archive.files:
         raise ValueError(
             "Archive does not contain SKILL.md at its root. "
             "Per SEP-2640, archives MUST place SKILL.md at the archive "

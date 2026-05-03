@@ -175,12 +175,14 @@ def _scan_dir(dir_path: Path, relative_to: Path, base_dir: Path) -> list[SkillDo
 def scan_documents(skill_dir: str | Path, base_dir: str | Path) -> list[SkillDocument]:
     """Scan a skill directory for all supplementary files.
 
-    Excludes ``SKILL.md`` / ``skill.md`` from the result.
+    Excludes ``SKILL.md`` from the result. Per SEP-2640 §Skill Format the
+    spelling is uppercase; lowercase ``skill.md`` is treated as a normal
+    document.
     """
     skill_dir_p = Path(skill_dir)
     base_dir_p = Path(base_dir)
     documents: list[SkillDocument] = []
-    skip_files = {"SKILL.md", "skill.md"}
+    skip_files = {"SKILL.md"}
 
     try:
         entries = list(skill_dir_p.iterdir())
@@ -241,12 +243,14 @@ def _find_skill_files(
     except OSError:
         return results
 
+    # Per SEP-2640 §Skill Format the file is spelled ``SKILL.md``
+    # (uppercase). On case-insensitive filesystems (Windows, default
+    # macOS) this still resolves a file stored as ``skill.md``; we just
+    # don't recognize a literal lowercase entry on case-sensitive Linux.
     skill_md_path: Path | None = None
-    for name in ("SKILL.md", "skill.md"):
-        candidate = dir_path / name
-        if candidate.exists() and candidate.is_file():
-            skill_md_path = candidate
-            break
+    candidate = dir_path / "SKILL.md"
+    if candidate.exists() and candidate.is_file():
+        skill_md_path = candidate
 
     has_skill = skill_md_path is not None
 
@@ -297,12 +301,13 @@ def load_skill_metadata(
     if not source_p.exists():
         raise ValueError(f"Source directory does not exist: {source_p}")
 
-    skill_md_path: Path | None = None
-    for filename in ("SKILL.md", "skill.md"):
-        candidate = source_p / filename
-        if candidate.exists() and candidate.is_file():
-            skill_md_path = candidate
-            break
+    # Per SEP-2640 §Skill Format the file is spelled ``SKILL.md``
+    # (uppercase).
+    candidate = source_p / "SKILL.md"
+    if candidate.exists() and candidate.is_file():
+        skill_md_path: Path | None = candidate
+    else:
+        skill_md_path = None
     if skill_md_path is None:
         raise ValueError(f"No SKILL.md found in {source_p}")
 
@@ -369,15 +374,8 @@ def register_skill(
 ) -> SkillMetadata:
     """Register a single skill at a given URI path.
 
-    The SEP-2640 §SDKs example shows a decorator-style declaration::
-
-        @server.skill("git-workflow")
-        def git_workflow():
-            return Path("./skills/git-workflow")
-
-    This function is the equivalent imperative form — call it once per
-    skill, with the URI path you want the skill to live at and the
-    source directory on disk::
+    Imperative form — call it once per skill with the URI path you want
+    the skill to live at and the source directory on disk::
 
         register_skill(server, "git-workflow", "./skills/git-workflow")
         register_skill(server, "acme/billing/refunds", "./skills/refunds")
@@ -389,11 +387,43 @@ def register_skill(
     mixing the two on the same server will yield two index resources
     and is not supported.
 
+    For the decorator form shown in SEP-2640 §SDKs, see :func:`skill`.
+
     Returns the :class:`SkillMetadata` for the registered skill.
     """
     metadata = load_skill_metadata(source_dir, skill_path)
     register_skill_resources(server, {skill_path: metadata}, source_dir, options)
     return metadata
+
+
+def skill(
+    server: Any,
+    skill_path: str,
+    options: RegisterSkillResourcesOptions | None = None,
+) -> Any:
+    """Decorator form of :func:`register_skill`.
+
+    Mirrors the SEP-2640 §SDKs example::
+
+        @skill(server, "git-workflow")
+        def git_workflow():
+            return Path("./skills/git-workflow")
+
+        @skill(server, "acme/billing/refunds")
+        def refunds():
+            return Path("./skills/refunds")
+
+    The decorated function is invoked immediately to obtain the source
+    directory; the skill is then registered at ``skill_path`` and the
+    function is returned unchanged so callers can still reference it.
+    """
+
+    def decorator(fn: Any) -> Any:
+        source_dir = fn()
+        register_skill(server, skill_path, source_dir, options)
+        return fn
+
+    return decorator
 
 
 def discover_skills(skills_dir: str | Path) -> dict[str, SkillMetadata]:
@@ -1066,4 +1096,5 @@ __all__ = [
     "register_skill",
     "register_skill_resources",
     "scan_documents",
+    "skill",
 ]

@@ -76,8 +76,10 @@ def parse_skill_uri(uri: str) -> ParsedSkillUri | None:
     before_last = rest[:slash_index]
     after_last = rest[slash_index + 1 :]
 
-    # Known sentinel: SKILL.md as the last segment
-    if after_last == SKILL_FILENAME or after_last.lower() == "skill.md":
+    # Per SEP-2640 §Skill Format, the file is spelled ``SKILL.md``
+    # (uppercase). We match exactly to keep URI generation and parsing
+    # symmetric across implementations.
+    if after_last == SKILL_FILENAME:
         return ParsedSkillUri(skill_path=before_last, file_path=after_last)
 
     # For arbitrary file paths, we can't determine the split from the URI
@@ -136,11 +138,14 @@ def build_skill_uri(skill_path: str, file_path: str | None = None) -> str:
 
 
 def is_skill_content_uri(uri: str) -> bool:
-    """Check if a URI points to a skill's SKILL.md content."""
+    """Check if a URI points to a skill's SKILL.md content.
+
+    Per SEP-2640 §Skill Format, the file is spelled ``SKILL.md`` (uppercase).
+    """
     parsed = parse_skill_uri(uri)
     if parsed is None:
         return False
-    return parsed.file_path == SKILL_FILENAME or parsed.file_path.lower() == "skill.md"
+    return parsed.file_path == SKILL_FILENAME
 
 
 def is_index_json_uri(uri: str) -> bool:

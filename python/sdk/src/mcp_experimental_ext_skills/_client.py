@@ -168,10 +168,7 @@ async def list_skills(client: SkillsClient) -> list[SkillSummary]:
             parsed = parse_skill_uri(uri)
             if parsed is None:
                 continue
-            if (
-                parsed.file_path != SKILL_FILENAME
-                and parsed.file_path.lower() != "skill.md"
-            ):
+            if parsed.file_path != SKILL_FILENAME:
                 continue
 
             skills.append(

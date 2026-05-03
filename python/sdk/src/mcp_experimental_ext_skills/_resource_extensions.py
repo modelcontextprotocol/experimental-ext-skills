@@ -13,6 +13,21 @@ Per SEP-2133 extension negotiation, servers declare support in their
 
 The empty object indicates support; SEP-2640 defines no extension-specific
 settings.
+
+.. warning::
+   **Wire-level gap pending upstream MCP SDK support for SEP-2133.**
+
+   The ``mcp`` Python SDK currently only exposes
+   ``experimental_capabilities`` on ``FastMCP``, which serializes under
+   ``capabilities.experimental`` rather than ``capabilities.extensions``.
+   Passing :data:`SKILLS_EXTENSION_CAPABILITY` into ``FastMCP`` therefore
+   places ``io.modelcontextprotocol/skills`` under ``experimental`` on
+   the wire — interoperable with hosts that look in either location, but
+   not literally what SEP-2133/SEP-2640 prescribe. Once the upstream
+   ``mcp`` package surfaces a first-class ``extensions`` capability
+   field, this SDK will switch to it; until then the capability ID and
+   shape are correct and only the parent field name differs. The
+   identical limitation applies to the TypeScript SDK.
 """
 
 from __future__ import annotations

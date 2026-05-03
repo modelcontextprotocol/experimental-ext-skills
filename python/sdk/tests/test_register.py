@@ -18,6 +18,7 @@ from mcp_experimental_ext_skills.server import (
     load_skill_metadata,
     register_skill,
     register_skill_resources,
+    skill,
 )
 from tests.conftest import FakeSkillsServer
 
@@ -34,8 +35,8 @@ class TestDiscoverSkills:
         self, temp_skills_dir: Path
     ) -> None:
         skills = discover_skills(temp_skills_dir)
-        for skill_path, skill in skills.items():
-            assert skill.name == skill_path.split("/")[-1]
+        for skill_path, meta in skills.items():
+            assert meta.name == skill_path.split("/")[-1]
 
     def test_no_nesting_constraint(self, tmp_path: Path) -> None:
         # SEP §Resource Mapping: 'A SKILL.md MUST NOT appear in any
@@ -349,6 +350,36 @@ class TestRegisterSkill:
         meta = load_skill_metadata(source_dir, "acme/billing/refunds")
         assert meta.name == "refunds"
         assert meta.metadata == {"author": "acme-billing-team", "version": "1.0"}
+
+
+class TestSkillDecorator:
+    def test_decorator_registers_skill(
+        self, temp_skills_dir: Path, fake_server: FakeSkillsServer
+    ) -> None:
+        # Mirrors SEP-2640 §SDKs example: a decorator-style declaration
+        # whose function body returns the source directory for the skill.
+        source_dir = temp_skills_dir / "code-review"
+
+        @skill(fake_server, "code-review")
+        def code_review() -> Path:
+            return source_dir
+
+        # Decorator returns the original function unchanged.
+        assert code_review() == source_dir
+        uris = [str(r.uri) for r in fake_server.resources]
+        assert "skill://code-review/SKILL.md" in uris
+
+    def test_decorator_at_multi_segment_path(
+        self, temp_skills_dir: Path, fake_server: FakeSkillsServer
+    ) -> None:
+        source_dir = temp_skills_dir / "acme" / "billing" / "refunds"
+
+        @skill(fake_server, "acme/billing/refunds")
+        def refunds() -> Path:
+            return source_dir
+
+        uris = [str(r.uri) for r in fake_server.resources]
+        assert "skill://acme/billing/refunds/SKILL.md" in uris
 
 
 class TestPathSafety:

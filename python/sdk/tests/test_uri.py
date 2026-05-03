@@ -33,11 +33,15 @@ class TestParseSkillUri:
         assert parsed.skill_path == "acme/billing/refunds"
         assert parsed.file_path == "SKILL.md"
 
-    def test_lowercase_skill_md(self) -> None:
+    def test_lowercase_skill_md_not_recognized_as_content(self) -> None:
+        # Per SEP-2640 §Skill Format the file is spelled ``SKILL.md``
+        # (uppercase). A lowercase ``skill.md`` is treated as a
+        # supporting file path, not the skill content sentinel — so
+        # the parse falls through to the empty-skill_path branch.
         parsed = parse_skill_uri("skill://my-skill/skill.md")
         assert parsed is not None
-        assert parsed.skill_path == "my-skill"
-        assert parsed.file_path == "skill.md"
+        assert parsed.skill_path == ""
+        assert parsed.file_path == "my-skill/skill.md"
 
     def test_returns_none_for_non_skill_scheme(self) -> None:
         assert parse_skill_uri("https://example.com/foo") is None
@@ -99,7 +103,8 @@ class TestPredicates:
         [
             ("skill://x/SKILL.md", True),
             ("skill://x/y/z/SKILL.md", True),
-            ("skill://x/skill.md", True),
+            # Per SEP-2640 §Skill Format the spelling is uppercase.
+            ("skill://x/skill.md", False),
             ("skill://x/foo.md", False),
             ("skill://index.json", False),
             ("https://example.com/SKILL.md", False),
