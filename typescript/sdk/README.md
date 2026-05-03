@@ -41,10 +41,9 @@ const server = new McpServer(
 );
 declareSkillsExtension(server.server);
 
-// Register all skill resources (SKILL.md, manifests, index, templates)
+// Register all skill resources (SKILL.md, index, supporting-file template)
 registerSkillResources(server, skillMap, "./skills", {
   template: true,    // enable resource template for supporting files
-  promptXml: true,   // enable skill://prompt-xml convenience resource
   // audience defaults to ["assistant"] — skills consumed only by the model
   // use ["user", "assistant"] for skills also shown in a skill browser UI
 });
@@ -81,13 +80,16 @@ Instructions for the agent...
 
 ### Registered resources
 
-For each skill, the server registers:
+The server registers, per the SEP:
 
-- `skill://{skillPath}/SKILL.md` -- skill content
-- `skill://{skillPath}/_manifest` -- file manifest with SHA-256 hashes
-- `skill://index.json` -- discovery index (all skills)
-- `skill://{+skillFilePath}` -- resource template for supporting files (optional)
-- `skill://prompt-xml` -- XML summary for system prompt injection (optional)
+- `skill://{skillPath}/SKILL.md` — one per discovered skill
+- `skill://index.json` — discovery index (all skills + archives + templates)
+- One MCP `ResourceTemplate` per `templates[]` declaration with a `read`
+  handler — readable as `resources/read` with completion wired to the MCP
+  completion API (see *Resource templates* below)
+- `skill://{+skillFilePath}` — catch-all resource template for supporting
+  files (optional, on by default; registered last so specific patterns above
+  match first)
 
 ### Resource annotations
 
@@ -108,13 +110,13 @@ for (const skill of skillMap.values()) {
 }
 ```
 
-- **`priority`** is set per resource type: 1.0 (SKILL.md), 0.8 (index), 0.5 (manifest), 0.3 (prompt-xml), 0.2 (supporting files)
-- **`lastModified`** uses per-skill mtime for SKILL.md and manifest resources, and the most recent mtime across all skills for aggregate resources (index, template, prompt-xml)
-- **`size`** is set on all resources except the template (which varies per request)
+- **`priority`** is set per resource type: 1.0 (SKILL.md), 0.9 (archive), 0.8 (index), 0.6 (declared resource templates), 0.2 (supporting-file catch-all)
+- **`lastModified`** uses per-skill mtime for SKILL.md, archive mtime for archives, and the most recent mtime across all skills for aggregate resources (index, templates)
+- **`size`** is set on all resources except the templates (which vary per request)
 
-### Resource templates in the index
+### Resource templates
 
-Servers with parameterized skill namespaces can include `mcp-resource-template` entries in the discovery index. Pass them to `registerSkillResources()` and they are automatically included in `skill://index.json`:
+Servers with parameterized skill namespaces can declare `mcp-resource-template` entries. The declaration drives three things at once: the entry in `skill://index.json`, an MCP `ResourceTemplate` registered for the URI pattern (so resolved URIs are readable via `resources/read`), and per-variable completions wired to the MCP completion API.
 
 ```typescript
 registerSkillResources(server, skillMap, "./skills", {
@@ -123,10 +125,42 @@ registerSkillResources(server, skillMap, "./skills", {
       name: "docs",
       description: "Product documentation",
       uriTemplate: "skill://docs/{product}/SKILL.md",
+      // Wire {product} to the MCP completion API.
+      complete: {
+        product: (value) =>
+          ["widget-api", "gizmo-api", "gadget-api"].filter((p) =>
+            p.startsWith(value),
+          ),
+      },
+      // Read handler invoked when a host calls resources/read against a
+      // matching URI. Receives the resolved URI and bound variables.
+      read: async (_uri, vars) => {
+        const md = await loadDocsForProduct(vars.product);
+        return { text: md, mimeType: "text/markdown" };
+      },
     },
   ],
 });
 ```
+
+If `read` is omitted, the template is enumerated only — useful for index-only declarations that point at an out-of-band resolution mechanism.
+
+### Custom `_meta` per skill
+
+Per [`skill-meta-keys.md`](../../docs/skill-meta-keys.md), most skills do **not** need `_meta` — name, description, version, allowed-tools, and other skill-level semantics belong in frontmatter (the resource body), not duplicated on the resource. The SDK reflects this: it never auto-projects frontmatter into `_meta`. When you need transport-layer metadata that has no frontmatter equivalent (provenance the host needs without reading content, content-integrity hashes, etc.), set it on the discovered `SkillMetadata.meta`:
+
+```typescript
+const skillMap = discoverSkills("./skills");
+const refunds = skillMap.get("acme/billing/refunds");
+if (refunds) {
+  refunds.meta = {
+    "io.modelcontextprotocol.skills/provenance": "acme/billing-team",
+  };
+}
+registerSkillResources(server, skillMap, "./skills");
+```
+
+The SDK passes `meta` through to the SKILL.md resource's `_meta` field; keys SHOULD use the `io.modelcontextprotocol.skills/` reverse-domain prefix.
 
 ### Archive distribution
 
@@ -165,9 +199,11 @@ console.log(`Discovered ${skills.length} skill(s)`);
 // Inject `catalog` into your agent's system prompt
 ```
 
-`discoverAndBuildCatalog()` handles the recommended discovery strategy (try `skill://index.json` first, fall back to `resources/list`) and builds an XML catalog with behavioral instructions for the model. The `serverName` is required here because the default reader tool (`READ_RESOURCE_TOOL`) takes a `server` parameter — including it in the prompt raises model activation reliability from ~33% to ~90%.
+`discoverAndBuildCatalog()` handles the recommended discovery strategy (try `skill://index.json` first, fall back to `resources/list`) and builds an XML catalog with behavioral instructions for the model. All options are optional:
 
-If you're calling the lower-level `buildSkillsCatalog()` with a reader tool that's already scoped to one server and only takes `uri`, omit `serverName` — the catalog will drop the `with server …` clause rather than mention an argument the tool doesn't accept.
+- Pass `serverName` when your reader tool takes a `server` parameter (e.g., the bundled `READ_RESOURCE_TOOL`); omit it for host-scoped readers that take only `uri`. The catalog drops the `with server …` clause when omitted.
+- Pass `serverInEntries: true` to also inject `<server>` inside every `<skill>` entry. Off by default because per-entry placement is host-implementation guidance from the host SKILL.md, not in SEP-2640. Empirically lifts first-call activation ~33% → ~90% for `(server, uri)` reader tools.
+- Pass `instructions: true` to enable the SEP's third discovery path (mining server `instructions` for skill URIs). Off by default.
 
 ### Step by step
 
@@ -181,7 +217,6 @@ import {
   readSkillUri,
   readSkillContent,
   readSkillArchive,
-  readSkillManifest,
   readSkillDocument,
   buildSkillsCatalog,
   buildSkillsSummary,
@@ -205,9 +240,6 @@ const md = await readSkillContent(client, "acme/billing/refunds");
 // Fetch + unpack an archive-distributed skill
 const archive = await readSkillArchive(client, "skill://pdf-processing.tar.gz");
 const archiveSkillMd = archive.files.get("SKILL.md")!.toString("utf-8");
-
-// Read file manifest (SHA-256 hashes for each file)
-const manifest = await readSkillManifest(client, "code-review");
 
 // Read a supporting file
 const doc = await readSkillDocument(client, "acme/billing/refunds", "templates/refund-email-template.md");
@@ -245,15 +277,54 @@ The host MUST support both `.tar.gz` (`application/gzip`) and `.zip` (`applicati
 
 Per the SEP, `skill://` is SHOULD, not MUST. Servers may serve skills under any URI scheme (e.g., `repo://`, `github://`) provided they are listed in `skill://index.json`. The discovery functions (`discoverSkills`, `listSkillsFromIndex`) handle any scheme in index entries, and `readSkillUri()` reads any URI regardless of scheme.
 
+### Server `instructions` as a discovery path
+
+The SEP lists three discovery paths feeding the host's catalog: `skill://index.json`, server `instructions`, and direct `resources/read`. `discoverSkills()` and `discoverAndBuildCatalog()` accept `{ instructions: true }` to opt into mining `client.getInstructions()` for `<scheme>://...SKILL.md` URIs and merging them with index hits (deduplicated by URI). This is **off by default** — most servers don't name skill URIs in their instructions, and turning it on costs one `resources/read` round-trip per URI mentioned. Turn it on for documentation-server / gateway / template-only servers that don't enumerate via `index.json`.
+
+```typescript
+const skills = await discoverSkills(client, { instructions: true });
+```
+
+Pass `extractor` to override the built-in regex when the server uses a non-standard URI convention in its instructions text (URIs inside code fences with custom syntax, JSON-encoded URI lists, etc.):
+
+```typescript
+const skills = await discoverSkills(client, {
+  instructions: true,
+  extractor: (text) => JSON.parse(text)["skills"] as string[],
+});
+```
+
+Lower-level helpers are also exported:
+
+```typescript
+import {
+  extractSkillUrisFromInstructions,
+  listSkillsFromInstructions,
+} from "@modelcontextprotocol/experimental-ext-skills/client";
+
+const uris = extractSkillUrisFromInstructions(client.getInstructions());
+const fromInstructions = await listSkillsFromInstructions(
+  client,
+  client.getInstructions() ?? "",
+  { extractor: myExtractor }, // optional
+);
+```
+
+### Per-entry `<server>` in the system-prompt catalog
+
+`buildSkillsCatalog(skills, { toolName, serverName, serverInEntries: true })` injects `<server>{name}</server>` into every `<skill>` entry. This puts the server name visibly next to each URI the model might pass to a `(server, uri)` reader tool. The host SKILL.md flags this as the way to keep first-call activation reliability ~90% (vs ~33% without).
+
+`serverInEntries` defaults to **false** because per-entry placement isn't in SEP-2640 — only the empirical activation guidance from the host SKILL.md. Hosts that use `(server, uri)` reader tools (like the bundled `READ_RESOURCE_TOOL`) should opt in; hosts whose readers are already scoped to one server can leave it off. The wrapper-level mention of `serverName` in the prose instructions remains independent of this flag.
+
 ## URI scheme
 
 ```
 skill://code-review/SKILL.md                     # single-segment path
 skill://acme/billing/refunds/SKILL.md            # multi-segment path
-skill://acme/billing/refunds/_manifest            # file manifest
-skill://acme/billing/refunds/templates/email.md   # supporting file
+skill://acme/billing/refunds/templates/email.md  # supporting file
+skill://docs/{product}/SKILL.md                   # parameterized template
+skill://pdf-processing.tar.gz                     # archive distribution
 skill://index.json                                # discovery index
-skill://prompt-xml                                # XML summary
 ```
 
 URI utilities are available from the main import:

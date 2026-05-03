@@ -12,7 +12,8 @@
  *   4. listSkills()                       — fallback via `resources/list`
  *   5. readSkillContent()                 — read an individual SKILL.md
  *   6. readSkillArchive()                 — fetch + safely unpack a .tar.gz
- *   7. readSkillManifest() / readSkillDocument() — supporting-file flows
+ *   7. Resolve a parameterized template   — completion API → resources/read
+ *   8. readSkillDocument()                — supporting-file flow
  *
  * Connects to the skills-server via stdio (spawns it as a child process).
  *
@@ -23,16 +24,19 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { CompleteResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
   READ_RESOURCE_TOOL,
   listSkills,
   listSkillsFromIndex,
   listSkillTemplatesFromIndex,
   readSkillContent,
+  readSkillUri,
   readSkillArchive,
-  readSkillManifest,
   readSkillDocument,
   buildSkillsSummary,
+  discoverAndBuildCatalog,
+  extractSkillUrisFromInstructions,
 } from "@modelcontextprotocol/experimental-ext-skills/client";
 import { buildSkillUri } from "@modelcontextprotocol/experimental-ext-skills";
 
@@ -187,20 +191,102 @@ async function main(): Promise<void> {
     }
 
     // -----------------------------------------------------------------------
-    // 7. Manifest + supporting file (per-resource template flow)
+    // 7. Resolve a parameterized template via completion + resources/read
     // -----------------------------------------------------------------------
-    header("7. readSkillManifest() + readSkillDocument()");
-    if (refundSkill) {
-      const manifest = await readSkillManifest(client, refundSkill.skillPath);
-      console.log(`Files (${manifest.files.length}):\n`);
-      for (const f of manifest.files) {
-        console.log(
-          `  ${f.path.padEnd(40)} ${f.size.toString().padStart(6)} bytes  ${f.hash}`,
-        );
-      }
+    header("7. Resource Template — completion + resources/read");
+    const templateEntry = (templates ?? [])[0];
+    if (templateEntry) {
+      console.log(`Template URI: ${templateEntry.uriTemplate}\n`);
 
+      // Ask the server which {product} values it supports via the MCP
+      // completion API. Real hosts wire this into a UI; here we print it.
+      subheader("MCP completion API → candidate {product} values");
+      const completion = await client.request(
+        {
+          method: "completion/complete",
+          params: {
+            ref: {
+              type: "ref/resource",
+              uri: templateEntry.uriTemplate,
+            },
+            argument: { name: "product", value: "" },
+          },
+        },
+        CompleteResultSchema,
+      );
+      const completions = completion?.completion?.values ?? [];
+      console.log(`Candidates: ${completions.join(", ") || "(none)"}`);
+
+      const product = completions[0];
+      if (product) {
+        const resolvedUri = templateEntry.uriTemplate.replace(
+          "{product}",
+          product,
+        );
+        subheader(`Resolved URI → resources/read`);
+        console.log(`Resolved: ${resolvedUri}\n`);
+        const text = await readSkillUri(client, resolvedUri);
+        preview(text, 15);
+      } else {
+        console.log("(no completions returned — server may not provide them)");
+      }
+    } else {
+      console.log("(no template entries to demo)");
+    }
+
+    // -----------------------------------------------------------------------
+    // 8. Server `instructions` — third SEP discovery path
+    // -----------------------------------------------------------------------
+    header("8. Server instructions — third discovery path");
+    const serverInstructions = client.getInstructions();
+    console.log(`Server instructions:\n${serverInstructions ?? "(none)"}\n`);
+    const namedUris = extractSkillUrisFromInstructions(serverInstructions);
+    console.log(
+      `URIs the server names in instructions: ${
+        namedUris.length ? namedUris.join(", ") : "(none)"
+      }`,
+    );
+    console.log(
+      "discoverSkills() merges these URIs with skill://index.json hits,",
+    );
+    console.log("deduplicated by URI.");
+
+    // -----------------------------------------------------------------------
+    // 9. discoverAndBuildCatalog — system-prompt catalog with per-entry <server>
+    // -----------------------------------------------------------------------
+    header("9. discoverAndBuildCatalog() — system-prompt catalog");
+    // Two opt-ins on top of the SEP-prescribed defaults:
+    //   - `instructions: true` enables the SEP's third discovery path
+    //   - `serverInEntries: true` injects <server> per <skill> entry, the
+    //     host SKILL.md's recommended placement for the model to copy
+    //     alongside the URI when calling a (server, uri) reader tool.
+    // Both are off by default since neither is in SEP-2640 itself.
+    const { skills: catalogSkills, catalog } = await discoverAndBuildCatalog(
+      client,
+      {
+        serverName: "skills-sep-example",
+        instructions: true,
+        serverInEntries: true,
+      },
+    );
+    console.log(
+      `Catalog covers ${catalogSkills.length} skill(s) (index + instructions).\n`,
+    );
+    console.log(
+      "With serverInEntries: true, the server name is also placed inside",
+    );
+    console.log("each <skill> entry so the model can copy it next to the URI:");
+    console.log();
+    preview(catalog, 30);
+
+    // -----------------------------------------------------------------------
+    // 10. Supporting-file flow
+    // -----------------------------------------------------------------------
+    header("10. readSkillDocument() — supporting-file flow");
+    if (refundSkill) {
       const docPath = "templates/refund-email-template.md";
-      subheader(`Reading ${buildSkillUri(refundSkill.skillPath, docPath)}`);
+      const docUri = buildSkillUri(refundSkill.skillPath, docPath);
+      console.log(`Reading: ${docUri}\n`);
       const doc = await readSkillDocument(
         client,
         refundSkill.skillPath,
@@ -217,9 +303,12 @@ async function main(): Promise<void> {
     console.log("  [SEP-2133]  Extension declaration (io.modelcontextprotocol/skills)");
     console.log("  [SEP-2640]  skill:// URI scheme + multi-segment paths");
     console.log("  [SEP-2640]  skill://index.json discovery");
+    console.log("  [SEP-2640]  Server instructions — third discovery path");
     console.log("  [SEP-2640]  All three entry types: skill-md, archive, mcp-resource-template");
     console.log("  [SEP-2640]  Archive fetch + safe unpack (.tar.gz, archive safety)");
-    console.log("  [Hosts]     read_resource tool surface + supporting-file flow");
+    console.log("  [SEP-2640]  Resource template — completion API + resources/read");
+    console.log("  [Hosts]     read_resource tool surface + per-entry <server> in catalog");
+    console.log("  [Hosts]     supporting-file flow");
     console.log();
   } finally {
     await client.close();

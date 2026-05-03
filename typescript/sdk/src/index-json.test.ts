@@ -14,7 +14,7 @@ function makeSkill(overrides: Partial<SkillMetadata> & { name: string; skillPath
     absolutePath: `/skills/${overrides.skillPath}/SKILL.md`,
     skillDir: `/skills/${overrides.skillPath}`,
     documents: [],
-    manifest: { skill: overrides.name, skillPath: overrides.skillPath, files: [] },
+    size: 0,
     lastModified: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
@@ -480,10 +480,11 @@ describe("listSkillsFromIndex with non-skill:// URI schemes", () => {
 
     expect(skills).toHaveLength(3);
 
-    // Non-skill:// entry: uri preserved as-is, skillPath falls back to name
+    // Non-skill:// entry: uri preserved as-is, skillPath extracted per SEP
+    // (path between scheme:// and /SKILL.md, including authority)
     const copilot = skills!.find((s) => s.name === "copilot-sdk")!;
     expect(copilot.uri).toBe("repo://github/awesome-copilot/contents/skills/copilot-sdk/SKILL.md");
-    expect(copilot.skillPath).toBe("copilot-sdk");
+    expect(copilot.skillPath).toBe("github/awesome-copilot/contents/skills/copilot-sdk");
     expect(copilot.description).toBe("Copilot SDK guide");
 
     // skill:// entry: skillPath extracted from URI structure
@@ -494,7 +495,7 @@ describe("listSkillsFromIndex with non-skill:// URI schemes", () => {
     // Another non-skill:// scheme
     const deploy = skills!.find((s) => s.name === "deploy-guide")!;
     expect(deploy.uri).toBe("github://acme/platform/skills/deploy-guide/SKILL.md");
-    expect(deploy.skillPath).toBe("deploy-guide");
+    expect(deploy.skillPath).toBe("acme/platform/skills/deploy-guide");
   });
 
   it("produces summaries that work with readSkillUri", async () => {
@@ -651,7 +652,6 @@ describe("listSkills", () => {
       listResources: vi.fn().mockResolvedValue({
         resources: [
           { uri: "skill://code-review/SKILL.md", name: "code-review", description: "Review" },
-          { uri: "skill://code-review/_manifest", name: "code-review-manifest" },
           { uri: "skill://index.json", name: "skills-index" },
           { uri: "skill://acme/billing/refunds/SKILL.md", name: "refunds", description: "Refunds" },
         ],
@@ -892,6 +892,40 @@ describe("discoverAndBuildCatalog", () => {
 
     expect(result.skills).toEqual([]);
     expect(result.catalog).toBe("");
+  });
+
+  it("works without options entirely (serverName is optional)", async () => {
+    const client = mockClientWithIndex({
+      $schema: SKILL_INDEX_SCHEMA,
+      skills: [
+        { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" },
+      ],
+    });
+
+    const result = await discoverAndBuildCatalog(client);
+
+    expect(result.skills).toHaveLength(1);
+    // No serverName → wrapper prose drops the "with server" clause
+    expect(result.catalog).not.toContain("with server");
+    expect(result.catalog).toContain("with the skill's URI");
+    // Default serverInEntries: false
+    expect(result.catalog).not.toContain("<server>");
+  });
+
+  it("threads serverInEntries through to the catalog", async () => {
+    const client = mockClientWithIndex({
+      $schema: SKILL_INDEX_SCHEMA,
+      skills: [
+        { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" },
+      ],
+    });
+
+    const result = await discoverAndBuildCatalog(client, {
+      serverName: "my-server",
+      serverInEntries: true,
+    });
+
+    expect(result.catalog).toContain("<server>my-server</server>");
   });
 
   it("includes server name for activation reliability", async () => {

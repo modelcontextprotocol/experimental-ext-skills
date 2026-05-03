@@ -89,6 +89,35 @@ Some text with --- in it.
       description: "Has dashes",
     });
   });
+
+  it("handles a YAML literal-block multi-line description", () => {
+    const content = `---
+name: multiline
+description: |
+  First line of description.
+  Second line of description.
+---
+# Body
+`;
+    expect(parseSkillFrontmatter(content)).toEqual({
+      name: "multiline",
+      description: "First line of description.\nSecond line of description.",
+    });
+  });
+
+  it("handles a YAML folded-block multi-line description", () => {
+    const content = `---
+name: folded
+description: >
+  This description
+  folds onto one line
+  with spaces.
+---
+`;
+    const result = parseSkillFrontmatter(content);
+    expect(result?.name).toBe("folded");
+    expect(result?.description).toContain("folds onto one line");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -171,6 +200,41 @@ describe("buildSkillsCatalog", () => {
     expect(catalog).toContain("<name>code-review</name>");
     expect(catalog).toContain("<description>Review code</description>");
     expect(catalog).toContain("<uri>skill://code-review/SKILL.md</uri>");
+  });
+
+  it("does NOT emit <server> per entry by default", () => {
+    const skills: SkillSummary[] = [
+      { name: "a", skillPath: "a", uri: "skill://a/SKILL.md", description: "A" },
+      { name: "b", skillPath: "b", uri: "skill://b/SKILL.md", description: "B" },
+    ];
+    const catalog = buildSkillsCatalog(skills, catalogOptions);
+    expect(catalog).not.toContain("<server>");
+    // Wrapper-level mention still present
+    expect(catalog).toContain("with server `skills-server`");
+  });
+
+  it("emits <server> per entry when serverInEntries is true and serverName is set", () => {
+    const skills: SkillSummary[] = [
+      { name: "a", skillPath: "a", uri: "skill://a/SKILL.md", description: "A" },
+      { name: "b", skillPath: "b", uri: "skill://b/SKILL.md", description: "B" },
+    ];
+    const catalog = buildSkillsCatalog(skills, {
+      ...catalogOptions,
+      serverInEntries: true,
+    });
+    const matches = catalog.match(/<server>skills-server<\/server>/g) ?? [];
+    expect(matches).toHaveLength(2);
+  });
+
+  it("ignores serverInEntries when serverName is absent", () => {
+    const skills: SkillSummary[] = [
+      { name: "a", skillPath: "a", uri: "skill://a/SKILL.md", description: "A" },
+    ];
+    const catalog = buildSkillsCatalog(skills, {
+      toolName: "read_skill",
+      serverInEntries: true,
+    });
+    expect(catalog).not.toContain("<server>");
   });
 
   it("includes multi-segment skill path", () => {

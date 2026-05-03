@@ -4,12 +4,11 @@ import {
   resolveSkillFileUri,
   buildSkillUri,
   isSkillContentUri,
-  isSkillManifestUri,
-  isPromptXmlUri,
   isIndexJsonUri,
+  isValidSkillName,
+  extractSkillPathFromUri,
   SKILL_URI_SCHEME,
   INDEX_JSON_URI,
-  PROMPT_XML_URI,
 } from "./uri.js";
 
 // ---------------------------------------------------------------------------
@@ -31,13 +30,6 @@ describe("parseSkillUri", () => {
     });
   });
 
-  it("parses _manifest URIs", () => {
-    expect(parseSkillUri("skill://acme/billing/refunds/_manifest")).toEqual({
-      skillPath: "acme/billing/refunds",
-      filePath: "_manifest",
-    });
-  });
-
   it("handles case-insensitive skill.md", () => {
     const result = parseSkillUri("skill://my-skill/skill.md");
     expect(result).toEqual({ skillPath: "my-skill", filePath: "skill.md" });
@@ -49,8 +41,7 @@ describe("parseSkillUri", () => {
     expect(parseSkillUri("")).toBeNull();
   });
 
-  it("returns null for reserved well-known URIs", () => {
-    expect(parseSkillUri(PROMPT_XML_URI)).toBeNull();
+  it("returns null for the well-known index URI", () => {
     expect(parseSkillUri(INDEX_JSON_URI)).toBeNull();
   });
 
@@ -137,12 +128,6 @@ describe("buildSkillUri", () => {
     );
   });
 
-  it("builds manifest URI", () => {
-    expect(buildSkillUri("code-review", "_manifest")).toBe(
-      "skill://code-review/_manifest",
-    );
-  });
-
   it("builds supporting file URI", () => {
     expect(buildSkillUri("code-review", "references/GUIDE.md")).toBe(
       "skill://code-review/references/GUIDE.md",
@@ -159,18 +144,8 @@ describe("URI type checks", () => {
     expect(isSkillContentUri("skill://code-review/SKILL.md")).toBe(true);
     expect(isSkillContentUri("skill://acme/billing/refunds/SKILL.md")).toBe(true);
     expect(isSkillContentUri("skill://x/skill.md")).toBe(true);
-    expect(isSkillContentUri("skill://code-review/_manifest")).toBe(false);
+    expect(isSkillContentUri("skill://code-review/references/foo.md")).toBe(false);
     expect(isSkillContentUri(INDEX_JSON_URI)).toBe(false);
-  });
-
-  it("isSkillManifestUri identifies _manifest URIs", () => {
-    expect(isSkillManifestUri("skill://code-review/_manifest")).toBe(true);
-    expect(isSkillManifestUri("skill://code-review/SKILL.md")).toBe(false);
-  });
-
-  it("isPromptXmlUri identifies prompt-xml", () => {
-    expect(isPromptXmlUri(PROMPT_XML_URI)).toBe(true);
-    expect(isPromptXmlUri("skill://prompt-xml/SKILL.md")).toBe(false);
   });
 
   it("isIndexJsonUri identifies index.json", () => {
@@ -184,6 +159,81 @@ describe("URI type checks", () => {
 // Round-trip: build → parse
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// isValidSkillName (Agent Skills naming rule)
+// ---------------------------------------------------------------------------
+
+describe("isValidSkillName", () => {
+  it("accepts lowercase letters, digits, and hyphens", () => {
+    expect(isValidSkillName("git-workflow")).toBe(true);
+    expect(isValidSkillName("refunds")).toBe(true);
+    expect(isValidSkillName("v2-api")).toBe(true);
+    expect(isValidSkillName("abc123")).toBe(true);
+  });
+
+  it("rejects uppercase, underscore, dot, slash, space", () => {
+    expect(isValidSkillName("MyCoolSkill")).toBe(false);
+    expect(isValidSkillName("git_workflow")).toBe(false);
+    expect(isValidSkillName("foo.bar")).toBe(false);
+    expect(isValidSkillName("foo/bar")).toBe(false);
+    expect(isValidSkillName("foo bar")).toBe(false);
+  });
+
+  it("rejects empty string", () => {
+    expect(isValidSkillName("")).toBe(false);
+  });
+
+  it("rejects index.json (justifies the SEP reservation)", () => {
+    expect(isValidSkillName("index.json")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractSkillPathFromUri (cross-scheme path extraction)
+// ---------------------------------------------------------------------------
+
+describe("extractSkillPathFromUri", () => {
+  it("extracts path from skill:// URIs", () => {
+    expect(extractSkillPathFromUri("skill://git-workflow/SKILL.md")).toBe(
+      "git-workflow",
+    );
+    expect(
+      extractSkillPathFromUri("skill://acme/billing/refunds/SKILL.md"),
+    ).toBe("acme/billing/refunds");
+  });
+
+  it("extracts path from non-skill schemes (authority included)", () => {
+    expect(
+      extractSkillPathFromUri(
+        "github://owner/repo/skills/refunds/SKILL.md",
+      ),
+    ).toBe("owner/repo/skills/refunds");
+    expect(
+      extractSkillPathFromUri(
+        "repo://github/awesome-copilot/contents/skills/copilot-sdk/SKILL.md",
+      ),
+    ).toBe("github/awesome-copilot/contents/skills/copilot-sdk");
+  });
+
+  it("matches case-insensitively on the SKILL.md filename", () => {
+    expect(extractSkillPathFromUri("skill://x/skill.md")).toBe("x");
+    expect(extractSkillPathFromUri("skill://x/Skill.MD")).toBe("x");
+  });
+
+  it("returns null for URIs that don't end in SKILL.md", () => {
+    expect(
+      extractSkillPathFromUri("skill://x/references/GUIDE.md"),
+    ).toBeNull();
+    expect(extractSkillPathFromUri("skill://pdf-processing.tar.gz")).toBeNull();
+  });
+
+  it("returns null for non-URI strings", () => {
+    expect(extractSkillPathFromUri("not-a-uri")).toBeNull();
+    expect(extractSkillPathFromUri("")).toBeNull();
+    expect(extractSkillPathFromUri("/just/a/path/SKILL.md")).toBeNull();
+  });
+});
+
 describe("round-trip", () => {
   const paths = ["git-workflow", "acme/billing/refunds", "a/b/c/d"];
 
@@ -193,11 +243,9 @@ describe("round-trip", () => {
       const parsed = parseSkillUri(uri);
       expect(parsed).toEqual({ skillPath: sp, filePath: "SKILL.md" });
     });
-
-    it(`build(_manifest) → parse for "${sp}"`, () => {
-      const uri = buildSkillUri(sp, "_manifest");
-      const parsed = parseSkillUri(uri);
-      expect(parsed).toEqual({ skillPath: sp, filePath: "_manifest" });
-    });
   }
+
+  it("scheme constant is correct", () => {
+    expect(SKILL_URI_SCHEME).toBe("skill://");
+  });
 });

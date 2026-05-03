@@ -4,9 +4,7 @@
  * Supports multi-segment skill paths per the Skills Extension SEP:
  *   - skill://code-review/SKILL.md              (single-segment)
  *   - skill://acme/billing/refunds/SKILL.md     (multi-segment)
- *   - skill://acme/billing/refunds/_manifest     (multi-segment manifest)
  *   - skill://acme/billing/refunds/templates/email.md  (supporting file)
- *   - skill://prompt-xml                         (system prompt XML)
  *
  * Per the SEP: the final segment of <skill-path> MUST equal the skill's
  * frontmatter name. Preceding segments are a server-chosen organizational
@@ -20,14 +18,25 @@ export const SKILL_URI_SCHEME = "skill://";
 /** Default skill content filename. */
 export const SKILL_FILENAME = "SKILL.md";
 
-/** Manifest pseudo-path. */
-export const MANIFEST_PATH = "_manifest";
-
-/** Special URI for system prompt XML. */
-export const PROMPT_XML_URI = "skill://prompt-xml";
-
 /** Well-known URI for the skill index (SEP discovery mechanism). */
 export const INDEX_JSON_URI = "skill://index.json";
+
+/**
+ * Agent Skills naming rule: skill names contain only lowercase letters,
+ * digits, and hyphens. Per SEP-2640, the final segment of `<skill-path>` —
+ * which equals the frontmatter `name` — MUST satisfy this rule. The rule
+ * also underpins the SEP's reservation note that `index.json` cannot
+ * collide with a skill name.
+ */
+const SKILL_NAME_REGEX = /^[a-z0-9-]+$/;
+
+/**
+ * Check whether a string satisfies the Agent Skills `name` field rule:
+ * lowercase letters, digits, and hyphens, non-empty.
+ */
+export function isValidSkillName(name: string): boolean {
+  return SKILL_NAME_REGEX.test(name);
+}
 
 /**
  * Parsed components of a skill:// URI.
@@ -35,33 +44,31 @@ export const INDEX_JSON_URI = "skill://index.json";
 export interface ParsedSkillUri {
   /** Multi-segment skill path (e.g., "acme/billing/refunds") */
   skillPath: string;
-  /** File path within the skill (e.g., "SKILL.md", "_manifest", "templates/email.md") */
+  /** File path within the skill (e.g., "SKILL.md", "templates/email.md") */
   filePath: string;
 }
 
 /**
  * Parse a skill:// URI into skill path and file path components.
  *
- * For SKILL.md and _manifest URIs, the split is unambiguous because the
- * last segment is a known sentinel. For supporting file URIs, the caller
- * must use resolveSkillFileUri() with known skill paths.
+ * For SKILL.md URIs, the split is unambiguous because the last segment is
+ * a known sentinel. For supporting file URIs, the caller must use
+ * resolveSkillFileUri() with known skill paths.
  *
  * Returns null if the URI doesn't match the skill:// scheme or is the
- * special prompt-xml URI.
+ * special index.json URI.
  *
  * Examples:
  *   "skill://code-review/SKILL.md"
  *     → { skillPath: "code-review", filePath: "SKILL.md" }
  *   "skill://acme/billing/refunds/SKILL.md"
  *     → { skillPath: "acme/billing/refunds", filePath: "SKILL.md" }
- *   "skill://acme/billing/refunds/_manifest"
- *     → { skillPath: "acme/billing/refunds", filePath: "_manifest" }
  */
 export function parseSkillUri(uri: string): ParsedSkillUri | null {
   if (!uri.startsWith(SKILL_URI_SCHEME)) return null;
 
   const rest = uri.slice(SKILL_URI_SCHEME.length);
-  if (!rest || rest === "prompt-xml" || rest === "index.json") return null;
+  if (!rest || rest === "index.json") return null;
 
   const slashIndex = rest.lastIndexOf("/");
   if (slashIndex === -1) return null;
@@ -69,12 +76,8 @@ export function parseSkillUri(uri: string): ParsedSkillUri | null {
   const beforeLast = rest.slice(0, slashIndex);
   const afterLast = rest.slice(slashIndex + 1);
 
-  // Known sentinel: SKILL.md or _manifest as the last segment
-  if (
-    afterLast === SKILL_FILENAME ||
-    afterLast.toLowerCase() === "skill.md" ||
-    afterLast === MANIFEST_PATH
-  ) {
+  // Known sentinel: SKILL.md as the last segment
+  if (afterLast === SKILL_FILENAME || afterLast.toLowerCase() === "skill.md") {
     return { skillPath: beforeLast, filePath: afterLast };
   }
 
@@ -120,8 +123,6 @@ export function resolveSkillFileUri(
  * Examples:
  *   buildSkillUri("acme/billing/refunds")
  *     → "skill://acme/billing/refunds/SKILL.md"
- *   buildSkillUri("acme/billing/refunds", "_manifest")
- *     → "skill://acme/billing/refunds/_manifest"
  *   buildSkillUri("code-review", "references/REFERENCE.md")
  *     → "skill://code-review/references/REFERENCE.md"
  */
@@ -142,23 +143,36 @@ export function isSkillContentUri(uri: string): boolean {
 }
 
 /**
- * Check if a URI points to a skill's _manifest.
- */
-export function isSkillManifestUri(uri: string): boolean {
-  const parsed = parseSkillUri(uri);
-  return parsed !== null && parsed.filePath === MANIFEST_PATH;
-}
-
-/**
- * Check if a URI is the special prompt-xml resource.
- */
-export function isPromptXmlUri(uri: string): boolean {
-  return uri === PROMPT_XML_URI;
-}
-
-/**
  * Check if a URI is the well-known skill index resource.
  */
 export function isIndexJsonUri(uri: string): boolean {
   return uri === INDEX_JSON_URI;
+}
+
+/**
+ * Extract the `<skill-path>` from any-scheme URI ending in `/SKILL.md`.
+ *
+ * Per SEP-2640, the structural constraints on `<skill-path>` (final segment
+ * equals the skill name, `SKILL.md` explicit, no nesting) apply regardless
+ * of scheme. So for `github://owner/repo/skills/refunds/SKILL.md` the
+ * skill-path is `owner/repo/skills/refunds`.
+ *
+ * Returns null if the URI doesn't have the form `<scheme>://<path>/SKILL.md`
+ * (case-insensitive on the filename).
+ */
+export function extractSkillPathFromUri(uri: string): string | null {
+  const schemeMatch = uri.match(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/(.*)$/);
+  if (!schemeMatch) return null;
+
+  const rest = schemeMatch[1];
+  const slashIndex = rest.lastIndexOf("/");
+  if (slashIndex <= 0) return null;
+
+  const lastSegment = rest.slice(slashIndex + 1);
+  if (lastSegment !== SKILL_FILENAME && lastSegment.toLowerCase() !== "skill.md") {
+    return null;
+  }
+
+  const skillPath = rest.slice(0, slashIndex);
+  return skillPath || null;
 }

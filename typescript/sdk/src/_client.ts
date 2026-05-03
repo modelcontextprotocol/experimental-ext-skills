@@ -19,14 +19,16 @@
  *   - SDK wrappers per the SEP: listSkills(), listSkillsFromIndex(), readSkillUri()
  */
 
+import { parse as parseYaml } from "yaml";
 import type {
-  SkillManifest,
   SkillSummary,
   SkillIndex,
   SkillTemplateEntry,
   SkillsCatalogOptions,
+  DiscoverSkillsOptions,
   DiscoverCatalogOptions,
   DiscoverCatalogResult,
+  InstructionsUriExtractor,
   UnpackedSkillArchive,
   ExtractArchiveOptions,
 } from "./types.js";
@@ -34,10 +36,10 @@ import { KNOWN_SKILL_INDEX_SCHEMAS } from "./types.js";
 import { generateSkillsXMLFromSummaries } from "./xml.js";
 import {
   buildSkillUri,
-  MANIFEST_PATH,
   INDEX_JSON_URI,
   parseSkillUri,
   SKILL_FILENAME,
+  extractSkillPathFromUri,
 } from "./uri.js";
 import {
   extractSkillArchive,
@@ -72,6 +74,13 @@ export interface SkillsClient {
       blob?: string;
     }>;
   }>;
+  /**
+   * Optional. Returns the connected server's `instructions` string from the
+   * `initialize` response, when the underlying client exposes it. Used by
+   * `discoverSkills()` to mine instructions for skill URIs per the SEP's
+   * third discovery path.
+   */
+  getInstructions?(): string | undefined;
 }
 
 /**
@@ -112,6 +121,41 @@ export const READ_RESOURCE_TOOL: ToolDefinition = {
       },
     },
     required: ["server", "uri"],
+  },
+  annotations: {
+    readOnlyHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+};
+
+/**
+ * MCP Tool definition for a name-keyed read_skill tool.
+ *
+ * The model calls read_skill(name) and the host looks the name up in
+ * its skill registry, routing to a filesystem read or an MCP
+ * `resources/read` based on origin. The model neither knows nor cares
+ * which path was taken — this matches the SEP's "Hosts: End-to-End
+ * Integration" guidance for hosts that already expose a name-keyed
+ * skill loader for filesystem skills and want to extend it to cover
+ * MCP-served skills.
+ *
+ * Companion to READ_RESOURCE_TOOL: the latter is general-purpose and
+ * disambiguates by `(server, uri)`; this one is skills-specific and
+ * disambiguates by host registry lookup.
+ */
+export const READ_SKILL_TOOL: ToolDefinition = {
+  name: "read_skill",
+  description: "Load a skill's SKILL.md into context.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      name: {
+        type: "string",
+        description: "The skill name",
+      },
+    },
+    required: ["name"],
   },
   annotations: {
     readOnlyHint: true,
@@ -223,11 +267,11 @@ export async function listSkillsFromIndex(
   const summaries: SkillSummary[] = [];
   for (const entry of index.skills) {
     if (entry.type === "skill-md") {
-      // For skill:// URIs, extract the multi-segment skillPath from URI structure.
-      // For other schemes (github://, repo://, etc.), use entry.name — the SEP
-      // allows any scheme in index entries, and name is always the skill identity.
-      const parsed = parseSkillUri(entry.url);
-      const skillPath = parsed?.skillPath ?? entry.name;
+      // Per SEP-2640, `<skill-path>` structural constraints apply regardless
+      // of scheme. Extract the path between `<scheme>://` and `/SKILL.md`
+      // for any URI; fall back to `entry.name` only when the URL doesn't
+      // have that form.
+      const skillPath = extractSkillPathFromUri(entry.url) ?? entry.name;
       summaries.push({
         name: entry.name,
         skillPath,
@@ -242,8 +286,8 @@ export async function listSkillsFromIndex(
       // skill://pdf-processing/. We expose the archive URL on `uri` so callers
       // know how to fetch; the post-unpack `skillPath` is derived from the URL.
       const stripped = stripArchiveSuffix(entry.url);
-      const parsed = parseSkillUri(stripped + "/SKILL.md");
-      const skillPath = parsed?.skillPath ?? entry.name;
+      const skillPath =
+        extractSkillPathFromUri(stripped + "/SKILL.md") ?? entry.name;
       summaries.push({
         name: entry.name,
         skillPath,
@@ -321,27 +365,38 @@ export async function readSkillContent(
 /**
  * Parse name and description from SKILL.md YAML frontmatter content.
  *
- * Uses a simple regex approach — no yaml dependency required on the client side.
- * Returns null if the content doesn't contain valid frontmatter.
+ * Uses the `yaml` package so multi-line scalars, quoted strings, and other
+ * non-trivial YAML constructs are handled correctly. Returns null if the
+ * content lacks closed `---` frontmatter, the frontmatter is not a YAML
+ * mapping, or the `name` field is missing/non-string.
  */
 export function parseSkillFrontmatter(
   content: string,
 ): { name: string; description: string } | null {
   if (!content.startsWith("---")) return null;
 
-  const endIndex = content.indexOf("---", 3);
-  if (endIndex === -1) return null;
+  // Match an opening `---` line followed by a closing `---` line. Using a
+  // line-anchored split keeps `---` inside the body (e.g., a horizontal
+  // rule) from terminating the frontmatter early.
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/);
+  if (!match) return null;
 
-  const frontmatter = content.slice(3, endIndex);
+  let frontmatter: unknown;
+  try {
+    frontmatter = parseYaml(match[1]);
+  } catch {
+    return null;
+  }
 
-  const nameMatch = frontmatter.match(/^name:\s*(.+)$/m);
-  const descMatch = frontmatter.match(/^description:\s*(.+)$/m);
+  if (typeof frontmatter !== "object" || frontmatter === null) return null;
+  const fm = frontmatter as Record<string, unknown>;
 
-  if (!nameMatch) return null;
+  if (typeof fm.name !== "string") return null;
+  const name = fm.name.trim();
+  if (!name) return null;
 
-  const name = nameMatch[1].trim().replace(/^["']|["']$/g, "");
-  const description = descMatch
-    ? descMatch[1].trim().replace(/^["']|["']$/g, "")
+  const description = typeof fm.description === "string"
+    ? fm.description.trim()
     : "";
 
   return { name, description };
@@ -393,8 +448,11 @@ export function buildSkillsCatalog(
 ): string {
   if (skills.length === 0) return "";
 
-  const { toolName, serverName } = options;
-  const xml = generateSkillsXMLFromSummaries(skills);
+  const { toolName, serverName, serverInEntries } = options;
+  const xml = generateSkillsXMLFromSummaries(skills, {
+    serverName,
+    serverInEntries,
+  });
 
   const instructions = serverName
     ? [
@@ -475,29 +533,10 @@ export async function readSkillArchive(
 }
 
 /**
- * Read a skill's file manifest from an MCP server.
- *
- * Returns the parsed SkillManifest with file paths, sizes, and SHA256 hashes.
- * Constructs a skill:// URI — only works for skills using the skill:// scheme.
- */
-export async function readSkillManifest(
-  client: SkillsClient,
-  skillPath: string,
-): Promise<SkillManifest> {
-  const uri = buildSkillUri(skillPath, MANIFEST_PATH);
-  const result = await client.readResource({ uri });
-  const content = result.contents[0];
-  if (content && "text" in content && content.text)
-    return JSON.parse(content.text) as SkillManifest;
-  throw new Error(`Expected JSON content for ${uri}`);
-}
-
-/**
  * Read a supporting file from a skill directory.
  *
  * The documentPath is relative to the skill root (e.g., "references/REFERENCE.md").
  * Constructs a skill:// URI — only works for skills using the skill:// scheme.
- * For other schemes, read supporting files via the manifest's file URIs.
  */
 export async function readSkillDocument(
   client: SkillsClient,
@@ -516,28 +555,141 @@ export async function readSkillDocument(
 }
 
 /**
+ * Extract skill URIs from a server's `instructions` string.
+ *
+ * Looks for any URI of the form `<scheme>://...` mentioned in the
+ * instructions text, where the URI's path ends with `SKILL.md` (case
+ * insensitive). The host SKILL.md treats server `instructions` as one of
+ * the three SEP discovery paths: a server can name specific skill URIs
+ * that become readable without any catalog round trip.
+ *
+ * Returns a deduplicated array of URI strings, in first-seen order.
+ */
+export function extractSkillUrisFromInstructions(
+  instructions: string | undefined,
+): string[] {
+  if (!instructions) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  // Match any <scheme>://<path> token where the path ends at SKILL.md.
+  // Stops at whitespace and common URI-terminating characters in prose.
+  const regex = /[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s`'"<>)\]]*?[Ss][Kk][Ii][Ll][Ll]\.[Mm][Dd]/g;
+  for (const match of instructions.matchAll(regex)) {
+    const uri = match[0];
+    if (!seen.has(uri)) {
+      seen.add(uri);
+      out.push(uri);
+    }
+  }
+  return out;
+}
+
+/**
+ * Read each URI mentioned in the server's instructions, parse the
+ * resulting SKILL.md frontmatter, and produce SkillSummary entries.
+ *
+ * URIs whose `resources/read` fails or whose content lacks valid
+ * frontmatter are silently dropped — instructions are advisory, and a
+ * misnamed URI shouldn't fail discovery for the rest.
+ *
+ * Pass `options.extractor` to replace the built-in regex with a custom
+ * URI extractor (useful for servers with non-standard URI conventions
+ * in their instructions text).
+ */
+export async function listSkillsFromInstructions(
+  client: SkillsClient,
+  instructions: string,
+  options?: { extractor?: InstructionsUriExtractor },
+): Promise<SkillSummary[]> {
+  const extract = options?.extractor ?? extractSkillUrisFromInstructions;
+  const uris = extract(instructions);
+  if (uris.length === 0) return [];
+
+  const summaries: SkillSummary[] = [];
+  for (const uri of uris) {
+    try {
+      const text = await readSkillUri(client, uri);
+      const fm = parseSkillFrontmatter(text);
+      const skillPath =
+        extractSkillPathFromUri(uri) ?? fm?.name ?? uri;
+      summaries.push({
+        name: fm?.name ?? skillPath,
+        skillPath,
+        uri,
+        type: "skill-md",
+        description: fm?.description,
+        mimeType: "text/markdown",
+      });
+    } catch {
+      // Instructions may name a URI we can't read or parse — skip it.
+    }
+  }
+  return summaries;
+}
+
+/**
+ * Merge two SkillSummary arrays, dropping the latter's entries whose URI
+ * already appears in the former. Preserves the first-array order.
+ */
+function mergeUniqueByUri(
+  primary: SkillSummary[],
+  extra: SkillSummary[],
+): SkillSummary[] {
+  if (extra.length === 0) return primary;
+  const seen = new Set(primary.map((s) => s.uri));
+  const merged = [...primary];
+  for (const s of extra) {
+    if (!seen.has(s.uri)) {
+      merged.push(s);
+      seen.add(s.uri);
+    }
+  }
+  return merged;
+}
+
+/**
  * Discover all available skills from an MCP server.
  *
- * Implements the SEP's recommended discovery strategy:
- *   1. Try skill://index.json (authoritative, scheme-agnostic)
- *   2. Fall back to resources/list (skill:// scheme only)
- *   3. Return empty array if neither yields results
+ * By default, follows two of the SEP's three discovery paths:
+ *   1. `skill://index.json` (authoritative, scheme-agnostic)
+ *   2. `resources/list` fallback (skill:// scheme only)
  *
- * This is the recommended entry point for client-side skill discovery.
- * Unlike listSkillsFromIndex() (which returns null when unavailable) or
- * listSkills() (which only finds skill:// URIs), this function handles
- * the fallback logic and always returns a usable array.
+ * Pass `{ instructions: true }` to enable the SEP's third path — mining
+ * the server's `instructions` string for skill URIs. When enabled, URIs
+ * named in `instructions` are merged with index entries (deduplicated by
+ * URI), so an enumerable server gets its full catalog plus any URIs the
+ * instructions explicitly call out, and an unenumerable server (no
+ * index) still surfaces what its instructions name. The fallback to
+ * `resources/list` runs only when both prior paths are empty.
+ *
+ * `instructions` are read via `client.getInstructions()` when the client
+ * exposes it (the MCP SDK Client does); structural clients without that
+ * method skip the second path silently.
+ *
+ * Pass `{ extractor }` to override the built-in regex used to find URIs
+ * inside the instructions text — useful for servers with non-standard
+ * URI conventions in prose.
  */
 export async function discoverSkills(
   client: SkillsClient,
+  options?: DiscoverSkillsOptions,
 ): Promise<SkillSummary[]> {
+  const wantInstructions = options?.instructions ?? false;
+  const instructions = wantInstructions ? client.getInstructions?.() : undefined;
+  const fromInstructions = instructions
+    ? await listSkillsFromInstructions(client, instructions, {
+        extractor: options?.extractor,
+      })
+    : [];
+
   // Primary: skill://index.json (authoritative, scheme-agnostic)
   const indexSkills = await listSkillsFromIndex(client);
   if (indexSkills !== null && indexSkills.length > 0) {
-    return indexSkills;
+    return mergeUniqueByUri(indexSkills, fromInstructions);
   }
 
-  // Fallback: resources/list (skill:// scheme only)
+  // No usable index — instructions next, then resources/list
+  if (fromInstructions.length > 0) return fromInstructions;
   return listSkills(client);
 }
 
@@ -562,12 +714,16 @@ export async function discoverSkills(
  */
 export async function discoverAndBuildCatalog(
   client: SkillsClient,
-  options: DiscoverCatalogOptions,
+  options?: DiscoverCatalogOptions,
 ): Promise<DiscoverCatalogResult> {
-  const skills = await discoverSkills(client);
+  const skills = await discoverSkills(client, {
+    instructions: options?.instructions,
+    extractor: options?.extractor,
+  });
   const catalog = buildSkillsCatalog(skills, {
-    toolName: options.toolName ?? READ_RESOURCE_TOOL.name,
-    serverName: options.serverName,
+    toolName: options?.toolName ?? READ_RESOURCE_TOOL.name,
+    serverName: options?.serverName,
+    serverInEntries: options?.serverInEntries,
   });
   return { skills, catalog };
 }

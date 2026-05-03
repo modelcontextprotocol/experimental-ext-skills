@@ -5,21 +5,18 @@
  * files at any depth, parses YAML frontmatter for metadata, scans for
  * supplementary documents, and provides secure content loading.
  *
- * Key evolution from previous version:
- *   - Recursive discovery (not just immediate subdirectories)
- *   - Multi-segment skill paths (PR #70): path ≠ name
- *   - No-nesting constraint enforcement
+ * Multi-segment skill paths are supported (path ≠ name) per SEP-2640;
+ * the no-nesting constraint (a SKILL.md cannot be an ancestor of another)
+ * is enforced at discovery time.
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import * as crypto from "node:crypto";
 import { parse as parseYaml } from "yaml";
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type {
   SkillMetadata,
   SkillDocument,
-  SkillManifest,
   SkillIndex,
   SkillTemplateDeclaration,
   SkillArchiveDeclaration,
@@ -28,22 +25,16 @@ import type {
 } from "./types.js";
 import { SKILL_INDEX_SCHEMA } from "./types.js";
 import { getMimeType, isTextMimeType } from "./mime.js";
-import { generateSkillsXML } from "./xml.js";
-import { buildSkillUri, INDEX_JSON_URI, SKILL_URI_SCHEME } from "./uri.js";
+import {
+  buildSkillUri,
+  INDEX_JSON_URI,
+  SKILL_URI_SCHEME,
+  isValidSkillName,
+} from "./uri.js";
 import { archiveMimeType, archiveSuffix } from "./archive.js";
 
 /** Maximum file size for skill files (1MB). */
 const MAX_FILE_SIZE = 1 * 1024 * 1024;
-
-/**
- * Compute SHA256 hash of a file's contents.
- * Returns a string in the format "sha256:<hex>".
- */
-function computeFileHash(filePath: string): string {
-  const content = fs.readFileSync(filePath);
-  const hash = crypto.createHash("sha256").update(content).digest("hex");
-  return `sha256:${hash}`;
-}
 
 /**
  * Parse YAML frontmatter from SKILL.md content.
@@ -130,10 +121,9 @@ function scanDir(
           path: relativePath,
           mimeType: getMimeType(entry.name),
           size: stat.size,
-          hash: computeFileHash(fullPath),
         });
       } catch {
-        // Skip files we can't stat or hash
+        // Skip files we can't stat
       }
     } else if (entry.isDirectory()) {
       documents.push(...scanDir(fullPath, relativeTo, baseDir));
@@ -182,10 +172,9 @@ export function scanDocuments(
           path: relativePath,
           mimeType: getMimeType(entry.name),
           size: stat.size,
-          hash: computeFileHash(fullPath),
         });
       } catch {
-        // Skip files we can't stat or hash
+        // Skip files we can't stat
       }
     }
   }
@@ -201,8 +190,8 @@ export function scanDocuments(
  * directory containing SKILL.md, using forward slashes. This becomes the
  * multi-segment URI locator.
  *
- * Enforces the no-nesting constraint from PR #70: a SKILL.md cannot be
- * an ancestor directory of another SKILL.md.
+ * Enforces the no-nesting constraint: a SKILL.md cannot be an ancestor
+ * directory of another SKILL.md.
  */
 function findSkillFiles(
   dir: string,
@@ -321,24 +310,23 @@ export function discoverSkills(
         continue;
       }
 
-      // Extract optional metadata fields
-      const metadata: Record<string, string> = {};
-      if (frontmatter.metadata && typeof frontmatter.metadata === "object") {
-        for (const [k, v] of Object.entries(
-          frontmatter.metadata as Record<string, unknown>,
-        )) {
-          if (typeof v === "string") {
-            metadata[k] = v;
-          }
-        }
-      }
-
       // SEP constraint: final segment of skillPath MUST equal frontmatter name
       const finalSegment = skillPath.split("/").pop()!;
-      if (finalSegment !== name.trim()) {
+      const trimmedName = name.trim();
+      if (finalSegment !== trimmedName) {
         console.error(
-          `Skill at ${skillDir}: frontmatter name "${name.trim()}" does not match final path segment "${finalSegment}". ` +
+          `Skill at ${skillDir}: frontmatter name "${trimmedName}" does not match final path segment "${finalSegment}". ` +
             `Per the SEP, the final segment of the skill path must equal the frontmatter name.`,
+        );
+        continue;
+      }
+
+      // SEP constraint: the final segment (= frontmatter name) MUST satisfy
+      // the Agent Skills naming rule (lowercase letters, digits, hyphens).
+      if (!isValidSkillName(trimmedName)) {
+        console.error(
+          `Skill at ${skillDir}: name "${trimmedName}" violates the Agent Skills naming rule. ` +
+            `Names must contain only lowercase letters, digits, and hyphens.`,
         );
         continue;
       }
@@ -353,31 +341,14 @@ export function discoverSkills(
       // Scan for supplementary documents
       const documents = scanDocuments(skillDir, resolvedDir);
 
-      // Build pre-computed manifest with file hashes
-      const skillMdHash = computeFileHash(skillMdPath);
-      const trimmedName = name.trim();
-      const manifest: SkillManifest = {
-        skill: trimmedName,
-        skillPath,
-        files: [
-          { path: "SKILL.md", size: stat.size, hash: skillMdHash },
-          ...documents.map((doc) => ({
-            path: doc.path,
-            size: doc.size,
-            hash: doc.hash,
-          })),
-        ],
-      };
-
       skillMap.set(skillPath, {
-        name: trimmedName,
+        name: name.trim(),
         skillPath,
         description: description.trim(),
         absolutePath: skillMdPath,
         skillDir,
-        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
         documents,
-        manifest,
+        size: stat.size,
         lastModified: stat.mtime.toISOString(),
       });
     } catch (error) {
@@ -526,6 +497,12 @@ export function generateSkillIndex(
         `Archive declaration: skillPath "${a.skillPath}" final segment "${finalSegment}" does not match name "${a.name}". Per SEP-2640, the final segment of the skill path MUST equal the frontmatter name.`,
       );
     }
+    // SEP constraint: the name MUST satisfy the Agent Skills naming rule.
+    if (!isValidSkillName(a.name)) {
+      throw new Error(
+        `Archive declaration: name "${a.name}" violates the Agent Skills naming rule. Names must contain only lowercase letters, digits, and hyphens.`,
+      );
+    }
     return {
       name: a.name,
       type: "archive" as const,
@@ -551,14 +528,15 @@ export function generateSkillIndex(
  *
  * Registers per-skill (using multi-segment skill paths):
  *   - skill://{skillPath}/SKILL.md — skill content (listed resource)
- *   - skill://{skillPath}/_manifest — file manifest (listed resource)
  *
  * Always registers:
  *   - skill://index.json — well-known discovery index (SEP enumeration)
  *
  * Optionally registers:
- *   - skill://{+skillFilePath} — resource template for supporting files
- *   - skill://prompt-xml — XML for system prompt injection
+ *   - One MCP `ResourceTemplate` per `templates[]` declaration with a `read`
+ *     handler — wired to MCP completion via per-variable `complete` callbacks.
+ *   - skill://{+skillFilePath} — catch-all template for supporting files
+ *     (registered last so specific template patterns match first).
  */
 export function registerSkillResources(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -569,11 +547,27 @@ export function registerSkillResources(
 ): void {
   const {
     template = true,
-    promptXml = false,
+    index = true,
     audience = ["assistant"],
     archives = [],
     templates = [],
   } = options ?? {};
+
+  // Surface a likely-unintended config: a template declaration carrying
+  // completion callbacks but no read handler is enumerated in
+  // `skill://index.json` only. Without `read`, the SDK can't register an
+  // MCP ResourceTemplate, so `complete` would silently never reach the
+  // completion API. Index-only declarations are valid (per CLAUDE.md), but
+  // they should not pass `complete`.
+  for (const decl of templates) {
+    if (!decl.read && decl.complete) {
+      throw new Error(
+        `SkillTemplateDeclaration "${decl.name}" has \`complete\` callbacks but no \`read\` handler. ` +
+          `Without \`read\`, no MCP ResourceTemplate is registered and \`complete\` cannot be wired to the completion API. ` +
+          `Either add a \`read\` handler, or drop \`complete\` for index-only declarations.`,
+      );
+    }
+  }
 
   // Compute the most recent lastModified across all skills for aggregate resources
   const latestModified = skillMap.size > 0
@@ -633,9 +627,6 @@ export function registerSkillResources(
 
   // Register per-skill resources
   for (const [skillPath, skill] of skillMap) {
-    // Use frontmatter name as the resource name (shown in resources/list)
-    // Use skillPath-based key for internal uniqueness
-    const registrationKey = `skill:${skillPath}`;
     const skillAudience = skill.audience ?? audience;
 
     server.resource(
@@ -644,12 +635,13 @@ export function registerSkillResources(
       {
         description: skill.description,
         mimeType: "text/markdown",
-        size: skill.manifest.files.find((f) => f.path === "SKILL.md")?.size,
+        size: skill.size,
         annotations: {
           audience: skillAudience,
           priority: 1.0,
           lastModified: skill.lastModified,
         },
+        ...(skill.meta ? { _meta: skill.meta } : {}),
       },
       async (uri: URL) => {
         try {
@@ -671,60 +663,95 @@ export function registerSkillResources(
         }
       },
     );
+  }
 
-    const manifestJson = JSON.stringify(skill.manifest, null, 2);
+  // Well-known discovery index (SEP enumeration mechanism). Optional —
+  // servers with unenumerable catalogs can pass `index: false`.
+  if (index) {
+    const indexJson = generateSkillIndex(skillMap, { archives, templates });
+    const indexJsonStr = JSON.stringify(indexJson, null, 2);
     server.resource(
-      `${skill.name}-manifest`,
-      `skill://${skillPath}/_manifest`,
+      "skills-index",
+      INDEX_JSON_URI,
       {
-        description: `File manifest for skill '${skill.name}' with content hashes`,
+        description:
+          "Discovery index of available skills, following the Agent Skills well-known URI format",
         mimeType: "application/json",
-        size: Buffer.byteLength(manifestJson),
+        size: Buffer.byteLength(indexJsonStr),
         annotations: {
-          audience: skillAudience,
-          priority: 0.5,
-          lastModified: skill.lastModified,
+          audience: ["assistant"],
+          priority: 0.8,
+          lastModified: latestModified,
         },
       },
       async (uri: URL) => ({
         contents: [
           {
             uri: uri.href,
-            text: manifestJson,
+            text: indexJsonStr,
           },
         ],
       }),
     );
   }
 
-  // Well-known discovery index (SEP enumeration mechanism)
-  const indexJson = generateSkillIndex(skillMap, { archives, templates });
-  const indexJsonStr = JSON.stringify(indexJson, null, 2);
-  server.resource(
-    "skills-index",
-    INDEX_JSON_URI,
-    {
-      description:
-        "Discovery index of available skills, following the Agent Skills well-known URI format",
-      mimeType: "application/json",
-      size: Buffer.byteLength(indexJsonStr),
-      annotations: {
-        audience: ["assistant"],
-        priority: 0.8,
-        lastModified: latestModified,
-      },
-    },
-    async (uri: URL) => ({
-      contents: [
-        {
-          uri: uri.href,
-          text: indexJsonStr,
-        },
-      ],
-    }),
-  );
+  // Parameterized resource templates from declarations.
+  // Registered before the catch-all so specific patterns match first
+  // (the McpServer iterates templates in registration order).
+  for (const decl of templates) {
+    if (!decl.read) continue;
 
-  // Resource template for supporting files
+    const readHandler = decl.read;
+    server.resource(
+      `template:${decl.name}`,
+      new ResourceTemplate(decl.uriTemplate, {
+        list: undefined,
+        complete: decl.complete,
+      }),
+      {
+        description: decl.description,
+        mimeType: "text/markdown",
+        annotations: {
+          audience,
+          priority: 0.6,
+          lastModified: latestModified,
+        },
+      },
+      async (uri: URL, variables: Record<string, string | string[]>) => {
+        const flatVars: Record<string, string> = {};
+        for (const [k, v] of Object.entries(variables)) {
+          flatVars[k] = Array.isArray(v) ? v[0] : v;
+        }
+        try {
+          const result = await readHandler(uri.href, flatVars);
+          return {
+            contents: [
+              {
+                uri: uri.href,
+                mimeType: result.mimeType ?? "text/markdown",
+                ...(result.text !== undefined ? { text: result.text } : {}),
+                ...(result.blob !== undefined ? { blob: result.blob } : {}),
+              },
+            ],
+          };
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          return {
+            contents: [
+              {
+                uri: uri.href,
+                text: `# Error\n\nFailed to read templated skill "${decl.name}": ${message}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+  }
+
+  // Catch-all resource template for supporting files. Registered last so
+  // user-declared specific templates above match first.
   if (template) {
     server.resource(
       "skill-file",
@@ -831,34 +858,6 @@ export function registerSkillResources(
           };
         }
       },
-    );
-  }
-
-  // Optional prompt-xml convenience resource
-  if (promptXml) {
-    const promptXmlContent = generateSkillsXML(skillMap);
-    server.resource(
-      "skills-prompt-xml",
-      "skill://prompt-xml",
-      {
-        description:
-          "XML representation of available skills for injecting into system prompts",
-        mimeType: "application/xml",
-        size: Buffer.byteLength(promptXmlContent),
-        annotations: {
-          audience,
-          priority: 0.3,
-          lastModified: latestModified,
-        },
-      },
-      async (uri: URL) => ({
-        contents: [
-          {
-            uri: uri.href,
-            text: promptXmlContent,
-          },
-        ],
-      }),
     );
   }
 }

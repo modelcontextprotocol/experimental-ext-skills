@@ -8,8 +8,6 @@
  */
 
 export type {
-  ManifestFileEntry,
-  SkillManifest,
   SkillDocument,
   SkillMetadata,
   SkillSummary,
@@ -20,13 +18,18 @@ export type {
   SkillIndex,
   SkillTemplateEntry,
   SkillTemplateDeclaration,
+  TemplateReadResult,
+  TemplateReadCallback,
+  TemplateCompletionCallback,
   SkillArchiveDeclaration,
   ArchiveFormat,
   UnpackedSkillArchive,
   ExtractArchiveOptions,
   SkillsCatalogOptions,
+  DiscoverSkillsOptions,
   DiscoverCatalogOptions,
   DiscoverCatalogResult,
+  InstructionsUriExtractor,
   RegisterSkillResourcesOptions,
 } from "./types.js";
 
@@ -43,16 +46,14 @@ export {
 export {
   SKILL_URI_SCHEME,
   SKILL_FILENAME,
-  MANIFEST_PATH,
-  PROMPT_XML_URI,
   INDEX_JSON_URI,
   parseSkillUri,
   resolveSkillFileUri,
   buildSkillUri,
   isSkillContentUri,
-  isSkillManifestUri,
-  isPromptXmlUri,
   isIndexJsonUri,
+  isValidSkillName,
+  extractSkillPathFromUri,
 } from "./uri.js";
 export type { ParsedSkillUri } from "./uri.js";
 

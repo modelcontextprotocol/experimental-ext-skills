@@ -1,11 +1,8 @@
 /**
- * XML generation utilities for system prompt injection.
- *
- * Provides functions to generate <available_skills> XML from both
- * server-side SkillMetadata maps and client-side SkillSummary arrays.
+ * XML generation for the client-side system-prompt skills catalog.
  */
 
-import type { SkillMetadata, SkillSummary } from "./types.js";
+import type { SkillSummary } from "./types.js";
 
 /**
  * Escape XML special characters.
@@ -20,56 +17,38 @@ export function escapeXml(text: string): string {
 }
 
 /**
- * Generate <available_skills> XML from a server-side skill map.
- * Uses skillPath for URIs (multi-segment) and name for identity.
- *
- * Format:
- * ```xml
- * <available_skills>
- *   <skill>
- *     <name>billing-refunds</name>
- *     <path>acme/billing/refunds</path>
- *     <description>Process customer refund requests...</description>
- *     <uri>skill://acme/billing/refunds/SKILL.md</uri>
- *   </skill>
- * </available_skills>
- * ```
+ * Options for generateSkillsXMLFromSummaries().
  */
-export function generateSkillsXML(
-  skillMap: Map<string, SkillMetadata>,
-): string {
-  const lines: string[] = ["<available_skills>"];
-
-  for (const skill of skillMap.values()) {
-    lines.push("  <skill>");
-    lines.push(`    <name>${escapeXml(skill.name)}</name>`);
-    lines.push(`    <path>${escapeXml(skill.skillPath)}</path>`);
-    lines.push(
-      `    <description>${escapeXml(skill.description)}</description>`,
-    );
-    lines.push(
-      `    <uri>skill://${escapeXml(skill.skillPath)}/SKILL.md</uri>`,
-    );
-    lines.push("  </skill>");
-  }
-
-  lines.push("</available_skills>");
-  return lines.join("\n");
+export interface SkillsXmlOptions {
+  /** Server name to inject when `serverInEntries` is true. */
+  serverName?: string;
+  /**
+   * Inject `<server>{serverName}</server>` into each `<skill>` entry.
+   * Default: false. The host SKILL.md flags this as a way to keep
+   * first-call activation reliability ~90% for `(server, uri)` reader
+   * tools — but it's not in SEP-2640, so the SDK leaves it off by default.
+   */
+  serverInEntries?: boolean;
 }
 
 /**
- * Generate <available_skills> XML from client-side SkillSummary array.
- * Includes both name (identity) and skillPath (locator).
+ * Generate <available_skills> XML from a client-side SkillSummary array.
  */
 export function generateSkillsXMLFromSummaries(
   skills: SkillSummary[],
+  options?: SkillsXmlOptions,
 ): string {
+  const serverName = options?.serverName;
+  const inEntries = options?.serverInEntries === true;
   const lines: string[] = ["<available_skills>"];
 
   for (const skill of skills) {
     lines.push("  <skill>");
     lines.push(`    <name>${escapeXml(skill.name)}</name>`);
     lines.push(`    <path>${escapeXml(skill.skillPath)}</path>`);
+    if (serverName && inEntries) {
+      lines.push(`    <server>${escapeXml(serverName)}</server>`);
+    }
     if (skill.description) {
       lines.push(
         `    <description>${escapeXml(skill.description)}</description>`,

@@ -7,6 +7,8 @@
  *   - `skill-md`             — individually-served file skills
  *   - `archive`              — single packed resource (.tar.gz)
  *   - `mcp-resource-template`— parameterized skill namespace
+ *                              (registered as a real MCP ResourceTemplate
+ *                              with completion wired to the MCP completion API)
  *
  * Plus the SEP-2133 capability declaration
  * (`io.modelcontextprotocol/skills`) and multi-segment skill paths.
@@ -18,7 +20,7 @@
  *   skill://acme/onboarding/SKILL.md                  — file skill (multi-segment)
  *   skill://acme/billing/refunds/SKILL.md             — file skill (multi-segment)
  *   skill://pdf-processing.tar.gz                     — archive distribution
- *   skill://docs/{product}/SKILL.md                   — resource template
+ *   skill://docs/{product}/SKILL.md                   — resource template (with read + complete)
  *
  * @license Apache-2.0
  */
@@ -60,13 +62,10 @@ const archiveSourceDir = path.resolve(
 
 const skillMap = discoverSkills(skillsDir);
 console.error(
-  `[skills-server] Discovered ${skillMap.size} file skill(s) in ${skillsDir}:`,
+  `[skills-server] Discovered ${skillMap.size} file skill(s) in ${skillsDir}`,
 );
 for (const [skillPath, skill] of skillMap) {
-  const fileCount = skill.manifest.files.length;
-  console.error(
-    `  - skill://${skillPath}/SKILL.md (name: "${skill.name}") — ${fileCount} file(s)`,
-  );
+  console.error(`  - skill://${skillPath}/SKILL.md (name: "${skill.name}")`);
 }
 
 // ---------------------------------------------------------------------------
@@ -93,12 +92,63 @@ if (fs.existsSync(pdfSourceDir)) {
 }
 
 // ---------------------------------------------------------------------------
+// In-memory "docs" catalog backing the resource template.
+// In real deployments this would come from a database, an external API, or
+// generated documentation; here it's hard-coded to keep the demo self-contained.
+// ---------------------------------------------------------------------------
+
+const docsCatalog: Record<string, { description: string; body: string }> = {
+  "widget-api": {
+    description: "Widget API — endpoints, auth, and rate limits",
+    body: [
+      "# Widget API",
+      "",
+      "Reference for the Widget API: authentication, request shape,",
+      "rate limits, and error handling.",
+      "",
+      "## Auth",
+      "Bearer tokens via `/oauth/token`. Tokens expire after 1 hour.",
+      "",
+      "## Rate limits",
+      "1000 requests/minute per token. Burst up to 50/sec.",
+    ].join("\n"),
+  },
+  "gizmo-api": {
+    description: "Gizmo API — endpoints and webhook delivery",
+    body: [
+      "# Gizmo API",
+      "",
+      "Gizmos are created via `POST /gizmos` and updates are delivered",
+      "to subscribers via webhooks signed with HMAC-SHA256.",
+    ].join("\n"),
+  },
+  "gadget-api": {
+    description: "Gadget API — streaming endpoints and replay",
+    body: [
+      "# Gadget API",
+      "",
+      "The Gadget API streams events over WebSocket with a replay window",
+      "of 24 hours. Reconnect with the last cursor to resume.",
+    ].join("\n"),
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Create MCP server and declare extension per SEP-2133
 // ---------------------------------------------------------------------------
 
+// Server `instructions` is the SEP's third discovery path — a host MAY mine
+// it for skill URIs the server explicitly names (separate from the index).
+// We name git-commit-review here as a demo URI; it would also still appear
+// via the index, which is fine: the client dedups by URI.
+const serverInstructions = [
+  "This server exposes Agent Skills under the skill:// scheme.",
+  "When reviewing a commit, read skill://git-commit-review/SKILL.md first.",
+].join("\n");
+
 const server = new McpServer(
   { name: "skills-sep-example", version: "0.1.0" },
-  { capabilities: { resources: {} } },
+  { capabilities: { resources: {} }, instructions: serverInstructions },
 );
 declareSkillsExtension(server.server);
 
@@ -108,7 +158,6 @@ declareSkillsExtension(server.server);
 
 registerSkillResources(server, skillMap, skillsDir, {
   template: true,
-  promptXml: true,
   // Archive entry — single resource that unpacks to skill://pdf-processing/
   archives: archivePath
     ? [
@@ -122,13 +171,39 @@ registerSkillResources(server, skillMap, skillsDir, {
         },
       ]
     : [],
-  // Resource-template entry — parameterized namespace
+  // Resource-template entry — parameterized namespace.
+  // The SDK registers an MCP ResourceTemplate so resolved URIs (e.g.
+  // skill://docs/widget-api/SKILL.md) are readable, and wires the
+  // {product} variable's `complete` callback to the MCP completion API.
   templates: [
     {
       name: "docs",
       description:
         "Per-product documentation skill (template — bind {product} via the completion API)",
       uriTemplate: "skill://docs/{product}/SKILL.md",
+      complete: {
+        product: (value) =>
+          Object.keys(docsCatalog).filter((p) => p.startsWith(value)),
+      },
+      read: (_uri, vars) => {
+        const product = vars.product;
+        const entry = docsCatalog[product];
+        if (!entry) {
+          return {
+            text: `# Unknown product\n\nNo documentation skill for "${product}". Available: ${Object.keys(
+              docsCatalog,
+            ).join(", ")}.`,
+          };
+        }
+        const frontmatter = [
+          "---",
+          `name: ${product}`,
+          `description: ${entry.description}`,
+          "---",
+          "",
+        ].join("\n");
+        return { text: frontmatter + entry.body, mimeType: "text/markdown" };
+      },
     },
   ],
 });
