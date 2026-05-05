@@ -45,6 +45,7 @@ Outputs include:
 
 When adding experimental findings or new approaches:
 
+- Start from the [experimental findings template](docs/findings-template.md) when adding a new entry to [docs/experimental-findings.md](docs/experimental-findings.md)
 - Include enough detail for others to reproduce or evaluate
 - Note which clients and servers were tested
 - Be explicit about what worked, what didn't, and what remains untested
