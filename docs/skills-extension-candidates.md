@@ -4,6 +4,8 @@ A tracker of MCP servers, dev tools, SDKs, and skills repositories that are cand
 
 **Inclusion criterion.** An entry belongs here if it already ships skills in some non-MCP form (separate install path, plugin marketplace, framework-native provider), pairs an MCP server with a separate skills repo, or has an in-flight SEP-2640 implementation.
 
+> See also [**client-mcp-support.md**](client-mcp-support.md) for the matching client-side survey: which open-source MCP hosts already let the model load resources by URI (the prerequisite for any client to consume what these candidates would expose).
+
 ## Snapshot
 
 | Server | Repo | Author / Org | Issue/PR tracker | Notes |
