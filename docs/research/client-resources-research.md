@@ -8,27 +8,6 @@
 > **Why these are tracked together.** SEP-2640 layers skills on top of MCP resources. If a host's progressive-disclosure flow involves the model itself loading L2/L3 skill content from `skill://…` or related resource URIs, then the resource-read affordance for the model becomes critical for skills. A client's resource-loading shape today is a strong predictor of how it'll fit SEP-2640 tomorrow.
 >
 
-## Snapshot
-
-| Client | Repo | Commit (last verified) |
-| :--- | :--- | :--- |
-| codex | [openai/codex](https://github.com/openai/codex) | [`67849d9`](https://github.com/openai/codex/commit/67849d950d843c954102adb0db0e11f993aefdb7) |
-| gemini-cli | [google-gemini/gemini-cli](https://github.com/google-gemini/gemini-cli) | [`4e17552`](https://github.com/google-gemini/gemini-cli/commit/4e175527a2b241a68afd5f1509a8bebc21a44dfe) |
-| goose | [block/goose](https://github.com/block/goose) | [`45d8bf8`](https://github.com/aaif-goose/goose/commit/45d8bf81d09d478ceedba8f6d1f0ad906123a981) |
-| fast-agent | [evalstate/fast-agent](https://github.com/evalstate/fast-agent) | [`502d32e`](https://github.com/evalstate/fast-agent/commit/502d32e266f3221d744977f38b7a9b4bc5b93947) |
-| vscode | [microsoft/vscode](https://github.com/microsoft/vscode) (API + impl) + [microsoft/vscode-copilot-chat](https://github.com/microsoft/vscode-copilot-chat) (Copilot extension) | API [`530cb5d`](https://github.com/microsoft/vscode/commit/530cb5de713aec2e96059e2f6cf41a95403cdb3d) · ext [`9e668cb`](https://github.com/microsoft/vscode-copilot-chat/commit/9e668cb12144c701cf0f2c6b3458c00fe3da20f1) |
-| opencode | [anomalyco/opencode](https://github.com/anomalyco/opencode) | [`ce89bcb`](https://github.com/anomalyco/opencode/commit/ce89bcb8e238401ea8fee000dc54539057d47dc4) |
-| deepagents | [langchain-ai/deepagents](https://github.com/langchain-ai/deepagents) | [`a64ff43`](https://github.com/langchain-ai/deepagents/commit/a64ff430f14b76607dfb1d78234f928ed88a3af0) |
-| strands-agents | [strands-agents/sdk-python](https://github.com/strands-agents/sdk-python) | [`8638fc2`](https://github.com/strands-agents/sdk-python/commit/8638fc2d629e32b7b5839f4c106d5aedcdf764c9) |
-| adk-python | [google/adk-python](https://github.com/google/adk-python) | _TBD_ |
-| agent-framework | [microsoft/agent-framework](https://github.com/microsoft/agent-framework) | _TBD_ |
-| cline | [cline/cline](https://github.com/cline/cline) | _TBD_ |
-| crewAI | [crewAIInc/crewAI](https://github.com/crewAIInc/crewAI) | _TBD_ |
-| hermes-agent | [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) | _TBD_ |
-| mastra | [mastra-ai/mastra](https://github.com/mastra-ai/mastra) | _TBD_ |
-| Roo-Code | [RooCodeInc/Roo-Code](https://github.com/RooCodeInc/Roo-Code) | _TBD_ |
-| Claude Code (closed source, reference only) | [docs](https://code.claude.com/docs/en/tools-reference) | n/a |
-
 ## At-a-glance comparison
 
 Category values: **Framework** = SDK/library you build agents on top of · **CLI** = end-user coding agent or CLI · **IDE** = editor-embedded chat surface.
@@ -72,6 +51,8 @@ Category values: **Framework** = SDK/library you build agents on top of · **CLI
 ### Agent SDKs / frameworks
 
 #### fast-agent _(verified)_
+
+Verified at commit [`502d32e`](https://github.com/evalstate/fast-agent/commit/502d32e266f3221d744977f38b7a9b4bc5b93947).
 
 - **Registration:** [`src/fast_agent/agents/smart_agent.py:1478-1489`](https://github.com/evalstate/fast-agent/blob/502d32e266f3221d744977f38b7a9b4bc5b93947/src/fast_agent/agents/smart_agent.py) → `build_default_function_tool(agent.read_resource, name="get_resource", ...)` → `agent.add_tool(resource_read_tool)`.
 - **Reaches LLM payload:** `agent.add_tool` → `self._tool_schemas` → `list_tools()` (tool_agent.py ~580, 806-808) → `llm.generate(messages, request_params, tools)` (llm_decorator.py:792-793).
@@ -117,6 +98,8 @@ Category values: **Framework** = SDK/library you build agents on top of · **CLI
 
 #### deepagents (LangChain) _(verified)_
 
+Verified at commit [`a64ff43`](https://github.com/langchain-ai/deepagents/commit/a64ff430f14b76607dfb1d78234f928ed88a3af0).
+
 - **MCP wiring is outsourced:** `mcp_tools.py:428-550` creates a `MultiServerMCPClient`; tools are loaded via `langchain_mcp_adapters.tools.load_mcp_tools()` at `mcp_tools.py:519-521` and passed into `create_cli_agent()` (`server_graph.py:115,168,180`).
 - **Upstream gap:** the upstream adapter (`langchain-mcp-adapters >=0.2.0,<1.0.0`) does not expose `resources/read` as a tool; grep for `read_resource`, `resources/read`, or `ResourceReadRequest` returns zero hits in the deepagents repo.
 - **What it would take:** either `langchain-mcp-adapters` adds a resource-read tool, or deepagents wraps `client.read_resource()` itself outside the adapter.
@@ -150,6 +133,8 @@ Verified at commit [`8638fc2`](https://github.com/strands-agents/sdk-python/comm
 
 #### codex (OpenAI) _(verified)_
 
+Verified at commit [`67849d9`](https://github.com/openai/codex/commit/67849d950d843c954102adb0db0e11f993aefdb7).
+
 - **Tool specs:** [`codex-rs/tools/src/mcp_resource_tool.rs:24,52,80`](https://github.com/openai/codex/blob/67849d950d843c954102adb0db0e11f993aefdb7/codex-rs/tools/src/mcp_resource_tool.rs) — each built as `ToolSpec::Function(ResponsesApiTool { ... })`.
 - **Registration into the plan:** [`codex-rs/tools/src/tool_registry_plan.rs:191-210`](https://github.com/openai/codex/blob/67849d950d843c954102adb0db0e11f993aefdb7/codex-rs/tools/src/tool_registry_plan.rs) — unconditional when `params.mcp_tools.is_some()`.
 - **Serialization:** `codex-rs/core/src/client.rs` → `create_tools_json_for_responses_api(&prompt.tools)` in `codex-rs/tools/src/tool_spec.rs` (no filter).
@@ -160,6 +145,8 @@ Verified at commit [`8638fc2`](https://github.com/strands-agents/sdk-python/comm
 ---
 
 #### gemini-cli (Google) _(verified)_
+
+Verified at commit [`4e17552`](https://github.com/google-gemini/gemini-cli/commit/4e175527a2b241a68afd5f1509a8bebc21a44dfe).
 
 - **Tool class:** [`packages/core/src/tools/read-mcp-resource.ts:25`](https://github.com/google-gemini/gemini-cli/blob/4e175527a2b241a68afd5f1509a8bebc21a44dfe/packages/core/src/tools/read-mcp-resource.ts), name at [`packages/core/src/tools/definitions/base-declarations.ts:142`](https://github.com/google-gemini/gemini-cli/blob/4e175527a2b241a68afd5f1509a8bebc21a44dfe/packages/core/src/tools/definitions/base-declarations.ts).
 - **Registration:** [`packages/core/src/config/config.ts:3640-3644`](https://github.com/google-gemini/gemini-cli/blob/4e175527a2b241a68afd5f1509a8bebc21a44dfe/packages/core/src/config/config.ts).
@@ -173,6 +160,8 @@ Verified at commit [`8638fc2`](https://github.com/strands-agents/sdk-python/comm
 ---
 
 #### goose (AAIF) _(verified)_
+
+Verified at commit [`45d8bf8`](https://github.com/aaif-goose/goose/commit/45d8bf81d09d478ceedba8f6d1f0ad906123a981).
 
 - **Constant + conditional registration:** [`crates/goose/src/agents/platform_extensions/ext_manager.rs:66, :264-372`](https://github.com/aaif-goose/goose/blob/45d8bf81d09d478ceedba8f6d1f0ad906123a981/crates/goose/src/agents/platform_extensions/ext_manager.rs) (added only when `extension_manager.supports_resources()` is true).
 - **Handler:** `handle_read_resource()` in the same file (~lines 235-265) → `ExtensionManager::read_resource_tool()`.
@@ -202,6 +191,8 @@ Claude Code is closed source so we cannot verify the loader, but the [public too
 
 #### opencode _(verified)_
 
+Verified at commit [`ce89bcb`](https://github.com/anomalyco/opencode/commit/ce89bcb8e238401ea8fee000dc54539057d47dc4).
+
 - **MCP tool forwarding is live:** `packages/opencode/src/mcp/index.ts:444-519` wraps each remote tool with an `execute` that calls `client.callTool()`; the tools dictionary reaches the provider via `streamText()` at `packages/opencode/src/session/llm.ts:365`.
 - **Resource-read path exists but is UI-only:** `readResource()` at `packages/opencode/src/mcp/index.ts:722-726` is invoked when the user picks an MCP resource in the file picker; it is never registered as an LLM tool.
 - **Tool naming convention for exposed MCP tools:** `{server_name}:{tool_name}` (e.g., `mcp_everything:add`).
@@ -212,6 +203,8 @@ Claude Code is closed source so we cannot verify the loader, but the [public too
 ### IDE extensions
 
 #### vscode (GitHub Copilot) _(verified)_
+
+Verified at commits [`530cb5d`](https://github.com/microsoft/vscode/commit/530cb5de713aec2e96059e2f6cf41a95403cdb3d) (vscode core) and [`9e668cb`](https://github.com/microsoft/vscode-copilot-chat/commit/9e668cb12144c701cf0f2c6b3458c00fe3da20f1) (Copilot Chat extension).
 
 - **URI namespacing:** [`McpResourceURI` at `src/vs/workbench/contrib/mcp/common/mcpTypes.ts:859-902`](https://github.com/microsoft/vscode/blob/530cb5de713aec2e96059e2f6cf41a95403cdb3d/src/vs/workbench/contrib/mcp/common/mcpTypes.ts) defines scheme `mcp-resource://` with the authority encoding the MCP server's definition ID in hex, and the original resource scheme/authority/path folded into the URI path. Self-identifying: a URI alone is enough to route to the right server.
 - **FS provider:** [`McpResourceFilesystem` at `src/vs/workbench/contrib/mcp/common/mcpResourceFilesystem.ts:36-39`](https://github.com/microsoft/vscode/blob/530cb5de713aec2e96059e2f6cf41a95403cdb3d/src/vs/workbench/contrib/mcp/common/mcpResourceFilesystem.ts) implements `IFileSystemProviderWithFileReadWriteCapability` + stream + atomic-read. Registered for `McpResourceURI.scheme` at line 73.
