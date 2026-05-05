@@ -1,6 +1,6 @@
 # Experimental Findings
 
-> **Contributing findings?** See [#50](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/50) for the contribution template proposal.
+> **Contributing findings?** Use the [experimental findings template](findings-template.md) when adding a new entry.
 
 ## McpGraph: Skills in MCP Server Repo
 
