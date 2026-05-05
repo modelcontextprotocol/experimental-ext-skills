@@ -1,10 +1,15 @@
-# Client Research: Model-facing MCP Resource Tools
+# Client Research: Model-facing MCP Resource & SEP-2640 Support
 
-> **Scope.** A survey of how open-source MCP host clients let **the model itself** read MCP resources by URI from a connected server — i.e., the SHOULD proposed in [modelcontextprotocol/modelcontextprotocol#2527](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2527). Closed-source harnesses (Claude Code, Cursor, Sourcegraph Amp) are out of scope for source-level verification, but we cite Claude Code's documented behavior where relevant since it sets the de facto reference for several open clients.
+> **Scope.** This page tracks two related areas of client support:
 >
-> **Why this matters for skills-over-MCP.** [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) layers skills on top of MCP resources. If a host's progressive-disclosure flow involves the model itself loading L2/L3 skill content from `skill://…` or related resource URIs, then the resource-read affordance for the model becomes critical for skills. [Peter's comment on #2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640#discussion_r3164100043) sketches the expected layering: a `read_skill(skill_name)` tool keyed on a host-built skill index, backed internally by `resources/read` for MCP-sourced skills — with a separate `read_resource` tool used for the bundled files a skill points at (e.g., `skill://code-review/checklist.json`).
+> 1. **Model-facing MCP resource loading** — does the client expose a tool that lets the model read MCP resources by URI? This is the SHOULD proposed in [modelcontextprotocol/modelcontextprotocol#2527](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2527) and is verifiable today. The bulk of this page is this survey.
+> 2. **SEP-2640 skills extension support** — once [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) finalizes, this page will also track which clients implement the extension. SEP-2640-related issues and PRs are tracked per-client in the "Open issues/PRs to watch" column rather than via a separate status field.
 >
-> **Methodology.** For each "yes" row we confirmed all three:
+> Closed-source harnesses (Claude Code, Cursor, Sourcegraph Amp) are out of scope for source-level verification, but we cite Claude Code's documented behavior where relevant.
+>
+> **Why these are tracked together.** SEP-2640 layers skills on top of MCP resources. If a host's progressive-disclosure flow involves the model itself loading L2/L3 skill content from `skill://…` or related resource URIs, then the resource-read affordance for the model becomes critical for skills. A client's resource-loading shape today is a strong predictor of how it'll fit SEP-2640 tomorrow.
+>
+> **Methodology (resource loading).** For each "yes" row we confirmed all three:
 > 1. The tool is registered in the client's LLM-facing tool registry (not just an internal helper).
 > 2. That registry is actually serialized into the outbound request payload to the model provider (no filter strips it).
 > 3. Invoking the tool calls MCP `resources/read` on a **connected MCP server** — not a local/bundled-only read path.
@@ -21,7 +26,7 @@
 | opencode | [anomalyco/opencode](https://github.com/anomalyco/opencode) | [`ce89bcb`](https://github.com/anomalyco/opencode/commit/ce89bcb8e238401ea8fee000dc54539057d47dc4) |
 | deepagents | [langchain-ai/deepagents](https://github.com/langchain-ai/deepagents) | [`a64ff43`](https://github.com/langchain-ai/deepagents/commit/a64ff430f14b76607dfb1d78234f928ed88a3af0) |
 | openclaw | [openclaw/openclaw](https://github.com/openclaw/openclaw) | [`8a1e220`](https://github.com/openclaw/openclaw/commit/8a1e2202734476d79b462bbdf66e6291c26104d7) |
-| smolagents | [huggingface/smolagents](https://github.com/huggingface/smolagents) | _TBD — re-pin at next pass_ |
+| strands-agents | [strands-agents/sdk-python](https://github.com/strands-agents/sdk-python) | [`8638fc2`](https://github.com/strands-agents/sdk-python/commit/8638fc2d629e32b7b5839f4c106d5aedcdf764c9) |
 | adk-python | [google/adk-python](https://github.com/google/adk-python) | _TBD_ |
 | agent-framework | [microsoft/agent-framework](https://github.com/microsoft/agent-framework) | _TBD_ |
 | cline | [cline/cline](https://github.com/cline/cline) | _TBD_ |
@@ -43,7 +48,7 @@
 | **opencode** | No | — (internal `readResource` only) | — | Internal only — `readResource()` exists at `packages/opencode/src/mcp/index.ts:722-726` but is invoked only when the user attaches a resource via file picker; `mcp.tools()` at `prompt.ts:444` forwards MCP *tools* but never a resource-read tool | n/a | Docs (`mcp-servers.mdx:8`) advertise tool forwarding only | _none yet — add as found_ |
 | **deepagents** (LangChain) | No | — | — | n/a — delegates MCP wiring to [`langchain-mcp-adapters`](https://github.com/langchain-ai/langchain-mcp-adapters) via `load_mcp_tools()` (`mcp_tools.py:519-521`); that adapter only converts MCP tools, not resources | n/a | No mention in README | **Upstream-blocked**: needs a change in `langchain-mcp-adapters` (or a deepagents wrapper around `client.read_resource()`) |
 | **openclaw** | No | — | — | n/a — `pi-bundle-mcp-materialize.ts:63-127` materializes MCP *tools* only; bundle runtime calls `callTool()` at `pi-bundle-mcp-runtime.ts:269-279`; no `readResource` callsite | n/a | `docs/cli/mcp.md` covers tools/conversations/events only | _none yet — add as found_ |
-| **smolagents** (HF) | No | — | — | n/a — `MCPClient` (`mcp_client.py:103-122`) uses [`mcpadapt`](https://github.com/grll/mcpadapt) `SmolAgentsAdapter`, which only converts MCP tools. `ToolCollection.from_mcp` (`tools.py:1036-1058`) uses the same adapter. No resource handling anywhere in the repo | n/a | MCP tutorial (`docs/source/en/tutorials/tools.md:91-199`) covers tools and structured output only | **Upstream-blocked**: needs a change in `mcpadapt` |
+| **strands-agents** (AWS-affiliated) | No (internal SDK only) | — | — | Internal only — `MCPClient.read_resource_sync()` (`src/strands/tools/mcp/mcp_client.py:524`) and `list_resources_sync()` (line 500) call MCP `resources/read` / `resources/list`, but `MCPAgentTool` (the only adapter) wraps `mcp.types.Tool` only and `MCPClient.load_tools()` (the `ToolProvider` interface, line 227) returns tools only | n/a | _unknown — verify_ | _none yet — add as found_ |
 | **Claude Code** (closed source, reference) | Yes | `ReadMcpResourceTool` | `(server, uri)` per [public docs](https://code.claude.com/docs/en/tools-reference) | Documented; source not verifiable | n/a | Yes — public tools reference page | n/a |
 | **adk-python** (Google ADK) | Yes _(unverified — first pass below)_ | `load_mcp_resource` | Two-shot — discovers resources first, then takes a `resource_name` to read | Yes — `MCPToolset.read_resource()` calls `session.read_resource(uri)` (`tools/mcp_tool/mcp_toolset.py`) | Toolset must be configured with at least one MCP server | _unknown — verify_ | _none yet — add as found_ |
 | **agent-framework** (Microsoft) | No (tools-only client bridge) | — | — | n/a — `MCPTool` / `MCPStdioTool` / `MCPStreamableHTTPTool` / `MCPWebsocketTool` in `python/packages/core/agent_framework/_mcp.py` materialize MCP *tools* into the agent's tool registry; no `read_resource` callsite found in client code (only in a test) | n/a | Samples cover MCP tool integration only | _none yet — add as found_ |
@@ -60,13 +65,13 @@
    2. **Multiplexed resource tool** — fast-agent: one `get_resource` tool handles both bundled (`internal://`) and MCP URIs behind a single name. Simpler surface for the model; relies on URI scheme to disambiguate.
    3. **FS-provider indirection via namespaced URIs** — VS Code: no MCP-specific tool. A dedicated URI scheme (`mcp-resource://`) is registered with the filesystem service so the generic `readFile` / `listDirectory` tools transparently reach MCP `resources/read`. Reuses the agent's existing file-reading affordance; costs nothing in tool-count budget. Downside: no `list` equivalent — the model can only read URIs it's been handed.
 
-2. **Tool signature is fragmented in pattern (1).** Among the dedicated-tool implementers, **Codex, fast-agent, and Claude Code** take an explicit `(server, uri)` pair. **Gemini-CLI and Goose**, per [Peter's #2640 comment](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640#discussion_r3164100043), take `uri` alone and probe servers one-by-one until one resolves. Peter flags the URI-only behavior as something that "should be fixed regardless of skills" — disambiguating which server owns a URI matters more, not less, once skills reference cross-server resources. (Note: the existing survey for Goose suggests an extension-name parameter is involved; **re-verify both clients' signatures at the next pass** before citing this delta.)
+2. **Tool signature is fragmented in pattern (1).** Among the dedicated-tool implementers, **Codex, fast-agent, and Claude Code** take an explicit `(server, uri)` pair. **Gemini-CLI and Goose**, take `uri` alone and as a fallback probe servers one-by-one until one resolves.
 
 3. **Trust models diverge.** Per-server enablement (Goose, Gemini CLI), unconditional-when-MCP-configured (Codex), or capability-gated FS provider (VS Code). For skills-over-MCP this matters because the "who can read what" boundary is currently set by each host individually — a portable skill that depends on `resources/read` will work or not based on whether the host considers MCP resource access a model-grade affordance.
 
-4. **Discoverability differs sharply between patterns.** Pattern (1) hosts pair `read_*` with a `list_*` so the model can enumerate resources on its own. Pattern (2) (fast-agent) has `list_resources`. Pattern (3) (VS Code) has *no list equivalent* — the model can only read a URI it's been handed (user attachment → chat context, or an MCP tool returning a `resource_link`). For skills this matters: a `skill://index.json`-style enumeration model (per Peter's sketch) implicitly assumes the model can either *list* or be *told* what's available. Pattern (3) needs the index handed in via attachment or a dedicated tool result.
+4. **Discoverability differs sharply between patterns.** Pattern (1) hosts pair `read_*` with a `list_*` so the model can enumerate resources on its own. Pattern (2) (fast-agent) has `list_resources`. Pattern (3) (VS Code) has *no list equivalent* — the model can only read a URI it's been handed (user attachment → chat context, or an MCP tool returning a `resource_link`). For skills this matters: a `skill://index.json`-style enumeration model implicitly assumes the model can either *list* or be *told* what's available. Pattern (3) needs the index handed in via attachment or a dedicated tool result.
 
-5. **Adapter libraries are the long-pole upstream.** Two of the three "no" rows (deepagents, smolagents) are blocked by their upstream MCP adapter (`langchain-mcp-adapters` and `mcpadapt`) which only converts MCP *tools*. A single change in either library would flip a downstream client; that may be a higher-leverage target than client-by-client PRs.
+5. **Adapter libraries are the long-pole upstream.** Some libraries such as deepagents are blocked by their upstream MCP adapter (`langchain-mcp-adapters` and `mcpadapt`) which only converts MCP *tools*.
 
 6. **VS Code's FS-provider pattern is worth its own consideration for skills.** Because `mcp-resource://` URIs are first-class in the file service, *any* tool that takes a path argument in VS Code can transparently read MCP resources — including, in principle, a skill loader. The skills-over-MCP design could lean on this by treating `skill://server/name/SKILL.md` as just another URI scheme registered with the host's file abstraction. This is closer to a registry-style integration (cf. how VS Code surfaces skills via `ChatSessionCustomizationProvider` rather than as system-prompt content).
 
@@ -167,14 +172,18 @@
 
 ---
 
-### smolagents (Hugging Face)
+### strands-agents (AWS-affiliated)
 
-- **MCP bridge is `mcpadapt`:** `src/smolagents/mcp_client.py:103-122` (specifically `MCPAdapt(server_parameters, SmolAgentsAdapter(...), **adapter_kwargs)` at lines 118-120). Alternate entrypoint `ToolCollection.from_mcp` at `src/smolagents/tools.py:1036-1058` uses the same adapter call (line 1057). `SmolAgentsAdapter` only converts MCP tools into `smolagents.Tool` objects.
-- **Tools are serialized via** `get_tool_json_schema()` (`src/smolagents/models.py:288-329`) and passed as `tools_to_call_from` (`agents.py:1296`, `models.py:540`). No resource tool is added.
-- **Dependency:** `pyproject.toml:55-57` pins `mcpadapt>=0.1.13` ("Support structured output"); mcpadapt is not vendored.
-- **Grep confirms zero references** to `resources/list`, `resources/read`, or resource handling.
-- **Docs:** `docs/source/en/tutorials/tools.md:91-199` cover tool loading and structured output only.
-- **Open issues/PRs to watch:** _track [`grll/mcpadapt`](https://github.com/grll/mcpadapt) for a resource-read adapter — none filed yet to our knowledge_.
+Verified at commit [`8638fc2`](https://github.com/strands-agents/sdk-python/commit/8638fc2d629e32b7b5839f4c106d5aedcdf764c9) (2026-05-04). Strands matches the **mastra pattern**: full resource RPC plumbing in the SDK, but no model-facing tool.
+
+- **MCP integration:** [`src/strands/tools/mcp/mcp_client.py`](https://github.com/strands-agents/sdk-python/blob/8638fc2d629e32b7b5839f4c106d5aedcdf764c9/src/strands/tools/mcp/mcp_client.py) defines `MCPClient`, which implements the SDK's `ToolProvider` interface. `load_tools()` (line 227) is the bridge into the agent's tool registry; `list_tools_sync()` (line 394) does the actual MCP `tools/list` call and wraps each result as an [`MCPAgentTool`](https://github.com/strands-agents/sdk-python/blob/8638fc2d629e32b7b5839f4c106d5aedcdf764c9/src/strands/tools/mcp/mcp_agent_tool.py) (lines 440, 443).
+- **Resource RPC wired:** Yes, in the SDK only.
+  - `read_resource_sync(uri)` at `mcp_client.py:524` calls `session.read_resource(resource_uri)` (line 540).
+  - `list_resources_sync()` at line 500 calls `session.list_resources(cursor=...)` (line 517).
+  - `list_resource_templates_sync()` is also present (the `list_resource_templates` MCP RPC).
+- **Model-facing tool:** No. `MCPAgentTool.stream()` (`mcp_agent_tool.py:97-119`) only delegates to `self.mcp_client.call_tool_async(...)` — never to `read_resource_sync` / `list_resources_sync`. There is no `MCPResourceAgentTool` or equivalent. The only callers of the resource-read methods anywhere in the repo are the integration tests at `tests_integ/mcp/test_mcp_resources.py`.
+- **Why on the list:** Strands has its own skills implementation under `src/strands/vended_plugins/skills/agent_skills.py` (a `@tool(context=True)`-decorated `agent_skill`), so the framework already cares about progressive disclosure — but that path is local-filesystem only. Wiring resource-read to the model is the obvious next step for an MCP-backed skill story.
+- **Open issues/PRs to watch:** _none yet — add as found_.
 
 ---
 
@@ -244,7 +253,7 @@ The following seven clients all have MCP support based on a quick local-checkout
 - **MCP integration:** `packages/mcp/src/client/` imports `@modelcontextprotocol/sdk`. `packages/mcp/src/client/actions/resource.ts:~130` exposes `async read(uri)` which calls `this.client.readResource(uri)`.
 - **Resource RPC wired:** Yes, but **internal SDK only**. `ResourceClientActions` is an SDK surface for callers, not registered as an LLM-facing tool.
 - **Model-facing tool:** No. The model-facing tool bridge converts MCP tools only; resources require explicit code to invoke.
-- **Why on the list:** Mastra's skill versioning architecture (content-addressable BlobStore, draft→publish lifecycle) is the most sophisticated in the parallel skills survey. Unlocking resource-read at the model boundary would be a small change relative to the rest of the framework — the SDK plumbing already exists.
+- **Why on the list:** Mastra's skill versioning architecture (content-addressable BlobStore, draft→publish lifecycle) is the most sophisticated. Unlocking resource-read at the model boundary would be a small change relative to the rest of the framework — the SDK plumbing already exists.
 
 ---
 
@@ -266,13 +275,3 @@ The following seven clients all have MCP support based on a quick local-checkout
 - **Signature mismatch is a portability hazard.** A skill that references `skill://code-review/checklist.json` resolves differently across hosts depending on whether the host disambiguates by server. **The spec should probably nudge implementations toward `(server, uri)` or per-server tool naming.**
 - **Adapter libraries are the long-pole** for several "no" rows. **`mcpadapt`** blocks both **smolagents** *and* **crewAI** (via `crewai-tools`). **`langchain-mcp-adapters`** blocks **deepagents**. Three "no" rows collapse to two upstream changes.
 - **Internal SDK without LLM-tool exposure** (mastra) is its own pattern: the resource RPC is wired in the SDK but not bridged to the model. Closing this gap is typically smaller-scope than wiring the RPC from scratch — relevant when prioritizing PRs across these clients.
-
-## TODO (next pass)
-
-- **Re-pin commits** for all rows; the existing survey was taken 2026-04-18 and the snapshot table should be re-anchored before publishing.
-- **Verify gemini-cli and goose tool signatures** against current main (Peter's #2640 comment claims `uri`-only; the existing survey notes mention an extension-name parameter for goose). Resolve the discrepancy in code rather than from secondhand notes.
-- **Verify the seven first-pass rows** under "Clients to dig into" against the same three-step methodology used for the original nine. Highest-priority verifications: adk-python (`load_mcp_resource` two-shot pattern) and hermes-agent (per-server tool naming) since both would add new "yes" entries.
-- **Backfill open issues/PRs** for each client. Search each repo for keywords: `resources/read`, `read_resource`, `read_mcp_resource`, `mcp resource`, `resource link`, plus skills-related signals (`SKILL.md`, `skill://`, `read_skill`).
-- **Add a column** for "exposes `list_resources`-equivalent?" — the FS-provider pattern (VS Code) loses this and it matters for skills discovery.
-- **Cross-link** with `clients-skills-research.md` so a reader can pivot between "how does this client surface skills?" and "how does it surface MCP resources?".
-- **Watch the adapter libraries**: a single resource-tool change in [`grll/mcpadapt`](https://github.com/grll/mcpadapt) flips both smolagents and crewAI; a single change in [`langchain-ai/langchain-mcp-adapters`](https://github.com/langchain-ai/langchain-mcp-adapters) flips deepagents.
