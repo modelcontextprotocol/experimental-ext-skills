@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
@@ -74,6 +75,50 @@ _SKILL_NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$")
 def _is_valid_skill_name(name: str) -> bool:
     """Return ``True`` if ``name`` satisfies the Agent Skills naming rules."""
     return bool(_SKILL_NAME_RE.fullmatch(name))
+
+
+# ---------------------------------------------------------------------------
+# Per-server skills registry
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _SkillsRegistry:
+    """Per-server accumulated state for skill registration.
+
+    Tracks every skill, archive, and template registered on a given server
+    across multiple :func:`register_skill_resources` / :func:`register_skill`
+    / :func:`skill` calls. The ``skill://index.json`` resource closes over
+    this state so the rendered index always reflects every registration to
+    date — letting the SEP-2640 §SDKs decorator pattern compose::
+
+        @skill(server, "git-workflow")
+        def git_workflow(): ...
+
+        @skill(server, "acme/billing/refunds")
+        def refunds(): ...
+
+    Without accumulation, each call would re-register ``skill://index.json``
+    with only that single skill (or fail on duplicate URI).
+    """
+
+    skills: dict[str, SkillMetadata] = field(default_factory=dict)
+    archives: list[SkillArchiveDeclaration] = field(default_factory=list)
+    templates: list[SkillTemplateDeclaration] = field(default_factory=list)
+    index_registered: bool = False
+
+
+def _get_registry(server: Any) -> _SkillsRegistry:
+    """Get-or-create the per-server skills registry.
+
+    Stored as a ``_skills_registry`` attribute on the server instance, so
+    isolation between server objects (and between tests) is automatic.
+    """
+    reg = getattr(server, "_skills_registry", None)
+    if reg is None:
+        reg = _SkillsRegistry()
+        server._skills_registry = reg
+    return reg
 
 
 # ---------------------------------------------------------------------------
@@ -381,11 +426,11 @@ def register_skill(
         register_skill(server, "acme/billing/refunds", "./skills/refunds")
 
     Each call registers the skill's ``SKILL.md`` and supporting files,
-    plus emits ``skill://index.json`` for this single skill. For bulk
-    registration of every skill under a directory tree, use
-    :func:`discover_skills` + :func:`register_skill_resources` instead;
-    mixing the two on the same server will yield two index resources
-    and is not supported.
+    and accumulates the skill into the per-server registry that backs
+    the ``skill://index.json`` resource. Calling :func:`register_skill`
+    multiple times on the same server (or mixing it with
+    :func:`register_skill_resources`) is supported — the index reflects
+    every registration to date.
 
     For the decorator form shown in SEP-2640 §SDKs, see :func:`skill`.
 
@@ -834,18 +879,27 @@ def register_skill_resources(
     skills_dir: str | Path,
     options: RegisterSkillResourcesOptions | None = None,
 ) -> None:
-    """Register MCP resources for all discovered skills on a FastMCP server.
+    """Register MCP resources for the given skills on a FastMCP server.
 
-    Registers, per skill:
-      * ``skill://<skill_path>/SKILL.md`` — skill content (one per skill).
+    Per call, registers:
+      * ``skill://<skill_path>/SKILL.md`` — one per skill in ``skill_map``.
       * ``skill://<skill_path>/<file-path>`` — one static resource per
         supporting file (instead of TS's catch-all template; see module
         docstring).
+      * Archive resources from ``options.archives``.
+      * Resource templates from ``options.templates`` (only those with a
+        ``read`` callback).
 
-    Always registers:
-      * ``skill://index.json`` — well-known discovery index.
+    Across calls, also maintains:
+      * ``skill://index.json`` — registered exactly once per server, as
+        a closure over a per-server registry that accumulates every
+        skill / archive / template registered to date. Subsequent calls
+        on the same server append to the registry; the index reflects
+        the live set on each ``resources/read``.
 
-    Optionally registers archives and user-declared templates.
+    This idempotent index is what makes the SEP-2640 §SDKs decorator
+    pattern (multiple ``@skill(server, ...)`` declarations on one
+    server) compose into a single combined index.
 
     Per SEP-2640, user-declared templates with a ``read`` callback are
     registered before any catch-all-style template would be (the Python
@@ -862,11 +916,7 @@ def register_skill_resources(
     def _annotations(audience_list: list[str], priority: float) -> Any:
         return annotations_cls(audience=list(audience_list), priority=priority)
 
-    # Latest mtime across skills, used as the lastModified for synthetic
-    # resources (index, templates) that aggregate over the skill set.
-    latest_modified: str | None = None
-    if skill_map:
-        latest_modified = max(skill.last_modified for skill in skill_map.values())
+    registry = _get_registry(server)
 
     # ---- Archive resources (registered before the index so the index
     # ---- entries reference valid resources).
@@ -966,34 +1016,51 @@ def register_skill_resources(
                 )
             )
 
-    # ---- skill://index.json
-    index = generate_skill_index(
-        skill_map,
-        archives=opts.archives,
-        templates=opts.templates,
-    )
-    index_json_str = json.dumps(
-        index.model_dump(by_alias=True, exclude_none=True),
-        indent=2,
-    )
+    # ---- Accumulate this batch into the per-server registry. The
+    # ---- index closure (registered below) reads from the registry, so
+    # ---- subsequent calls on the same server compose into a single
+    # ---- combined index.
+    for skill_path, skill in skill_map.items():
+        if skill_path in registry.skills:
+            logger.warning(
+                "Skill %r already registered on this server; replacing.",
+                skill_path,
+            )
+        registry.skills[skill_path] = skill
+    registry.archives.extend(opts.archives)
+    registry.templates.extend(opts.templates)
 
-    def index_fn() -> str:
-        return index_json_str
+    # ---- skill://index.json — registered once per server, as a closure
+    # ---- over the live registry so the index reflects every
+    # ---- registration to date.
+    if not registry.index_registered:
+        bound_registry = registry
 
-    server.add_resource(
-        function_resource_cls(
-            uri=cast(Any, INDEX_JSON_URI),
-            name="skills-index",
-            description=(
-                "Discovery index of available skills, following the Agent "
-                "Skills well-known URI format"
-            ),
-            mime_type="application/json",
-            fn=index_fn,
-            annotations=_annotations(["assistant"], 0.8),
-            meta=_build_skill_meta(last_modified=latest_modified),
+        def index_fn() -> str:
+            live_index = generate_skill_index(
+                bound_registry.skills,
+                archives=bound_registry.archives,
+                templates=bound_registry.templates,
+            )
+            return json.dumps(
+                live_index.model_dump(by_alias=True, exclude_none=True),
+                indent=2,
+            )
+
+        server.add_resource(
+            function_resource_cls(
+                uri=cast(Any, INDEX_JSON_URI),
+                name="skills-index",
+                description=(
+                    "Discovery index of available skills, following the Agent "
+                    "Skills well-known URI format"
+                ),
+                mime_type="application/json",
+                fn=index_fn,
+                annotations=_annotations(["assistant"], 0.8),
+            )
         )
-    )
+        registry.index_registered = True
 
     # ---- User-declared resource templates (parameterized skill namespaces).
     # Registered after per-skill resources so static resources are matched

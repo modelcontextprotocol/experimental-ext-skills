@@ -286,6 +286,35 @@ class TestRegisterSkillResources:
         )
         assert fake_server.completion_handler is None
 
+    def test_repeated_register_skill_resources_composes(
+        self, temp_skills_dir: Path, fake_server: FakeSkillsServer
+    ) -> None:
+        # Two calls to register_skill_resources on the same server must
+        # produce one index resource that reflects skills from both calls.
+        import asyncio
+        import json
+
+        skills = discover_skills(temp_skills_dir)
+        register_skill_resources(
+            fake_server, {"code-review": skills["code-review"]}, temp_skills_dir
+        )
+        register_skill_resources(
+            fake_server,
+            {"acme/billing/refunds": skills["acme/billing/refunds"]},
+            temp_skills_dir,
+        )
+
+        index_resources = [
+            r for r in fake_server.resources if str(r.uri) == INDEX_JSON_URI
+        ]
+        assert len(index_resources) == 1
+        parsed = json.loads(asyncio.run(index_resources[0].read()))
+        urls = {entry["url"] for entry in parsed["skills"]}
+        assert urls == {
+            "skill://code-review/SKILL.md",
+            "skill://acme/billing/refunds/SKILL.md",
+        }
+
     def test_template_without_read_not_registered(
         self,
         temp_skills_dir: Path,
@@ -380,6 +409,41 @@ class TestSkillDecorator:
 
         uris = [str(r.uri) for r in fake_server.resources]
         assert "skill://acme/billing/refunds/SKILL.md" in uris
+
+    def test_multiple_decorators_compose_into_one_index(
+        self, temp_skills_dir: Path, fake_server: FakeSkillsServer
+    ) -> None:
+        # SEP-2640 §SDKs shows multiple ``@server.skill(...)``
+        # declarations on the same server. The SDK must register
+        # exactly one ``skill://index.json`` resource and the rendered
+        # index must contain every decorated skill.
+        import asyncio
+        import json
+
+        cr_dir = temp_skills_dir / "code-review"
+        refunds_dir = temp_skills_dir / "acme" / "billing" / "refunds"
+
+        @skill(fake_server, "code-review")
+        def code_review() -> Path:
+            return cr_dir
+
+        @skill(fake_server, "acme/billing/refunds")
+        def refunds() -> Path:
+            return refunds_dir
+
+        index_resources = [
+            r for r in fake_server.resources if str(r.uri) == INDEX_JSON_URI
+        ]
+        assert len(index_resources) == 1, (
+            f"expected exactly one skill://index.json, got {len(index_resources)}"
+        )
+
+        body = asyncio.run(index_resources[0].read())
+        parsed = json.loads(body)
+        urls = {entry["url"] for entry in parsed["skills"]}
+        assert "skill://code-review/SKILL.md" in urls
+        assert "skill://acme/billing/refunds/SKILL.md" in urls
+        assert parsed["$schema"] == SKILL_INDEX_SCHEMA
 
 
 class TestPathSafety:
