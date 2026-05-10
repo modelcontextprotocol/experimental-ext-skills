@@ -10,6 +10,8 @@
 | ~~[SEP-2093](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093)~~ | MCP Spec | ~~Resource Contents Metadata and Capabilities: scoped `resources/list`, per-resource capabilities, `resources/metadata` endpoint~~ — **rejected** ([labeled upstream](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093)) |
 | ~~[SEP-2076](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076)~~ | MCP Spec | ~~Agent Skills as a first-class MCP primitive~~ — **closed** (2026-02-24, without merge) |
 
+> See also [**skills-extension-candidates.md**](skills-extension-candidates.md) for a tracker of MCP servers, dev tools, SDKs, and skills repositories that are candidates for adopting the skills extension.
+
 ## Working Group Member Implementations
 
 Work by WG leads and active participants that directly implements the group's core patterns: SKILL.md with YAML frontmatter, `skill://` resource URIs, and progressive disclosure via MCP primitives.
