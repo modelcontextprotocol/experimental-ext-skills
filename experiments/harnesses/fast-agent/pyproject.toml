@@ -14,4 +14,4 @@ dependencies = [
 # of the fork, swap this for `{ path = "<abs-path>", editable = true }`
 # in your working tree (don't commit the override).
 [tool.uv.sources]
-fast-agent-mcp = { git = "https://github.com/olaservo/fast-agent.git", branch = "experimental/skills-over-mcp" }
+fast-agent-mcp = { git = "https://github.com/olaservo/fast-agent.git", branch = "experimental/skills-over-mcp-v2" }

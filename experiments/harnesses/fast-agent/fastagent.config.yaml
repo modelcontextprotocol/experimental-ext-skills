@@ -21,6 +21,13 @@ mcp:
       # surfaces SKILL.md-only method names, the activation went through the
       # SEP integration end-to-end, not via inlined server text.
       include_instructions: false
+      # v2 of the fast-agent fork added a per-server SkillConsentStore that
+      # holds discovered skills in a pending set until the user runs
+      # `/skills approve <server>` in the REPL. The harness is headless, so
+      # without this flag the `<available_skills>` catalog is empty and the
+      # activation test always fails. Auto-approve mirrors the implicit
+      # consent a user gives by configuring the server in the first place.
+      skills_auto_approve: true
 
     hf_skills:
       transport: http
@@ -32,3 +39,4 @@ mcp:
       # pointer from its instructions field, but suppress the rest too
       # so the only signal is `<available_skills>`.
       include_instructions: false
+      skills_auto_approve: true
