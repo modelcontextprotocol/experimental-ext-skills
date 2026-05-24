@@ -17,7 +17,6 @@ Category values: **Framework** = SDK/library you build agents on top of · **CLI
 | Client | Category | Tool exposed to model? | Tool name(s) | Tool signature | Calls `resources/read` on connected server? | Enablement gate | End-user docs? | Open issues/PRs to watch |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **codex** (OpenAI) | CLI | Yes | `read_mcp_resource`, `list_mcp_resources`, `list_mcp_resource_templates` | `(server, uri)` — server explicitly named | Yes — handler calls `session.read_resource()` | Any MCP server is configured (`params.mcp_tools.is_some()`) | No — only the LLM-visible tool description; an internal steer tells the model to prefer `tool_search` | _none yet — add as found_ |
-| **gemini-cli** (Google) | CLI | Yes | `read_mcp_resource`, `list_mcp_resources` | `(uri)` only — no server param ([Peter notes](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640#discussion_r3164100043) the client probes connected servers in turn until one resolves; **verify** against the loader code at next pass) | Yes — `read-mcp-resource.ts` calls `resources/read` | MCP manager present AND ≥1 connected server exposes a resource | Yes — `docs/tools/mcp-resources.md`, `docs/reference/tools.md:99-100`, `docs/cli/plan-mode.md:134-135` | _none yet — add as found_ |
 | **goose** (Block) | CLI | Yes | `read_resource`, `list_resources` | Today: `extension_name` is **optional** on `read_resource`; if omitted the handler probes every connected extension and swallows errors. PR [#8989](https://github.com/aaif-goose/goose/pull/8989) (open) makes it required, moving the signature to `(extension_name, uri)` | Yes — `ExtensionManager::read_resource` → `client.read_resource(...)` | ≥1 enabled extension reports `ServerCapabilities::resources` | Yes — `documentation/docs/mcp/extension-manager-mcp.md:70-81` | Issue [#8988](https://github.com/aaif-goose/goose/issues/8988) (open), PR [#8989](https://github.com/aaif-goose/goose/pull/8989) (open) |
 | **fast-agent** | Framework | Yes (multiplexed) | `get_resource`, `list_resources` | `(uri, server_name)` — also handles bundled `internal://` URIs through the same tool | Yes for MCP URIs — `_run_current_agent_get_resource_call` → `agent.get_resource(uri, namespace=server_name)`; `internal://` URIs short-circuit to bundled resources | Unconditional for every `SmartAgent` | Partial — `smart_prompt.md:26-28` instructs the model; design rationale in `plan/done/internal_resources.md`; no dedicated README section | _none yet — add as found_ |
 | **vscode** (GitHub Copilot) | IDE | Yes (FS-provider indirection) | `copilot_readFile`, `copilot_listDirectory` (general-purpose, not MCP-specific) | `(path)` — accepts `mcp-resource://…` URIs as paths; the FS provider routes to MCP RPC | Yes — `mcp-resource://` URIs route via `IFileService` → `McpResourceFilesystem` provider → `r.readResource(...)` MCP RPC (`mcpResourceFilesystem.ts:293`) | Server must advertise `McpCapability.Resources`; model needs a URI to pass (typically obtained from user attachment or from an MCP tool's `resource_link` response) | No explicit doc, but mechanism is operational. [Connor Peet's comment on #2527](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2527#issuecomment-4282395437) is the clearest write-up | _none yet — add as found_ |
@@ -36,13 +35,13 @@ Category values: **Framework** = SDK/library you build agents on top of · **CLI
 ## Cross-cutting observations
 
 1. **Three implementation patterns for model-facing MCP resource access.**
-   1. **Dedicated MCP resource tools** — Codex, Gemini CLI, Goose, Claude Code: explicit `read_mcp_resource` / `read_resource` (+ optional `list_*`) registered alongside other MCP tools. Most discoverable by the model; closest literal reading of #2527.
+   1. **Dedicated MCP resource tools** — Codex, Goose, Claude Code: explicit `read_mcp_resource` / `read_resource` (+ optional `list_*`) registered alongside other MCP tools. Most discoverable by the model; closest literal reading of #2527.
    2. **Multiplexed resource tool** — fast-agent: one `get_resource` tool handles both bundled (`internal://`) and MCP URIs behind a single name. Simpler surface for the model; relies on URI scheme to disambiguate.
    3. **FS-provider indirection via namespaced URIs** — VS Code: no MCP-specific tool. A dedicated URI scheme (`mcp-resource://`) is registered with the filesystem service so the generic `readFile` / `listDirectory` tools transparently reach MCP `resources/read`. Reuses the agent's existing file-reading affordance; costs nothing in tool-count budget. Downside: no `list` equivalent — the model can only read URIs it's been handed.
 
-2. **Tool signature is fragmented in pattern (1).** Among the dedicated-tool implementers, **Codex, fast-agent, and Claude Code** take an explicit `(server, uri)` pair. **Gemini-CLI and Goose**, currently make `uri` optional and as a fallback probe servers one-by-one until one resolves.
+2. **Tool signature is fragmented in pattern (1).** Among the dedicated-tool implementers, **Codex, fast-agent, and Claude Code** take an explicit `(server, uri)` pair. **Goose** currently makes `uri` optional and as a fallback probes servers one-by-one until one resolves.
 
-3. **Trust models diverge.** Per-server enablement (Goose, Gemini CLI), unconditional-when-MCP-configured (Codex), or capability-gated FS provider (VS Code). For skills-over-MCP this matters because the "who can read what" boundary is currently set by each host individually — a portable skill that depends on `resources/read` will work or not based on whether the host considers MCP resource access a model-grade affordance.
+3. **Trust models diverge.** Per-server enablement (Goose), unconditional-when-MCP-configured (Codex), or capability-gated FS provider (VS Code). For skills-over-MCP this matters because the "who can read what" boundary is currently set by each host individually — a portable skill that depends on `resources/read` will work or not based on whether the host considers MCP resource access a model-grade affordance.
 
 4. **Discoverability differs sharply between patterns.** Pattern (1) hosts pair `read_*` with a `list_*` so the model can enumerate resources on its own. Pattern (2) (fast-agent) has `list_resources`. Pattern (3) (VS Code) has *no list equivalent* — the model can only read a URI it's been handed (user attachment → chat context, or an MCP tool returning a `resource_link`). For skills this matters: a `skill://index.json`-style enumeration model implicitly assumes the model can either *list* or be *told* what's available. Pattern (3) needs the index handed in via attachment or a dedicated tool result.
 
@@ -124,15 +123,6 @@ Verified at commit [`67849d9`](https://github.com/openai/codex/commit/67849d950d
 
 ---
 
-#### gemini-cli (Google) _(verified)_
-
-Verified at commit [`4e17552`](https://github.com/google-gemini/gemini-cli/commit/4e175527a2b241a68afd5f1509a8bebc21a44dfe).
-
-- **Model-facing tool:** [`read-mcp-resource.ts`](https://github.com/google-gemini/gemini-cli/blob/4e175527a2b241a68afd5f1509a8bebc21a44dfe/packages/core/src/tools/read-mcp-resource.ts) → MCP `resources/read` RPC at line 135. Active-tool gate requires `mcpManager.getAllResources().length > 0`.
-- **Signature:** `(uri)` only — gemini-cli probes connected servers until one resolves. Documented at [`docs/tools/mcp-resources.md`](https://github.com/google-gemini/gemini-cli/blob/4e175527a2b241a68afd5f1509a8bebc21a44dfe/docs/tools/mcp-resources.md) and covered by [integration test](https://github.com/google-gemini/gemini-cli/blob/4e175527a2b241a68afd5f1509a8bebc21a44dfe/integration-tests/mcp-resources.test.ts).
-
----
-
 #### goose (AAIF) _(verified)_
 
 Verified at commit [`45d8bf8`](https://github.com/aaif-goose/goose/commit/45d8bf81d09d478ceedba8f6d1f0ad906123a981).
@@ -197,10 +187,10 @@ Verified at commits [`530cb5d`](https://github.com/microsoft/vscode/commit/530cb
 
 ## Takeaways for SEP-2640 (skills extension)
 
-- **Likely seven of sixteen open-source clients surveyed** (Codex, Gemini CLI, Goose, fast-agent, VS Code — verified — plus adk-python and hermes-agent on first-pass evidence pending verification) satisfy #2527's SHOULD. Gemini CLI and Goose also satisfy the implicit expectation that this be documented for end users.
+- **Likely six of fifteen open-source clients surveyed** (Codex, Goose, fast-agent, VS Code — verified — plus adk-python and hermes-agent on first-pass evidence pending verification) satisfy #2527's SHOULD. Goose also satisfies the implicit expectation that this be documented for end users.
 - **Four implementation patterns** for model-facing MCP resource access — all support the layering Peter sketches in his #2640 comment, but with different costs:
   - **Dedicated tools, `(server, uri)`** (Codex, Claude Code, fast-agent — fast-agent is also multiplexed across `internal://`): explicit `read_resource` registered alongside other MCP tools. Most discoverable; closest literal reading of #2527.
-  - **Dedicated tools, `(uri)`-only with server probing** (Gemini CLI; Goose currently — open PR [aaif-goose/goose#8989](https://github.com/aaif-goose/goose/pull/8989) would move it to `(extension_name, uri)`, addressing issue [#8988](https://github.com/aaif-goose/goose/issues/8988)): cleaner signature but loses cross-server disambiguation. **Should probably be fixed independently of skills.**
+  - **Dedicated tools, `(uri)`-only with server probing** (Goose currently — open PR [aaif-goose/goose#8989](https://github.com/aaif-goose/goose/pull/8989) would move it to `(extension_name, uri)`, addressing issue [#8988](https://github.com/aaif-goose/goose/issues/8988)): cleaner signature but loses cross-server disambiguation. **Should probably be fixed independently of skills.**
   - **One tool per server, `(uri)`** (hermes-agent, first-pass): server is encoded in the tool name (`mcp_{server}_read_resource`), so the model selects the server by selecting the tool. Trades catalog tokens for unambiguity.
   - **FS-provider indirection via namespaced URIs** (VS Code): no MCP-specific tool. `mcp-resource://` URIs are registered with the file service; generic `readFile` / `listDirectory` tools transparently reach `resources/read`. Costs nothing in tool-count budget; loses `list` affordance.
 - **Signature mismatch is a portability hazard.** A skill that references `skill://code-review/checklist.json` resolves differently across hosts depending on whether the host disambiguates by server. **The spec should probably nudge implementations toward `(server, uri)` or per-server tool naming.**
