@@ -34,8 +34,7 @@ Criteria to report:
 ## Plan-evaluator neutral tools
 
 Each agentic client's planning step (`todo__todo_write` for goose,
-`update_topic` for gemini-cli, `list_mcp_resources` for codex) fires
-before skill activation. The plan evaluator has a small per-client
-"neutral tools" allowlist so the `skill-read-before-plan` fallback
-gate doesn't fire on these. The set is empirical (one entry per
-observed client), not normative.
+`list_mcp_resources` for codex) fires before skill activation. The
+plan evaluator has a small per-client "neutral tools" allowlist so
+the `skill-read-before-plan` fallback gate doesn't fire on these.
+The set is empirical (one entry per observed client), not normative.

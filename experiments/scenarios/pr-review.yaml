@@ -31,7 +31,6 @@ prompt_template: >-
 # sonnet); codex needs gpt-5.1-codex (mini trips 200K-TPM here).
 models:
   fast-agent: anthropic.claude-haiku-4-5-20251001
-  gemini-cli: gemini-2.5-flash
   goose: claude-sonnet-4-6
   codex: gpt-5.1-codex
 

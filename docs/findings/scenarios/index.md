@@ -1,7 +1,7 @@
 # Cross-Client Scenarios
 
-These scenarios run the same prompt across four MCP-aware clients
-(fast-agent, gemini-cli, codex, goose) pointed at a server that exposes
+These scenarios run the same prompt across three MCP-aware clients
+(fast-agent, codex, goose) pointed at a server that exposes
 skills via `extensions["io.modelcontextprotocol/skills"]` +
 `skill://` resource URIs. Each scenario is a small **probe** of one
 specific aspect of skills-over-MCP — not a benchmark of model quality.
@@ -15,7 +15,7 @@ single-trial outcomes as samples, not stable behavior.
 
 | Scenario | What it probes | MCP server | Maturity |
 | :--- | :--- | :--- | :--- |
-| [pr-review](pr-review.md) | Skill-access primitives — how the four host wrappers (`read_skill`, `read_mcp_resource`, `load_skill`, `activate_skill`) surface a skill read at the tool-call boundary, and whether wrappers that hide the read break server-side observability | github-mcp-server (tool-rich, widely-deployed proxy for real PR-review work) | Stable — multiple trials per client |
+| [pr-review](pr-review.md) | Skill-access primitives — how the three host wrappers (`read_skill`, `read_mcp_resource`, `load_skill`) surface a skill read at the tool-call boundary, and whether wrappers that hide the read break server-side observability | github-mcp-server (tool-rich, widely-deployed proxy for real PR-review work) | Stable — multiple trials per client |
 | [hf-jobs-plan](hf-jobs-plan.md) | Plan-kind output — whether skill conventions reliably shape a structured artifact (PEP 723 UV script with HF_TOKEN forwarding + Trackio instrumentation) under a server-side dry-run intercept | hf-mcp-server (real-world need for structured launch artifacts; intercept lets us grade without spending compute) | Exploratory — N=1 |
 | [hf-train-with-monitoring](hf-train-with-monitoring.md) | Cross-skill composition — whether agents independently activate a second skill (`huggingface-trackio`) named only by topic in the first skill (`huggingface-llm-trainer`), driven by `<available_skills>` catalog visibility alone | hf-mcp-server (same domain as hf-jobs-plan, varies the *composition* axis while holding server + task constant) | Exploratory — N=1 |
 | [transformers-js-demo](transformers-js-demo.md) | Code-output skill — whether a skill bundling 7 reference files reliably steers code generation onto the right API (`@huggingface/transformers`, `pipeline()`, `dispose()`) when untrained agents tend to hallucinate older APIs | hf-mcp-server (authoritative knowledge near the model registry — exercises the skills-as-resources idea) | Exploratory — N=1 |

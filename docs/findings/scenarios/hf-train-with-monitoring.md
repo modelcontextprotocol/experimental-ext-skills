@@ -37,32 +37,19 @@ implicitly via the prompt's "Trackio alerts" phrase.
 | fast-agent (claude-haiku-4-5) | PASS — reads `huggingface-llm-trainer/SKILL.md` then `huggingface-trackio/SKILL.md` in two consecutive calls |
 | codex (gpt-5.1-codex-mini) | PASS — same pattern, both `SKILL.md` URIs read before submitting |
 | goose (claude-sonnet-4-6) | PASS — reads both `SKILL.md` files **and** follows the trail to `huggingface-trackio/references/alerts.md` |
-| gemini-cli (gemini-2.5-flash) | FAIL — activates only `huggingface-llm-trainer`; submitted script omits `trackio.alert` |
-| gemini-cli (gemini-2.5-pro) | FAIL — activates only `huggingface-llm-trainer`; script *does* mention `trackio.alert` synthesized from training-data familiarity, not from reading the second skill |
 
-Three of four hosts surface multi-skill activation from catalog
-visibility alone. This is the protocol working as intended — one
-skill's body names another by topic, and the agent locates and reads
-it via the same `read_mcp_resource` / `read_skill` / `load_skill` path.
-
-gemini-cli misses cross-skill activation across both flash and pro
-tiers. Same model family in fast-agent (claude variants) and codex
-(OpenAI) succeeds on the same scenario, so model capability isn't the
-constraint — gemini-cli's skill-activation heuristic appears biased
-toward a single dominant skill rather than every skill the request
-touches.
-
-Gemini-pro covering the `trackio.alert` prescription via training-data
-synthesis is a useful negative control: passing the *content*
-criterion (`plan-covers-prescriptions`) does not imply the *catalog
-navigation* criterion (`skill-read-before-plan`) passed.
+All three hosts surface multi-skill activation from catalog visibility
+alone. This is the protocol working as intended — one skill's body
+names another by topic, and the agent locates and reads it via the
+same `read_mcp_resource` / `read_skill` / `load_skill` path.
 
 ## Open question
 
 Should the SEP say anything normative about how hosts surface or rank
 `<available_skills>` for the model, or is that strictly a host-side
-concern? The mechanism (catalog + name reference) works for three of
-four; the divergence is in host policy, not protocol.
+concern? The mechanism (catalog + name reference) works across the
+clients tested; any divergence to investigate is in host policy, not
+protocol.
 
 ## Related
 

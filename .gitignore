@@ -12,5 +12,5 @@ experiments/harnesses/**/.fast-agent/
 # Per-scenario run outputs (summarized elsewhere; don't bloat the repo).
 experiments/results/
 
-# Bootstrap-cloned dependency repos (subject, MCP server, optional gemini-cli).
+# Bootstrap-cloned dependency repos (subject, MCP server).
 experiments/.workspace/

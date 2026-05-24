@@ -1,6 +1,6 @@
 ---
 name: run-scenario
-description: Run a Skills-over-MCP cross-client scenario end-to-end against the right MCP server, execute the named client's harness, and report the criteria banner. Branches on scenario kind — `pr-review` runs against `github-mcp-server` and scaffolds a fresh PR; `plan` scenarios (hf-jobs-plan, hf-train-with-monitoring, transformers-js-demo) run against `hf-mcp-server` with `HF_JOBS_DRY_RUN=true`. Use when asked to run a scenario, reproduce Scenarios #1–#4, or test a client (fast-agent, gemini-cli, codex, goose).
+description: Run a Skills-over-MCP cross-client scenario end-to-end against the right MCP server, execute the named client's harness, and report the criteria banner. Branches on scenario kind — `pr-review` runs against `github-mcp-server` and scaffolds a fresh PR; `plan` scenarios (hf-jobs-plan, hf-train-with-monitoring, transformers-js-demo) run against `hf-mcp-server` with `HF_JOBS_DRY_RUN=true`. Use when asked to run a scenario, reproduce Scenarios #1–#4, or test a client (fast-agent, codex, goose).
 ---
 
 # run-scenario
@@ -11,7 +11,7 @@ obvious from reading the harness code alone.
 
 ## Inputs
 
-- **client** (required): `fast-agent` | `gemini-cli` | `codex` | `goose`.
+- **client** (required): `fast-agent` | `codex` | `goose`.
 - **scenario** (optional): scenario id (YAML filename stem). Default: `pr-review`.
 - **pr_number** (optional, pr-review only): target a specific open PR
   instead of the auto-detected head of `feature/input-validation-enhancement`.
@@ -46,10 +46,9 @@ their own checkouts instead.
 | `SUBJECT_REPO_DIR` | `experiments/.workspace/code-review-subject` | Clone of `olaservo/code-review-subject` (pr-review only — has the scaffold script) |
 | `MCP_SERVER_DIR` | `experiments/.workspace/github-mcp-server` | Clone of `olaservo/github-mcp-server@add-agent-skills` (built binary lives here) |
 | `HF_MCP_SERVER_DIR` | `experiments/.workspace/hf-mcp-server` | Clone of `olaservo/hf-mcp-server@skills-over-mcp-experiment` (`pnpm build` artifacts at `packages/app/dist/`) |
-| `GEMINI_CLI_ROOT` | `experiments/.workspace/gemini-cli` | Clone of `olaservo/gemini-cli@experimental/skills-over-mcp` (only required for the gemini-cli client) |
 | `MCP_SERVER_URL` | `http://localhost:8082/mcp` | Where the github-mcp-server listens (pr-review) |
 | `HF_MCP_SERVER_URL` | `http://localhost:8083/mcp` | Where the hf-mcp-server listens (plan scenarios) |
-| `AGENT_SKILLS_ENV_FILE` | unset | Absolute path to a `.env` containing `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `HF_TOKEN` |
+| `AGENT_SKILLS_ENV_FILE` | unset | Absolute path to a `.env` containing `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `HF_TOKEN` |
 
 Defaults are relative to the WG repo root, so they work as-is when
 Claude Code's CWD is somewhere inside this repo.
@@ -156,20 +155,6 @@ echo "exit=$?"
 Override the model with `FAST_AGENT_MODEL=<id>` to probe different
 tiers without editing the scenario YAML.
 
-**gemini-cli** — Python subprocess driving a prebuilt bundle. Requires
-`$GEMINI_CLI_ROOT/bundle/gemini.js`:
-```bash
-cd experiments/harnesses/gemini-cli
-export GEMINI_CLI_ROOT="$(realpath ../../.workspace/gemini-cli)"
-# pr-review:
-GITHUB_TOKEN=$(gh auth token) GEMINI_API_KEY=... \
-  uv run agent.py ../../scenarios/pr-review.yaml >/tmp/verify-run.log 2>&1
-# plan kind:
-HF_TOKEN=hf_xxx GEMINI_API_KEY=... \
-  uv run agent.py ../../scenarios/hf-jobs-plan.yaml >/tmp/verify-run.log 2>&1
-echo "exit=$?"
-```
-
 **codex** — Python subprocess driving a built Rust binary. Loads env
 via `--env-file` so the codex child process gets `OPENAI_API_KEY`
 (mirrored to `CODEX_API_KEY` to force API-key auth over any cached
@@ -246,14 +231,13 @@ Common to all kinds, also report:
   --no-default-features --features rustls-tls --locked goose-cli`.
   Override path with `GOOSE_BIN=/abs/path/goose[.exe]`.
 
-- **Do not modify** `fastagent.config.yaml`, `~/.codex/config.toml`,
-  or Gemini CLI's `~/.gemini/settings.json` to reach the MCP server.
-  All runners inject server config in-memory (codex via `-c` flags,
-  gemini-cli via temp `.gemini/settings.json`, goose via temp
-  `config.yaml`); global config edits create hidden state that
-  contaminates future runs. fast-agent's `fastagent.config.yaml` IS
-  in-tree but pre-declares both `github_skills` and `hf_skills`
-  servers — the scenario YAML's `mcp_server.alias` selects which one.
+- **Do not modify** `fastagent.config.yaml` or `~/.codex/config.toml`
+  to reach the MCP server. All runners inject server config in-memory
+  (codex via `-c` flags, goose via temp `config.yaml`); global config
+  edits create hidden state that contaminates future runs. fast-agent's
+  `fastagent.config.yaml` IS in-tree but pre-declares both
+  `github_skills` and `hf_skills` servers — the scenario YAML's
+  `mcp_server.alias` selects which one.
 
 - **Single-trial caveat.** Treat individual outcomes as samples,
   not stable behavior. Run a second pass before reporting "the model

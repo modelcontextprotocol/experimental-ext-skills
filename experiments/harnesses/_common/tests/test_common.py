@@ -158,17 +158,6 @@ def test_goose_accepts_both_read_aliases():
         assert _flat(r)["skill_before_write"] is True
 
 
-def test_gemini_credits_activate_skill_with_matching_name():
-    calls = [("activate_skill", {"name": "pull-requests"}),
-             _create(), _comment(), _submit()]
-    r_gemini = evaluate(PR_SCENARIO, calls, client_id="gemini-cli")
-    r_codex = evaluate(PR_SCENARIO, calls, client_id="codex")
-    assert _flat(r_gemini)["skill_before_write"] is True
-    assert r_gemini["overall"] is True
-    # codex doesn't expose activate_skill, so the name is unexpected there.
-    assert (0, "activate_skill") in r_codex["other_calls"]
-
-
 def test_goose_credits_load_skill_with_matching_name():
     calls = [("load_skill", {"name": "pull-requests"}),
              _create(), _comment(), _submit()]

@@ -15,18 +15,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 WORKSPACE_DIR="$REPO_ROOT/experiments/.workspace"
 
-WITH_GEMINI=0
 for arg in "$@"; do
   case "$arg" in
-    --with-gemini-cli) WITH_GEMINI=1 ;;
     --help|-h)
       cat <<USAGE
-Usage: $(basename "$0") [--with-gemini-cli]
+Usage: $(basename "$0")
 
 Clones (or fast-forwards) into $WORKSPACE_DIR:
   - olaservo/code-review-subject       subject repo + scaffold script
   - olaservo/github-mcp-server         add-agent-skills branch; builds binary
-  - olaservo/gemini-cli                experimental/skills-over-mcp branch (only with --with-gemini-cli)
 USAGE
       exit 0
       ;;
@@ -76,27 +73,6 @@ else
   echo "==> WARNING: go not on PATH; install Go to build the server binary." >&2
 fi
 
-if [[ "$WITH_GEMINI" -eq 1 ]]; then
-  clone_or_pull \
-    https://github.com/olaservo/gemini-cli.git \
-    experimental/skills-over-mcp \
-    "$WORKSPACE_DIR/gemini-cli"
-
-  if command -v npm >/dev/null 2>&1; then
-    echo "==> Building gemini-cli bundle..."
-    (
-      cd "$WORKSPACE_DIR/gemini-cli"
-      # Nuke incremental cache: tsc has produced 0-byte index.js when
-      # rebuilding after fork-branch updates.
-      rm -rf dist *.tsbuildinfo
-      npm install
-      npm run build
-    )
-  else
-    echo "==> WARNING: npm not on PATH; install Node to build the gemini-cli bundle." >&2
-  fi
-fi
-
 cat <<DONE
 
 Done. The harnesses default to these locations, so no env vars are
@@ -105,13 +81,6 @@ or to point at sibling clones instead, export:
 
   export SUBJECT_REPO_DIR=$WORKSPACE_DIR/code-review-subject
   export MCP_SERVER_DIR=$WORKSPACE_DIR/github-mcp-server
-DONE
-
-if [[ "$WITH_GEMINI" -eq 1 ]]; then
-  echo "  export GEMINI_CLI_ROOT=$WORKSPACE_DIR/gemini-cli"
-fi
-
-cat <<DONE
 
 Codex and goose: cargo install --git per SKILL.md.
 DONE

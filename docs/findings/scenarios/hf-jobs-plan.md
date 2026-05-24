@@ -44,18 +44,18 @@ server out-of-tree, not to grade model competence at HF training.
 
 ## Findings
 
-- All four clients PASS overall: skill activates, prescriptions land
+- All three clients PASS overall: skill activates, prescriptions land
   in the submitted script, dry-run intercept absorbs the side effect.
 - Each client uses its native skill-read dispatch — `read_skill`
-  (fast-agent), `read_mcp_resource` (codex), `activate_skill`
-  (gemini-cli), `load_skill` (goose) — direct evidence that
-  `extensions["io.modelcontextprotocol/skills"]` + `skill://` URIs +
-  `resources/read` is the actual cross-host contract.
+  (fast-agent), `read_mcp_resource` (codex), `load_skill` (goose) —
+  direct evidence that `extensions["io.modelcontextprotocol/skills"]`
+  + `skill://` URIs + `resources/read` is the actual cross-host
+  contract.
 - A naive prompt that says *"do not launch the job"* directly contradicts
   the `huggingface-llm-trainer` skill's directive #1
   (*"MUST create the training script AND submit the job immediately"*).
   Different hosts resolve that conflict differently — observed in
-  early runs that gemini-cli followed the skill directive over the
+  early runs that some hosts followed the skill directive over the
   user instruction while fast-agent + claude held back at the plan
   stage. Reframing to a natural training request (skill directive
   aligned with user intent) eliminates the contamination, but the

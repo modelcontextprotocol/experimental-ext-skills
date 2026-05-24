@@ -63,9 +63,8 @@ from _common.evaluators.pr_review import SKILL_READ_ALIASES
 #   - protocol-level catalog navigation (`list_mcp_resources`,
 #     `list_resources`) is part of the SEP discovery flow, not an
 #     action the skill needs to precede
-#   - agent-internal planning/housekeeping calls (each agentic client
-#     has its own: goose → `todo__todo_write`, gemini-cli →
-#     `update_topic`) fire before the agent decides to take any
+#   - agent-internal planning/housekeeping calls (e.g. goose →
+#     `todo__todo_write`) fire before the agent decides to take any
 #     real action; gating against them would falsely fail any client
 #     whose planning step happens before skill activation
 #
@@ -75,7 +74,6 @@ DISCOVERY_TOOLS = frozenset({
     "list_mcp_resources",
     "list_resources",
     "todo__todo_write",  # goose's built-in planning
-    "update_topic",      # gemini-cli's strategic-intent journaling
 })
 
 

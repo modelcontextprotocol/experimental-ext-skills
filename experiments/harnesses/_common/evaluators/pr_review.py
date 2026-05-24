@@ -14,10 +14,6 @@ target is an MCP-served skill:
                `load_skill` (name) — the last dispatches resources/read
                when the name resolves to an MCP entry
                (crates/goose/src/agents/platform_extensions/skills.rs L216)
-  - gemini-cli `read_mcp_resource` (uri) / `activate_skill` (name) /
-               `activate-skill` (dashed variant) — activate_skill's
-               fetchMcpSkillBody calls client.readResource for MCP skills
-               (packages/core/src/tools/activate-skill.ts L146)
 
 Each alias is matched against the expected skill name by inspecting
 `uri`, `path`, or `name` in its args — whichever the tool uses.
@@ -36,7 +32,6 @@ SKILL_READ_ALIASES = {
     "codex":      {"read_mcp_resource"},
     "fast-agent": {"read_skill"},
     "goose":      {"read_mcp_resource", "read_skill", "load_skill"},
-    "gemini-cli": {"read_mcp_resource", "activate_skill", "activate-skill"},
 }
 
 

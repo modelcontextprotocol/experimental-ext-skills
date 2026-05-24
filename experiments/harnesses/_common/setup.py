@@ -7,9 +7,9 @@ split so individual client agents stay short and don't repeat the
 dispatch.
 
 Client harnesses still own the parts that differ per binary:
-  - resolving / spawning the binary (codex / gemini-cli / goose)
-  - injecting MCP server config (CLI flags vs. temp settings.json vs.
-    temp config.yaml — the wire format varies)
+  - resolving / spawning the binary (codex / goose)
+  - injecting MCP server config (CLI flags vs. temp config.yaml — the
+    wire format varies)
   - parsing the binary's stream-json events into (calls, final_text)
 """
 
@@ -30,8 +30,7 @@ def setup_run(scenario: dict) -> dict[str, Any]:
     Returns a dict with:
       - kind: "pr-review" | "plan"
       - token: resolved bearer token string (used directly when the
-        client materializes auth into a config file, e.g. gemini-cli /
-        goose)
+        client materializes auth into a config file, e.g. goose)
       - token_env_var: "GITHUB_TOKEN" | "HF_TOKEN" — the env-var name
         the client should set in the child process when its config
         takes an env-var *name* rather than a literal token (e.g.

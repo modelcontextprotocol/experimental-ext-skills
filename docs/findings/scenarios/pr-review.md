@@ -10,8 +10,8 @@
 ## What this probes
 
 Skill-access primitives at the tool-call boundary. The same PR-review
-prompt runs across fast-agent, gemini-cli, codex, and goose — each
-fork wraps the underlying `resources/read` differently. The
+prompt runs across fast-agent, codex, and goose — each fork wraps the
+underlying `resources/read` differently. The
 `skill-read-before-write` criterion checks whether a resource read is
 visible at the tool-call layer *before* any mutating PR tool. What
 each fork actually emits matters:
@@ -19,12 +19,11 @@ each fork actually emits matters:
 - **fast-agent** → `read_skill(path=...)` — host-side wrapper that invokes `get_resource` underneath
 - **codex** → `read_mcp_resource(uri=...)` — the MCP primitive directly
 - **goose** → `load_skill(name=...)` — name-based helper; no `read_mcp_resource` visible at the tool boundary
-- **gemini-cli** → `activate_skill(name=...)` — same pattern as goose
 
-Two of the four (`load_skill`, `activate_skill`) hide the underlying
-resource read from the tool-call boundary — whether they internally
-invoke `read_mcp_resource` is unobservable from the agent or server
-side. Wrappers that hide the read break server-side features keyed on
+One of the three (`load_skill`) hides the underlying resource read
+from the tool-call boundary — whether it internally invokes
+`read_mcp_resource` is unobservable from the agent or server side.
+Wrappers that hide the read break server-side features keyed on
 resource access: subscription-based updates (`resources/updated`),
 access-based caching, telemetry.
 
@@ -60,15 +59,13 @@ Per-criterion pass rate (n/5 per client). Models per
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | fast-agent | `read_skill(path=...)` | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | **5/5** |
 | goose | `load_skill(name=...)` | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | **5/5** |
-| gemini-cli | `activate_skill(name=...)` | 2/5 | 5/5 | 5/5 | 5/5 | 5/5 | **2/5** |
 | codex | `read_mcp_resource(uri=...)` | 2/5 | 4/5 | 2/5 | 0/5 | 1/5 | **0/5** |
 
-Sample wall-clocks (median per client): fast-agent ~48s, gemini-cli
-~43s, codex ~165s, goose ~206s. Codex and goose run substantially
-longer because their default tool-output verbosity drives more tokens
-through the model.
+Sample wall-clocks (median per client): fast-agent ~48s, codex ~165s,
+goose ~206s. Codex and goose run substantially longer because their
+default tool-output verbosity drives more tokens through the model.
 
-### Three distinct outcome patterns, not a continuum
+### Two distinct outcome patterns, not a continuum
 
 **fast-agent and goose: clean PASS.** Both hit all five criteria on
 every trial. Wrapper choice (`read_skill` vs `load_skill`) doesn't
@@ -76,19 +73,6 @@ predict reliability — what matters is that the wrapper is *plumbed
 through to the model* such that activation is the model's natural
 first move. Both helpers shipped with this property in their
 respective forks.
-
-**gemini-cli: workflow correct, activation flaky.** All five trials
-posted a real review with the right shape — pending review created,
-multiple inline comments (5–10 per trial), proper REQUEST_CHANGES
-verdict, no single-shot bypass. The *only* failure mode was
-`skill-read-before-write` itself: 3/5 trials reached the mutating
-calls without an `activate_skill` visible in the tool-call stream.
-That's a real signal — gemini-cli's `<available_skills>` catalog
-appears to feed enough skill content into the model's prompt that
-the workflow shape is internalized even when explicit activation is
-skipped. From a SEP perspective this is the worst possible outcome:
-the model behaves correctly *without* the observable resource read
-that downstream features (telemetry, subscription, audit) depend on.
 
 **codex: workflow shape broken.** A different failure mode entirely.
 0/5 trials submitted properly (`submit-pending-with-verdict` 0/5,
@@ -128,16 +112,12 @@ the skill body says otherwise.
 
 ### Comparison to prior single-trial findings
 
-The 2026-04-23 single-trial findings reported goose FAIL and gemini-cli
-FAIL on `skill-read-before-write`. With N=5 on 2026-04-27:
-
-- **goose flipped to consistent PASS (5/5).** The fork's `load_skill`
-  wrapper now reliably surfaces a name-matching dispatch ahead of
-  mutating calls. Either the fork tightened up between dates or the
-  earlier observation was a single-trial flake.
-- **gemini-cli held the FAIL pattern but at a flake rate (2/5).** Not
-  a stable FAIL — the activation works ~40% of the time. Worth a
-  larger N before claiming the rate.
+The 2026-04-23 single-trial findings reported goose FAIL on
+`skill-read-before-write`. With N=5 on 2026-04-27, goose flipped to
+consistent PASS (5/5) — the fork's `load_skill` wrapper now reliably
+surfaces a name-matching dispatch ahead of mutating calls. Either the
+fork tightened up between dates or the earlier observation was a
+single-trial flake.
 
 This is the kind of shift that vindicates moving from N=1 to repeated
 sampling: a single trial would have led to "goose can't dispatch
@@ -146,12 +126,10 @@ skill-reads," which is no longer accurate.
 ## Open question
 
 Should SEP require that skill access surface `read_mcp_resource` at
-the tool-call layer? If yes, ergonomic wrappers (`load_skill`,
-`activate_skill`) still need to emit observable primitive calls. If
-no, forks are free to hide the primitive but portability suffers for
-server-side features that depend on observing resource reads — and
-the gemini-cli pattern (correct workflow without activation visible)
-becomes much harder to interpret as either pass or fail.
+the tool-call layer? If yes, ergonomic name-based wrappers
+(`load_skill`) still need to emit observable primitive calls. If no,
+forks are free to hide the primitive but portability suffers for
+server-side features that depend on observing resource reads.
 
 ## Related
 

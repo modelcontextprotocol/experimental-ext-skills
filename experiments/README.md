@@ -21,7 +21,7 @@ experiments/
 │   ├── _common/               # shared evaluator + scenario/PR/report plumbing
 │   │   ├── evaluator.py       # single source of truth for the five criteria
 │   │   └── tests/             # pytest suite — `uv run ... -m pytest _common/tests/`
-│   ├── codex/ fast-agent/ gemini-cli/ goose/
+│   ├── codex/ fast-agent/ goose/
 │   │   └── agent.py           # client-specific spawn + tool-call extraction
 ├── results/                   # run outputs, git-ignored
 └── README.md
@@ -34,8 +34,8 @@ delegates scoring there, so the five-criterion check is identical
 across clients.
 
 **Scenarios** are pure data — the prompt template, target repo, skill URI.
-Every client (Fast-Agent, Gemini CLI, Goose, Codex) reads the same YAML
-and substitutes `{pr_number}` + `{repo}`. Pass criteria and the mutating
+Every client (Fast-Agent, Goose, Codex) reads the same YAML and
+substitutes `{pr_number}` + `{repo}`. Pass criteria and the mutating
 tool set are hardcoded in each harness since they're workflow invariants,
 not per-scenario knobs.
 
@@ -77,15 +77,13 @@ flow.
 
 ### First-time setup
 
-The harnesses need three external pieces: the subject repo (for the
-scaffold script), the GitHub MCP server (for the binary that ships the
-`pull-requests` skill), and — for the gemini-cli client only — a built
-gemini-cli bundle. `experiments/scripts/bootstrap.sh` clones them into
-`experiments/.workspace/` (git-ignored):
+The harnesses need two external pieces: the subject repo (for the
+scaffold script) and the GitHub MCP server (for the binary that ships
+the `pull-requests` skill). `experiments/scripts/bootstrap.sh` clones
+them into `experiments/.workspace/` (git-ignored):
 
 ```bash
-bash experiments/scripts/bootstrap.sh                    # subject + server
-bash experiments/scripts/bootstrap.sh --with-gemini-cli  # also gemini-cli
+bash experiments/scripts/bootstrap.sh
 ```
 
 Codex and goose are installed via `cargo install --git` from their
@@ -100,7 +98,6 @@ env vars, with defaults that match `bootstrap.sh`:
 | :--- | :--- | :--- |
 | `SUBJECT_REPO_DIR` | `experiments/.workspace/code-review-subject` | `olaservo/code-review-subject` |
 | `MCP_SERVER_DIR` | `experiments/.workspace/github-mcp-server` | `olaservo/github-mcp-server@add-agent-skills` |
-| `GEMINI_CLI_ROOT` | `experiments/.workspace/gemini-cli` | `olaservo/gemini-cli@experimental/skills-over-mcp` |
 | `MCP_SERVER_URL` | `http://localhost:8082/mcp` | running MCP server |
 | `AGENT_SKILLS_ENV_FILE` | unset | `.env` with provider keys |
 

@@ -30,8 +30,8 @@ Criteria to report:
 ## Synthesis vs activation
 
 A submitted script can mention `trackio.alert` without the agent
-having read `huggingface-trackio` — gemini-2.5-pro has done this
-from training-data familiarity. Passing the *content* criterion
+having read `huggingface-trackio` — strong models can synthesize it
+from training-data familiarity alone. Passing the *content* criterion
 (`plan-covers-prescriptions`) does not imply the *catalog navigation*
 criterion (`skill-read-before-plan`) passed. Both are independent
 signals; report both.
