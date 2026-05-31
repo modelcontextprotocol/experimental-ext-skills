@@ -10,12 +10,10 @@ A tracker of MCP servers, dev tools, SDKs, and skills repositories that are cand
 
 | Server | Repo | Author / Org | Issue/PR tracker | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| FastMCP 3.0 Skills | [jlowin/fastmcp](https://github.com/jlowin/fastmcp) — [docs](https://gofastmcp.com/servers/providers/skills) | FastMCP | [#2694](https://github.com/jlowin/fastmcp/issues/2694) | Framework with its own native skills provider |
+| FastMCP 3.0 Skills | [jlowin/fastmcp](https://github.com/jlowin/fastmcp) — [docs](https://gofastmcp.com/servers/providers/skills) | FastMCP | [#2694](https://github.com/jlowin/fastmcp/issues/2694) | Framework with its own native skills provider using MCP Resources; doesn't yet reflect SEP-2640 |
 | chrome-devtools-mcp | [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) | Google (ChromeDevTools) | _none yet_ | Bundles a [`skills/`](https://github.com/ChromeDevTools/chrome-devtools-mcp/tree/main/skills) folder, but requires separate install — not served via MCP |
-| hf-mcp-server | [huggingface/hf-mcp-server](https://github.com/huggingface/hf-mcp-server) | Hugging Face | _none yet_ | Official HF MCP server (Hub APIs + Gradio); no skills exposure today |
-| Hugging Face skills library | [huggingface/skills](https://github.com/huggingface/skills) | Hugging Face | _none yet_ | 13 SKILL.md skills paired with `hf-mcp-server` via Cursor `.mcp.json`; distributed outside MCP today |
+| hf-mcp-server | [huggingface/hf-mcp-server](https://github.com/huggingface/hf-mcp-server) | Hugging Face | _none yet_ | Official HF MCP server (Hub APIs + Gradio); could serve the associated skills from [huggingface/skills](https://github.com/huggingface/skills) instead of installing separately |
 | github-mcp-server | [github/github-mcp-server](https://github.com/github/github-mcp-server) | GitHub | [#2428](https://github.com/github/github-mcp-server/pull/2428) (WIP demo, not for merge) | SEP-2640 demo branch |
 | Azure Skills Plugin | [microsoft/azure-skills](https://github.com/microsoft/azure-skills) | Microsoft | _none yet_ | 25 Azure SKILL.md skills bundled with [Azure MCP Server](https://github.com/microsoft/mcp/tree/main/servers/Azure.Mcp.Server) + Foundry MCP; distributed as a plugin, not via MCP |
 | Figma MCP | _TBD_ | Figma | _none yet_ | Contact: Discord `adityamuttur` — candidate for SEP-2640 testing |
 | Adobe MCP | _TBD_ | Adobe | _none yet_ | Contact: Discord `justinmathew8592` — candidate for SEP-2640 testing |
-
