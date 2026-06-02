@@ -90,3 +90,66 @@ Multiple community members have independently reported that models do not reliab
 > "I've seen lazy load skills with various degrees of success, actually looks like it might be model specific… [best pattern is] putting them in with a subagent that similarly named or mentions the topic in their description." — Kryspin (qcompute), via Discord
 
 **See also:** [#37](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/37) — Compare skill delivery mechanisms: file-based vs MCP-based
+
+## PHP MCP SDK + Symfony AI Mate: Skills as `skill://` resources
+
+**Server / SDK:** [modelcontextprotocol/php-sdk#372](https://github.com/modelcontextprotocol/php-sdk/pull/372) — adds `io.modelcontextprotocol/skills` support to the official PHP MCP SDK
+**Consumer:** [symfony/ai#2132](https://github.com/symfony/ai/pull/2132) — ships Agent Skills in the Symfony AI "Mate" MCP server
+**Contributor:** Johannes Wachter ([@wachterjohannes](https://github.com/wachterjohannes))
+
+First PHP-ecosystem implementation of SEP-2640 (prior documented implementations are
+Python/TS). The SDK PR adds a one-line server affordance — `addSkillsFromDirectory()` —
+that walks a directory, registers each `SKILL.md` and its supporting files as `skill://`
+resources, derives `name`/`description` from YAML frontmatter, enforces the spec's
+final-path-segment ↔ frontmatter-`name` rule, guards against path traversal, and serves
+a `skill://index.json` discovery index. The Mate PR ships two real skills colocated with
+the tools they orchestrate, including a multi-file skill with a `references/` subdirectory.
+
+**Tested (works):**
+
+- Serving is covered by MCP Inspector **stdio snapshot tests**: `resources/list`,
+  `resources/read` of a `SKILL.md`, of a supporting file, and of `skill://index.json`,
+  plus `resource_templates/list`. Unit tests cover frontmatter parsing (BOM/CRLF,
+  non-mapping rejection), the name↔segment rule, and resource-name sanitization. PHPStan
+  level 6 and the full suite (792 tests) green.
+- The **directory model + relative supporting-file URIs** resolve correctly in a
+  non-Python implementation — e.g. `skill://code-review/references/SECURITY.md` is a
+  sibling resource of `skill://code-review/SKILL.md`. Positive evidence the directory
+  model travels across ecosystems.
+
+**Frictions (each maps to an open spec question):**
+
+- **`_meta` namespace is unspecified, so we had to invent one** —
+  `io.modelcontextprotocol.skills/` — to expose extra frontmatter fields on the resource
+  descriptor. Two servers choosing different keys won't interop. (Relates to
+  [#54](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/54),
+  [#55](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/55).)
+- **Resource `name` cannot hold the skill name.** The SDK restricts MCP resource names to
+  `[a-zA-Z0-9_-]+`; a skill name living in a `/`-separated path can't be represented. The
+  SEP's "resource `name` SHOULD equal the frontmatter `name`" was therefore unsatisfiable —
+  we put the frontmatter `name` in `title` and a sanitized path in `name`, relying on the
+  URI's final segment (which the SEP guarantees is recoverable) for identity.
+- **Empty-payload capability serialization trap.** An extension advertising an empty `{}`
+  payload (as Skills does) serialized to `[]` rather than `{}` and had to be coerced. A
+  likely footgun for any SDK implementing an empty-payload extension.
+- **`symfony/yaml` required** for frontmatter parsing — the feature is non-functional
+  without a YAML parser; frontmatter handling is a real dependency, not free.
+
+**Client consumption (observed from docs, not yet eval'd):**
+
+- Per current **Claude Code** documentation (June 2026), Claude Code loads skills from the
+  filesystem and plugins only; it does not discover or load MCP-served `skill://` resources
+  as skills, and its MCP resource support is **user-`@`-mention attachments, not
+  model-driven `resources/read`**. So end-to-end, model-driven consumption of MCP-served
+  skills is not exercisable in Claude Code today — a data point for
+  [#38](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/38).
+- **FastMCP 3.0** (per this repo's existing findings) is the consumer best positioned to
+  validate the serving half against; not yet done.
+
+**Remaining / untested:**
+
+- No model-adherence eval yet comparing filesystem vs. `skill://` delivery.
+- `mcp-resource-template` skill type (parameterized namespaces) is deferred in the SDK PR —
+  the `SkillType` enum carries the value for forward-compat, but only `skill-md` entries are
+  emitted; the template path is unimplemented and untested.
+- Not yet tested against any client that implements model-driven `skill://` loading.
