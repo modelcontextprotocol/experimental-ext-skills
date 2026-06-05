@@ -117,18 +117,27 @@ the tools they orchestrate, including a multi-file skill with a `references/` su
   sibling resource of `skill://code-review/SKILL.md`. Positive evidence the directory
   model travels across ecosystems.
 
-**Frictions (each maps to an open spec question):**
+**`_meta` prefix — independent convergence (not a gap).** Our SDK independently chose
+`io.modelcontextprotocol.skills/` to namespace extra frontmatter fields on the resource
+descriptor — which matches the prefix SEP-2640 recommends ("When `_meta` keys are used for
+skill resources, implementations SHOULD use the `io.modelcontextprotocol.skills/`
+reverse-domain prefix"). Useful corroboration of the recommended prefix. Note: the
+working-group repo-local draft ([`docs/sep-draft-skills-extension.md`](sep-draft-skills-extension.md))
+does not yet include that sentence — its `_meta` paragraph ends at "…via the resource's
+`_meta` object." — so the SEP PR and this repo's copy have drifted and could be synced.
+(Discussed on [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640#issuecomment-4622668503).)
 
-- **`_meta` namespace is unspecified, so we had to invent one** —
-  `io.modelcontextprotocol.skills/` — to expose extra frontmatter fields on the resource
-  descriptor. Two servers choosing different keys won't interop. (Relates to
-  [#54](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/54),
-  [#55](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/55).)
-- **Resource `name` cannot hold the skill name.** The SDK restricts MCP resource names to
-  `[a-zA-Z0-9_-]+`; a skill name living in a `/`-separated path can't be represented. The
-  SEP's "resource `name` SHOULD equal the frontmatter `name`" was therefore unsatisfiable —
-  we put the frontmatter `name` in `title` and a sanitized path in `name`, relying on the
-  URI's final segment (which the SEP guarantees is recoverable) for identity.
+**SDK implementation notes (not spec gaps):**
+
+- **Resource-name uniqueness, not charset.** The skill `name` charset (`[a-z0-9-]`, ≤64, no
+  leading/trailing hyphen) is a strict subset of the MCP resource-name charset, so the
+  SKILL.md resource `name` can carry the frontmatter `name` directly — "resource `name`
+  SHOULD equal frontmatter `name`" is satisfiable. The wrinkle is uniqueness: our SDK
+  registers every resource under a unique name key, including a skill's **supporting files**
+  (`references/SECURITY.md`) and skills that **share a frontmatter `name` under different
+  prefixes** (`acme/billing/refunds` vs `acme/support/refunds`). So we derive a unique name
+  from the URI path and keep the frontmatter `name` in `title`. Identity is the URI
+  regardless — an SDK registration detail, not a SEP issue.
 - **Empty-payload capability serialization trap.** An extension advertising an empty `{}`
   payload (as Skills does) serialized to `[]` rather than `{}` and had to be coerced. A
   likely footgun for any SDK implementing an empty-payload extension.
