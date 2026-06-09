@@ -87,7 +87,7 @@ For each `skill://<skill-path>/SKILL.md` resource:
 - `name` SHOULD be set from the `name` field of the `SKILL.md` YAML frontmatter. By the path constraint above, this will equal the final segment of `<skill-path>`.
 - `description` SHOULD be set from the `description` field of the `SKILL.md` YAML frontmatter.
 
-Servers MAY expose additional frontmatter fields via the resource's `_meta` object. Other files in the skill use the `mimeType` appropriate to their content.
+Servers MAY expose additional frontmatter fields via the resource's `_meta` object. When `_meta` keys are used for skill resources, implementations SHOULD use the `io.modelcontextprotocol.skills/` reverse-domain prefix. Other files in the skill use the `mimeType` appropriate to their content.
 
 ### Discovery
 
