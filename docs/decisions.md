@@ -246,3 +246,33 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 **References:**
 
 - [#skills-over-mcp-wg Discord](https://discord.com/channels/1358869848138059966/1464745826629976084) — index-schema thread, 2026-06-04/05 (Peter Alexander, Ola Hungerford, Sam Kothari).
+
+---
+
+### 2026-06-09: Directory enumeration via a dedicated `resources/directory/read` method
+
+**Status:** Proposed
+
+**Context:** A skill is a directory of files, and hosts that materialize a skill (or otherwise walk its contents) need to enumerate the files under a skill root without already knowing every URI. An earlier SEP draft did this with a scoped `resources/list(uri="skill://…")` call, but the base MCP spec does not guarantee scoped `resources/list`, leaving this extension with a protocol dependency it could not rely on (the SEP's "Why an Index Resource Rather Than `resources/list`?" section records the move away from that approach). The 2026-06-02 Working Session listed "try to get `resources/list(uri)` into the protocol" as an action item; the MCP core maintainer (dsp) was on board, leaving the WG to spec the mechanism. The design was worked out over the following week in the SEP feedback thread and landed in [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) on 2026-06-09.
+
+**Decision:** Add a dedicated `resources/directory/read` method to the protocol for listing the children of a directory-like resource:
+
+- Directories are identified by `mimeType` `inode/directory`.
+- `resources/directory/read(uri)` returns a **paginated list of `Resource`** — the same response shape as `resources/list` (cursor-based pagination included). It returns **metadata only** (each child's `uri`, `name`, `title`, `mimeType`, etc.), **not** the contents of the children — equivalent to `ls`, not a recursive read.
+- Calling `resources/directory/read` on a non-directory resource is an error.
+- The method name is plural-`resources/`, consistent with the existing `resources/read` and `resources/list` (an earlier `resource/directory/read` spelling was a typo).
+- This is introduced as a skills-extension-scoped capability for now; if it works well, the WG expects to promote it to core MCP and may add further directory verbs in a later spec version.
+
+**Rationale:** The WG considered three options and rejected the two that overload existing verbs:
+
+1. *Make `resources/read` return a child listing when the target is a directory.* Rejected: it would give `resources/read` a result schema that varies by `mimeType`, which risks breaking backward compatibility for clients already calling `resources/read` on URIs that are now classified as directories.
+2. *Give `resources/list` an optional `uri`/subpath parameter.* This was the least-effort option for clients (Sam Kothari's preference) and was seriously weighed. Rejected: `resources/list` with and without a `uri` would carry different semantics — with no argument it returns *everything* the server exposes, which is a confusing thing to overload a scoping parameter onto. A dedicated verb keeps each method's contract single-meaning.
+3. *A new `resources/directory/read` verb* (chosen): a distinct method with a stable, single result schema (reusing the `resources/list` response type, so no new shape to learn), a clear error on misuse, and no change to the semantics of any existing call. Peter Alexander proposed and specced this form (coordinating the protocol change with MCP core); Sam Kothari confirmed it solves the materialization/enumeration use case ("sgtm") and had no objection to the dedicated verb once the overloading trade-offs were laid out.
+
+Returning metadata-only (URIs + descriptive fields, no contents) keeps the call cheap and `ls`-like, letting a host walk a skill tree and decide what to fetch via `resources/read`, rather than forcing the server to inline potentially large file contents. Tying directory-ness to the standard `inode/directory` `mimeType` reuses an existing convention instead of inventing a flag.
+
+**References:**
+- [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) — Skills Extension; `resources/directory/read` added in [commit `2e04c48`](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640/changes/2e04c48da90224000e750ffd54a3611f2824fbc0) (2026-06-09).
+- [#skills-over-mcp-wg Discord](https://discord.com/channels/1358869848138059966/1464745826629976084) — directory-read design thread, 2026-06-04 through 2026-06-09 (Peter Alexander, Sam Kothari, Ola Hungerford).
+- [Meeting Notes — Skills Over MCP WG](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg) — June 2, 2026 Working Session (action item: get `resources/list(uri)` into the protocol).
+- SEP draft, "Why an Index Resource Rather Than `resources/list`?" — records the earlier scoped-`resources/list` approach this method supersedes for directory enumeration.
