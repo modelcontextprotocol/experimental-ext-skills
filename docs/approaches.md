@@ -17,7 +17,7 @@ Several design considerations are emerging from community discussion:
 
 The approaches below span a spectrum. At one end, skills become a first-class MCP primitive with dedicated protocol methods (Approach 1). At the other, existing primitives are used with documented conventions (Approach 6). A key question for this WG is whether convention can prove patterns before standardization — or whether the ecosystem needs protocol-level support to achieve reliable interoperability. These are not mutually exclusive; convention work can inform and de-risk a future protocol extension.
 
-**Current status:** The convention approach (Approach 6) was pursued and quickly evolved into a formal Extensions Track SEP ([#69](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69)), building on convergence across 4+ independent `skill://` implementations. The SEP uses existing Resources primitives with zero protocol changes, positioning it between pure convention and a new primitive. See [#75](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/75) for tracking.
+**Current status:** The convention approach (Approach 6) was pursued and quickly evolved into a formal Extensions Track SEP ([#69](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69)), building on convergence across 4+ independent `skill://` implementations. The SEP uses existing Resources primitives with zero protocol changes, positioning it between pure convention and a new primitive. See [#75](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/75) for tracking. Submitted to the MCP spec as [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) on 2026-04-23.
 
 ## 1. Skills as Distinct MCP Primitives
 
@@ -35,7 +35,7 @@ Add Agent Skills as a first-class, discoverable primitive in MCP. A skill is a n
 - Progressive disclosure: clients load skill summaries at startup, fetch full instructions on demand
 - Mapping to existing SKILL.md format
 
-**Status:** Draft, seeking sponsor.
+**Status:** Closed on 2026-02-24 after the WG decided to first explore a convention-based approach using existing primitives. See [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) for the resulting Resources-based proposal.
 
 **Community input:**
 

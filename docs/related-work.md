@@ -4,10 +4,11 @@
 
 | Proposal | Venue | Description |
 | :--- | :--- | :--- |
-| [SEP-2076](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076) | MCP Spec | Agent Skills as a first-class MCP primitive |
-| [SEP-2093](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093) | MCP Spec | Resource Contents Metadata and Capabilities: scoped `resources/list`, per-resource capabilities, `resources/metadata` endpoint |
+| [SEP-2640 (Skills Extension)](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) | MCP Spec | This WG's proposed extension: skills served over MCP using the Resources primitive and `skill://` URI scheme ([working draft](sep-draft-skills-extension.md)) |
 | [PR #2527](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2527) | MCP Spec | Recommend clients expose resource read to models — prerequisite for the resources-based skills approach |
 | [skills.json format proposal](https://github.com/modelcontextprotocol/registry/discussions/895) | MCP Registry | Skills metadata in registry schema |
+| ~~[SEP-2093](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093)~~ | MCP Spec | ~~Resource Contents Metadata and Capabilities: scoped `resources/list`, per-resource capabilities, `resources/metadata` endpoint~~ — **rejected** ([labeled upstream](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093)) |
+| ~~[SEP-2076](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2076)~~ | MCP Spec | ~~Agent Skills as a first-class MCP primitive~~ — **closed** (2026-02-24, without merge) |
 
 ## Working Group Member Implementations
 
@@ -51,7 +52,7 @@ Projects that illustrate the problem space or use adjacent patterns.
 
 | Project | Author | URL | Notes |
 | :--- | :--- | :--- | :--- |
-| chrome-devtools-mcp | Anthropic | [github.com/anthropics/anthropic-quickstarts/…/chrome-devtools-mcp](https://github.com/anthropics/anthropic-quickstarts/tree/main/mcp-servers/chrome-devtools-mcp) | Real-world example of the problem: `skills/` folder requires separate install path |
+| chrome-devtools-mcp | Google (ChromeDevTools) | [github.com/ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) | Real-world example of the problem: `skills/` folder requires separate install path |
 | Strands Agents MCP server | AWS | [github.com/strands-agents/mcp-server](https://github.com/strands-agents/mcp-server/) | Docs-as-MCP: TF-IDF search + doc fetch |
 | AWS MCP server | AWS | [docs.aws.amazon.com/aws-mcp/…](https://docs.aws.amazon.com/aws-mcp/latest/userguide/understanding-mcp-server-tools.html) | `retrieve_agent_sop` (skills) + `call_aws` (tool) |
 
