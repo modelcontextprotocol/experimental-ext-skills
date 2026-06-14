@@ -11,16 +11,9 @@ export type {
   SkillDocument,
   SkillMetadata,
   SkillSummary,
-  SkillMdIndexEntry,
-  McpResourceTemplateIndexEntry,
-  ArchiveIndexEntry,
+  SkillArchiveRef,
   SkillIndexEntry,
   SkillIndex,
-  SkillTemplateEntry,
-  SkillTemplateDeclaration,
-  TemplateReadResult,
-  TemplateReadCallback,
-  TemplateCompletionCallback,
   SkillArchiveDeclaration,
   ArchiveFormat,
   UnpackedSkillArchive,
@@ -33,8 +26,6 @@ export type {
   RegisterSkillResourcesOptions,
 } from "./types.js";
 
-export { SKILL_INDEX_SCHEMA, KNOWN_SKILL_INDEX_SCHEMAS } from "./types.js";
-
 export {
   detectArchiveFormat,
   stripArchiveSuffix,
@@ -42,6 +33,24 @@ export {
   archiveSuffix,
   extractSkillArchive,
 } from "./archive.js";
+
+export {
+  DIRECTORY_READ_METHOD,
+  INODE_DIRECTORY_MIME,
+  DEFAULT_DIRECTORY_PAGE_SIZE,
+  DirectoryReadRequestSchema,
+  DirectoryReadResultSchema,
+  buildDirectoryTree,
+  makeDirectoryReadHandler,
+} from "./directory.js";
+export type {
+  DirectoryChild,
+  DirectoryReadResult,
+  DirectoryReadHandlerOptions,
+} from "./directory.js";
+
+export { SKILLS_EXTENSION_ID } from "./resource-extensions.js";
+export type { SkillsExtensionCapability } from "./resource-extensions.js";
 
 export {
   SKILL_URI_SCHEME,

@@ -19,11 +19,11 @@
  *   - SDK wrappers per the SEP: listSkills(), listSkillsFromIndex(), readSkillUri()
  */
 
+import { createHash } from "node:crypto";
 import { parse as parseYaml } from "yaml";
 import type {
   SkillSummary,
   SkillIndex,
-  SkillTemplateEntry,
   SkillsCatalogOptions,
   DiscoverSkillsOptions,
   DiscoverCatalogOptions,
@@ -32,7 +32,6 @@ import type {
   UnpackedSkillArchive,
   ExtractArchiveOptions,
 } from "./types.js";
-import { KNOWN_SKILL_INDEX_SCHEMAS } from "./types.js";
 import { generateSkillsXMLFromSummaries } from "./xml.js";
 import {
   buildSkillUri,
@@ -46,6 +45,13 @@ import {
   stripArchiveSuffix,
   detectArchiveFormat,
 } from "./archive.js";
+import {
+  DIRECTORY_READ_METHOD,
+  DirectoryReadResultSchema,
+  type DirectoryChild,
+  type DirectoryReadResult,
+} from "./directory.js";
+import { SKILLS_EXTENSION_ID } from "./resource-extensions.js";
 
 /**
  * Minimal structural interface for an MCP Client.
@@ -81,6 +87,24 @@ export interface SkillsClient {
    * third discovery path.
    */
   getInstructions?(): string | undefined;
+  /**
+   * Optional. The connected server's advertised capabilities (the MCP SDK
+   * Client exposes this). Used to gate `resources/directory/read` on the
+   * server having declared `extensions["io.modelcontextprotocol/skills"]
+   * .directoryRead`.
+   */
+  getServerCapabilities?(): {
+    extensions?: Record<string, { directoryRead?: boolean } | undefined>;
+  } | undefined;
+  /**
+   * Optional. Low-level JSON-RPC request, used for extension methods that
+   * have no high-level wrapper (e.g. `resources/directory/read`). Mirrors the
+   * MCP SDK Client's `request(request, resultSchema, options?)`. The result
+   * schema is passed through to the underlying client; we annotate the return
+   * as `unknown` and narrow at the call site.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  request?(request: { method: string; params?: unknown }, resultSchema: any): Promise<unknown>;
 }
 
 /**
@@ -214,7 +238,6 @@ export async function listSkills(client: SkillsClient): Promise<SkillSummary[]> 
 /**
  * Fetch and parse skill://index.json from an MCP server.
  * Returns the parsed SkillIndex or null if unavailable.
- * Shared by listSkillsFromIndex() and listSkillTemplatesFromIndex().
  */
 async function fetchAndParseIndex(
   client: SkillsClient,
@@ -226,20 +249,24 @@ async function fetchAndParseIndex(
 
     const index = JSON.parse(content.text) as SkillIndex;
 
-    // SEP: clients SHOULD validate $schema against known URIs before processing
-    if (index.$schema && !KNOWN_SKILL_INDEX_SCHEMAS.has(index.$schema)) {
-      console.warn(
-        `[experimental-ext-skills] Unrecognized skill index $schema: "${index.$schema}". ` +
-        `Known schemas: ${[...KNOWN_SKILL_INDEX_SCHEMAS].join(", ")}. Proceeding anyway.`,
-      );
-    }
-
+    // Per SEP-2640 the index carries no `$schema`/version marker — the format
+    // is versioned by the extension itself, so there is nothing to validate
+    // beyond the presence of a `skills` array.
     if (!index.skills || !Array.isArray(index.skills)) return null;
 
     return index;
   } catch {
     return null;
   }
+}
+
+/** Pull a string field from a frontmatter object, or undefined. */
+function frontmatterString(
+  frontmatter: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  const v = frontmatter?.[key];
+  return typeof v === "string" ? v : undefined;
 }
 
 /**
@@ -257,6 +284,12 @@ async function fetchAndParseIndex(
  *
  * Hosts MUST NOT treat an absent or empty index as proof that a server has
  * no skills — a skill:// URI is always directly readable via resources/read.
+ *
+ * Per SEP-2640 each entry is type-less: a `url` (with `digest`) means the
+ * skill is served as individual files; a non-empty `archives` array means it
+ * is available packed. Name and description come from the entry's verbatim
+ * `frontmatter`. An entry with neither `url` nor `archives` is malformed and
+ * is skipped.
  */
 export async function listSkillsFromIndex(
   client: SkillsClient,
@@ -266,66 +299,51 @@ export async function listSkillsFromIndex(
 
   const summaries: SkillSummary[] = [];
   for (const entry of index.skills) {
-    if (entry.type === "skill-md") {
+    const name = frontmatterString(entry.frontmatter, "name");
+    const description = frontmatterString(entry.frontmatter, "description");
+
+    if (entry.url) {
       // Per SEP-2640, `<skill-path>` structural constraints apply regardless
-      // of scheme. Extract the path between `<scheme>://` and `/SKILL.md`
-      // for any URI; fall back to `entry.name` only when the URL doesn't
-      // have that form.
-      const skillPath = extractSkillPathFromUri(entry.url) ?? entry.name;
+      // of scheme. Extract the path between `<scheme>://` and `/SKILL.md`;
+      // fall back to the frontmatter name only when the URL lacks that form.
+      const skillPath = extractSkillPathFromUri(entry.url) ?? name ?? entry.url;
       summaries.push({
-        name: entry.name,
+        name: name ?? skillPath,
         skillPath,
         uri: entry.url,
         type: "skill-md",
-        description: entry.description,
+        description,
         mimeType: "text/markdown",
+        digest: entry.digest,
+        archives: entry.archives,
       });
-    } else if (entry.type === "archive") {
-      // Per SEP-2640, the archive URL has its archive suffix stripped to get
-      // the post-unpack skill path: skill://pdf-processing.tar.gz unpacks to
-      // skill://pdf-processing/. We expose the archive URL on `uri` so callers
-      // know how to fetch; the post-unpack `skillPath` is derived from the URL.
-      const stripped = stripArchiveSuffix(entry.url);
+    } else if (entry.archives && entry.archives.length > 0) {
+      // Archive-only skill. Expose the first archive's URL on `uri` so callers
+      // know how to fetch; the post-unpack `skillPath` is derived from it by
+      // stripping the archive suffix (skill://pdf-processing.tar.gz unpacks to
+      // skill://pdf-processing/).
+      const primary = entry.archives[0];
+      const stripped = stripArchiveSuffix(primary.url);
       const skillPath =
-        extractSkillPathFromUri(stripped + "/SKILL.md") ?? entry.name;
+        extractSkillPathFromUri(stripped + "/SKILL.md") ?? name ?? primary.url;
       summaries.push({
-        name: entry.name,
+        name: name ?? skillPath,
         skillPath,
-        uri: entry.url,
+        uri: primary.url,
         type: "archive",
-        description: entry.description,
-        mimeType: detectArchiveFormat(undefined, entry.url) === "zip"
-          ? "application/zip"
-          : "application/gzip",
+        description,
+        mimeType:
+          primary.mimeType ??
+          (detectArchiveFormat(undefined, primary.url) === "zip"
+            ? "application/zip"
+            : "application/gzip"),
+        digest: primary.digest,
+        archives: entry.archives,
       });
     }
-    // Template entries are returned by listSkillTemplatesFromIndex().
-    // Unknown types are skipped per SEP ("clients SHOULD skip entries
-    // with an unrecognized type").
+    // Entries with neither `url` nor `archives` violate SEP-2640 — skip.
   }
   return summaries;
-}
-
-/**
- * List resource template entries from skill://index.json.
- *
- * Returns template entries for parameterized skill namespaces
- * (e.g., skill://docs/{product}/SKILL.md). Returns null if the
- * server does not expose skill://index.json.
- */
-export async function listSkillTemplatesFromIndex(
-  client: SkillsClient,
-): Promise<SkillTemplateEntry[] | null> {
-  const index = await fetchAndParseIndex(client);
-  if (!index) return null;
-
-  return index.skills
-    .filter((entry) => entry.type === "mcp-resource-template")
-    .map((entry) => ({
-      name: entry.name,
-      description: entry.description,
-      uriTemplate: entry.url,
-    }));
 }
 
 /**
@@ -345,6 +363,129 @@ export async function readSkillUri(
   const content = result.contents[0];
   if (content && "text" in content && content.text) return content.text;
   throw new Error(`Expected text content for ${uri}`);
+}
+
+/**
+ * Verify that `data` matches an expected `sha256:{hex}` digest from a
+ * `skill://index.json` entry — the integrity/tamper check SEP-2640 asks hosts
+ * to perform on retrieved content.
+ *
+ * Index digests are over the SKILL.md file's **raw bytes**. When `data` is a
+ * string (the usual case — `resources/read` returns `text`), it is hashed as
+ * UTF-8. This is exact for `SKILL.md`, which the Agent Skills spec requires to
+ * be UTF-8: a UTF-8 decode→encode round-trip is byte-identical (CRLF, BOM, and
+ * multibyte content all preserved), so a faithfully-served file always
+ * matches. Only genuinely non-UTF-8 bytes (disallowed for `SKILL.md`) would
+ * differ — pass a `Buffer` of the exact bytes received in that case.
+ *
+ * Note this is the *tamper-detection* use of the digest. The digest's other
+ * purpose — caching — is a different operation: compare the new index
+ * `digest` string against a previously-stored one (no content hashing). See
+ * the README "Caching with the index digest" section.
+ *
+ * The comparison is case-insensitive on the hex.
+ */
+export function verifyDigest(
+  data: Buffer | string,
+  expected: string,
+): boolean {
+  const actual = "sha256:" + createHash("sha256").update(data).digest("hex");
+  return actual.toLowerCase() === expected.toLowerCase();
+}
+
+/**
+ * Read a skill resource and verify it against an expected `sha256:{hex}`
+ * digest (e.g. `SkillSummary.digest`). Throws if the digest does not match.
+ * Returns the text content on success.
+ */
+export async function readSkillUriVerified(
+  client: SkillsClient,
+  uri: string,
+  expectedDigest: string,
+): Promise<string> {
+  const text = await readSkillUri(client, uri);
+  if (!verifyDigest(text, expectedDigest)) {
+    throw new Error(
+      `Digest mismatch for ${uri}: content does not match index digest ${expectedDigest}`,
+    );
+  }
+  return text;
+}
+
+/**
+ * Whether the connected server has declared the SEP-2640 `directoryRead`
+ * capability under `extensions["io.modelcontextprotocol/skills"]`. Clients
+ * MUST NOT call `resources/directory/read` unless this is true.
+ */
+export function serverSupportsDirectoryRead(client: SkillsClient): boolean {
+  const ext = client.getServerCapabilities?.()?.extensions?.[SKILLS_EXTENSION_ID];
+  return !!ext && ext.directoryRead === true;
+}
+
+/**
+ * List the direct children of a directory resource via the SEP-2640
+ * `resources/directory/read` method. Returns the children (files and
+ * subdirectories — subdirectories carry `mimeType: "inode/directory"`) plus
+ * an optional `nextCursor` for pagination. The listing is metadata-only and
+ * non-recursive; descend by calling again on a child directory's URI.
+ *
+ * Throws if the server has not declared the `directoryRead` capability, or if
+ * the structural client does not expose a low-level `request` method.
+ */
+export async function readDirectory(
+  client: SkillsClient,
+  uri: string,
+  options?: { cursor?: string },
+): Promise<DirectoryReadResult> {
+  if (!serverSupportsDirectoryRead(client)) {
+    throw new Error(
+      `Server did not declare the "directoryRead" capability; resources/directory/read is not available.`,
+    );
+  }
+  if (!client.request) {
+    throw new Error(
+      `Client does not expose a low-level request() method for resources/directory/read.`,
+    );
+  }
+  const result = (await client.request(
+    {
+      method: DIRECTORY_READ_METHOD,
+      params: { uri, ...(options?.cursor ? { cursor: options.cursor } : {}) },
+    },
+    DirectoryReadResultSchema,
+  )) as DirectoryReadResult;
+  return result;
+}
+
+/**
+ * Walk a directory subtree depth-first via repeated `resources/directory/read`
+ * calls, yielding every descendant file (not directories). Convenience over
+ * {@link readDirectory} for hosts that want to materialize a whole skill.
+ */
+export async function walkDirectory(
+  client: SkillsClient,
+  rootUri: string,
+): Promise<DirectoryChild[]> {
+  const files: DirectoryChild[] = [];
+  const queue: string[] = [rootUri];
+  while (queue.length > 0) {
+    const dir = queue.shift()!;
+    let cursor: string | undefined;
+    do {
+      const { resources, nextCursor } = await readDirectory(client, dir, {
+        cursor,
+      });
+      for (const child of resources) {
+        if (child.mimeType === "inode/directory") {
+          queue.push(child.uri);
+        } else {
+          files.push(child);
+        }
+      }
+      cursor = nextCursor;
+    } while (cursor);
+  }
+  return files;
 }
 
 /**

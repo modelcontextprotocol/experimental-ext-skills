@@ -35,6 +35,20 @@ export interface SkillMetadata {
   skillPath: string;
   /** Skill description from YAML frontmatter */
   description: string;
+  /**
+   * The skill's full SKILL.md YAML frontmatter, parsed to a plain object.
+   * Per SEP-2640 this block is copied verbatim into the skill's
+   * `skill://index.json` entry (`frontmatter`), so `name`/`description`
+   * are always present and any other authored fields (`license`,
+   * `metadata`, compatibility, …) pass through unchanged.
+   */
+  frontmatter: Record<string, unknown>;
+  /**
+   * SHA-256 digest of the SKILL.md file's raw bytes, formatted as
+   * `sha256:{hex}` (64 lowercase hex). Emitted as the entry `digest` in
+   * `skill://index.json` alongside `url`, per SEP-2640.
+   */
+  digest: string;
   /** Absolute filesystem path to the SKILL.md file */
   absolutePath: string;
   /** Absolute filesystem path to the skill's directory */
@@ -86,159 +100,75 @@ export interface SkillSummary {
    */
   uri: string;
   /**
-   * Distribution type, mirroring the index entry type. When omitted (e.g.
-   * skills discovered via `resources/list` without an index), assume
-   * `"skill-md"`.
+   * Distribution type, derived from the index entry shape (a `url` ⇒
+   * `"skill-md"`, archives-only ⇒ `"archive"`). When omitted (e.g. skills
+   * discovered via `resources/list` without an index), assume `"skill-md"`.
    */
   type?: "skill-md" | "archive";
-  /** Skill description (from resource metadata) */
+  /** Skill description (from frontmatter / resource metadata) */
   description?: string;
   /** MIME type of the resource */
   mimeType?: string;
-}
-
-/**
- * A skill-md entry in the discovery index — a concrete skill with a URI.
- *
- * Per SEP-2640, the MCP-served index format omits the `digest` field present
- * in the agentskills.io well-known URI format: integrity is the transport's
- * concern over an authenticated MCP connection.
- */
-export interface SkillMdIndexEntry {
-  /** Skill name from frontmatter (= final segment of skill path) */
-  name: string;
-  /** Entry type discriminator */
-  type: "skill-md";
-  /** Skill description from frontmatter */
-  description: string;
-  /** Full skill:// URI for the SKILL.md resource */
-  url: string;
-}
-
-/**
- * An mcp-resource-template entry in the discovery index — a parameterized
- * skill namespace that clients resolve via the MCP completion API.
- *
- * Per the SEP, `name` is omitted for template entries and the URI template
- * value is carried in the `url` field (same field as skill-md entries).
- */
-export interface McpResourceTemplateIndexEntry {
-  /** Template name (optional per SEP — omitted for mcp-resource-template) */
-  name?: string;
-  /** Entry type discriminator */
-  type: "mcp-resource-template";
-  /** Template description */
-  description: string;
-  /** RFC 6570 URI template (e.g., "skill://docs/{product}/SKILL.md") */
-  url: string;
-}
-
-/**
- * An archive entry in the discovery index — a single packed resource
- * (.tar.gz or .zip) whose contents populate the skill directory.
- *
- * Per SEP-2640, `<skill-path>` is the entry `url` with the archive suffix
- * (`.tar.gz` or `.zip`) stripped: `skill://pdf-processing.tar.gz` unpacks
- * to `skill://pdf-processing/`. Post-unpack files are addressable as
- * `skill://<skill-path>/<file-path>` exactly as if served individually.
- */
-export interface ArchiveIndexEntry {
-  /** Skill name from frontmatter (= final segment of post-unpack skill path) */
-  name: string;
-  /** Entry type discriminator */
-  type: "archive";
-  /** Skill description from frontmatter */
-  description: string;
-  /** Resource URI for the archive (e.g. skill://pdf-processing.tar.gz) */
-  url: string;
-}
-
-/**
- * An entry in the skill://index.json MCP discovery index.
- * Per SEP-2640, type MUST be "skill-md", "archive", or "mcp-resource-template".
- * Use `entry.type` to narrow.
- */
-export type SkillIndexEntry =
-  | SkillMdIndexEntry
-  | ArchiveIndexEntry
-  | McpResourceTemplateIndexEntry;
-
-/**
- * Client-side summary of a discovered resource template.
- */
-export interface SkillTemplateEntry {
-  /** Template name (optional — SEP omits name for mcp-resource-template entries) */
-  name?: string;
-  /** Template description */
-  description: string;
-  /** URI template string */
-  uriTemplate: string;
-}
-
-/**
- * Content returned by a template-skill read handler. Mirrors the contents
- * shape that the MCP server emits for a `resources/read` result.
- */
-export interface TemplateReadResult {
-  /** Markdown / text content for the resolved URI. */
-  text?: string;
-  /** Base64-encoded binary content for the resolved URI. */
-  blob?: string;
-  /** MIME type. Defaults to `text/markdown` for SKILL.md URIs. */
-  mimeType?: string;
-}
-
-/**
- * Per-variable completion callback for a parameterized skill template.
- * Returns the candidate values for `{variable}` given the prefix the user
- * has typed.
- */
-export type TemplateCompletionCallback = (
-  value: string,
-  context?: { arguments?: Record<string, string> },
-) => string[] | Promise<string[]>;
-
-/**
- * Read handler for a parameterized skill template. Receives the resolved
- * URI (with variables substituted) and a record of the bound variables.
- */
-export type TemplateReadCallback = (
-  uri: string,
-  variables: Record<string, string>,
-) => TemplateReadResult | Promise<TemplateReadResult>;
-
-/**
- * Server-side declaration for a parameterized skill namespace.
- *
- * When `read` is provided, the SDK registers an MCP `ResourceTemplate` for
- * `uriTemplate` so hosts can read resolved URIs (e.g. binding `{product}`
- * to "widget-api" and reading `skill://docs/widget-api/SKILL.md`). When
- * `complete` is provided, each variable's callback is wired to the MCP
- * completion API so users can interactively browse the namespace.
- *
- * If both are omitted, the template is enumerated in `skill://index.json`
- * but not served — useful for servers that proxy template resolution to
- * another mechanism.
- */
-export interface SkillTemplateDeclaration {
-  /** Template name */
-  name: string;
-  /** Template description */
-  description: string;
-  /** URI template (e.g., "skill://docs/{product}/SKILL.md") */
-  uriTemplate: string;
   /**
-   * Read handler invoked when a host calls `resources/read` against a URI
-   * matching `uriTemplate`. Receives the resolved URI and the bound
-   * variables. Omit if the template is enumerated only for documentation.
+   * SHA-256 digest of the resource named by `uri`, formatted `sha256:{hex}`,
+   * when the index entry carried one. For `type: "skill-md"` this is the
+   * SKILL.md digest; for `type: "archive"` it is the chosen archive's
+   * digest. Pass to {@link verifyDigest} to honor the SEP's integrity MUST.
    */
-  read?: TemplateReadCallback;
+  digest?: string;
   /**
-   * Per-variable completion callbacks, wired to MCP's completion API.
-   * Keyed by variable name. Each callback returns the candidate values
-   * for that variable given the prefix the user has typed.
+   * All archive representations advertised for this skill in the index
+   * (each with its own `url`, `mimeType`, and `digest`), when present.
    */
-  complete?: Record<string, TemplateCompletionCallback>;
+  archives?: SkillArchiveRef[];
+}
+
+/**
+ * One archive representation of a skill within a `skill://index.json` entry.
+ *
+ * Per SEP-2640, a skill MAY advertise one or more archive forms of its
+ * directory. Each archive is a single resource (mime type e.g.
+ * `application/gzip` or `application/zip`) whose contents unpack into the
+ * skill's URI namespace (`SKILL.md` at the archive root). Each carries its
+ * own SHA-256 `digest` for caching/integrity.
+ */
+export interface SkillArchiveRef {
+  /** Resource URI of the archive (e.g. `skill://pdf-processing.tar.gz`). */
+  url: string;
+  /** Archive media type (e.g. `application/gzip`, `application/zip`). */
+  mimeType: string;
+  /** SHA-256 digest of the archive bytes, formatted `sha256:{hex}`. */
+  digest: string;
+}
+
+/**
+ * An entry in the `skill://index.json` MCP discovery index (SEP-2640).
+ *
+ * Entries are **type-less**: a skill is described by its verbatim
+ * `frontmatter` plus how it can be retrieved. Every entry MUST include a
+ * `url` (with `digest`), a non-empty `archives` array, or both. `name` and
+ * `description` are NOT top-level fields — they live inside `frontmatter`
+ * (the Agent Skills spec requires both, so they are always present).
+ */
+export interface SkillIndexEntry {
+  /**
+   * Verbatim copy of the skill's `SKILL.md` YAML frontmatter, rendered as a
+   * JSON object. Always carries `name` and `description`; any other authored
+   * fields pass through unchanged.
+   */
+  frontmatter: Record<string, unknown>;
+  /**
+   * Resource URI of the skill's `SKILL.md`, when served as an individual
+   * file. REQUIRED when `digest` is present; absent for archive-only skills.
+   */
+  url?: string;
+  /**
+   * SHA-256 digest of the `SKILL.md` file, formatted `sha256:{hex}`.
+   * REQUIRED whenever `url` is present.
+   */
+  digest?: string;
+  /** Archive distributions of the skill. Non-empty when present. */
+  archives?: SkillArchiveRef[];
 }
 
 /**
@@ -266,6 +196,15 @@ export interface SkillArchiveDeclaration {
   name: string;
   /** Skill description from frontmatter */
   description: string;
+  /**
+   * Full SKILL.md frontmatter for this archived skill, copied verbatim into
+   * the skill's `skill://index.json` entry (`frontmatter`). The archive is
+   * not unpacked at registration, so the SDK cannot read it from inside the
+   * archive — provide it here to preserve authored fields (`license`,
+   * `metadata`, …). When omitted, the index entry falls back to
+   * `{ name, description }`.
+   */
+  frontmatter?: Record<string, unknown>;
   /**
    * Multi-segment skill path that the archive unpacks to. The final segment
    * MUST equal `name`.
@@ -306,21 +245,17 @@ export interface ExtractArchiveOptions {
 }
 
 /**
- * The skill://index.json resource content.
- * Follows the Agent Skills well-known URI discovery index format.
+ * The `skill://index.json` resource content (SEP-2640).
+ *
+ * The WG owns this schema; it is intentionally decoupled from the
+ * agentskills.io `.well-known` discovery format. The index carries no
+ * `$schema` / version marker — the format is versioned by the extension
+ * itself.
  */
 export interface SkillIndex {
-  /** Schema version URI */
-  $schema: string;
   /** Array of skill entries */
   skills: SkillIndexEntry[];
 }
-
-/** Schema URI for the Agent Skills discovery index format. */
-export const SKILL_INDEX_SCHEMA = "https://schemas.agentskills.io/discovery/0.2.0/schema.json";
-
-/** Set of known schema URIs for forward-compatible validation. */
-export const KNOWN_SKILL_INDEX_SCHEMAS: ReadonlySet<string> = new Set([SKILL_INDEX_SCHEMA]);
 
 /**
  * Options for buildSkillsCatalog().
@@ -444,10 +379,17 @@ export interface RegisterSkillResourcesOptions {
    */
   archives?: SkillArchiveDeclaration[];
   /**
-   * Resource template entries to include in `skill://index.json`. Each entry
-   * describes a parameterized skill namespace; declarations with a `read`
-   * handler are also registered as MCP resource templates so hosts can read
-   * resolved URIs and wire `complete` callbacks to the MCP completion API.
+   * Implement the SEP-2640 `resources/directory/read` method so hosts can
+   * enumerate the files under each individually-served skill directory
+   * (an `ls`-style, metadata-only, paginated listing). Default `false`.
+   *
+   * When `true`, the SDK registers a handler on the server's low-level
+   * request router. The server MUST also advertise the capability by calling
+   * `declareSkillsExtension(server, { directoryRead: true })` before
+   * `connect()` — capabilities are sent during the initialize handshake and
+   * cannot be added by `registerSkillResources` after the fact. Note that
+   * archive-distributed skills are opaque to the server, so directory read
+   * only covers skills served as individual files.
    */
-  templates?: SkillTemplateDeclaration[];
+  directoryRead?: boolean;
 }

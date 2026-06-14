@@ -2,16 +2,17 @@
 /**
  * Skills Extension SEP — Reference MCP Server
  *
- * Demonstrates all three SEP-2640 entry types in `skill://index.json`:
+ * Demonstrates the SEP-2640 `skill://index.json` index, whose entries are
+ * type-less: each carries the skill's verbatim `frontmatter` plus a `url`
+ * (with `digest`) and/or an `archives` array. This server exposes both
+ * forms:
  *
- *   - `skill-md`             — individually-served file skills
- *   - `archive`              — single packed resource (.tar.gz)
- *   - `mcp-resource-template`— parameterized skill namespace
- *                              (registered as a real MCP ResourceTemplate
- *                              with completion wired to the MCP completion API)
+ *   - individually-served file skills (entry has `url` + `digest`)
+ *   - an archive distribution (entry has an `archives` array)
  *
- * Plus the SEP-2133 capability declaration
- * (`io.modelcontextprotocol/skills`) and multi-segment skill paths.
+ * Plus the SEP-2640 capability declaration (`io.modelcontextprotocol/skills`
+ * with `directoryRead: true`), the `resources/directory/read` method for
+ * enumerating skill directories, and multi-segment skill paths.
  *
  * Resource layout:
  *   skill://index.json                                — discovery index
@@ -20,7 +21,6 @@
  *   skill://acme/onboarding/SKILL.md                  — file skill (multi-segment)
  *   skill://acme/billing/refunds/SKILL.md             — file skill (multi-segment)
  *   skill://pdf-processing.tar.gz                     — archive distribution
- *   skill://docs/{product}/SKILL.md                   — resource template (with read + complete)
  *
  * @license Apache-2.0
  */
@@ -92,49 +92,7 @@ if (fs.existsSync(pdfSourceDir)) {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory "docs" catalog backing the resource template.
-// In real deployments this would come from a database, an external API, or
-// generated documentation; here it's hard-coded to keep the demo self-contained.
-// ---------------------------------------------------------------------------
-
-const docsCatalog: Record<string, { description: string; body: string }> = {
-  "widget-api": {
-    description: "Widget API — endpoints, auth, and rate limits",
-    body: [
-      "# Widget API",
-      "",
-      "Reference for the Widget API: authentication, request shape,",
-      "rate limits, and error handling.",
-      "",
-      "## Auth",
-      "Bearer tokens via `/oauth/token`. Tokens expire after 1 hour.",
-      "",
-      "## Rate limits",
-      "1000 requests/minute per token. Burst up to 50/sec.",
-    ].join("\n"),
-  },
-  "gizmo-api": {
-    description: "Gizmo API — endpoints and webhook delivery",
-    body: [
-      "# Gizmo API",
-      "",
-      "Gizmos are created via `POST /gizmos` and updates are delivered",
-      "to subscribers via webhooks signed with HMAC-SHA256.",
-    ].join("\n"),
-  },
-  "gadget-api": {
-    description: "Gadget API — streaming endpoints and replay",
-    body: [
-      "# Gadget API",
-      "",
-      "The Gadget API streams events over WebSocket with a replay window",
-      "of 24 hours. Reconnect with the last cursor to resume.",
-    ].join("\n"),
-  },
-};
-
-// ---------------------------------------------------------------------------
-// Create MCP server and declare extension per SEP-2133
+// Create MCP server and declare the extension (SEP-2640)
 // ---------------------------------------------------------------------------
 
 // Server `instructions` is the SEP's third discovery path — a host MAY mine
@@ -150,14 +108,19 @@ const server = new McpServer(
   { name: "skills-sep-example", version: "0.1.0" },
   { capabilities: { resources: {} }, instructions: serverInstructions },
 );
-declareSkillsExtension(server.server);
+// Declare the extension and advertise the directory-read capability. This
+// MUST happen before connect() — capabilities ship in the initialize
+// handshake — and is paired with `directoryRead: true` below.
+declareSkillsExtension(server.server, { directoryRead: true });
 
 // ---------------------------------------------------------------------------
-// Register all resource types via the SDK
+// Register all resources via the SDK
 // ---------------------------------------------------------------------------
 
 registerSkillResources(server, skillMap, skillsDir, {
   template: true,
+  // Implement resources/directory/read so hosts can enumerate skill dirs.
+  directoryRead: true,
   // Archive entry — single resource that unpacks to skill://pdf-processing/
   archives: archivePath
     ? [
@@ -171,48 +134,15 @@ registerSkillResources(server, skillMap, skillsDir, {
         },
       ]
     : [],
-  // Resource-template entry — parameterized namespace.
-  // The SDK registers an MCP ResourceTemplate so resolved URIs (e.g.
-  // skill://docs/widget-api/SKILL.md) are readable, and wires the
-  // {product} variable's `complete` callback to the MCP completion API.
-  templates: [
-    {
-      name: "docs",
-      description:
-        "Per-product documentation skill (template — bind {product} via the completion API)",
-      uriTemplate: "skill://docs/{product}/SKILL.md",
-      complete: {
-        product: (value) =>
-          Object.keys(docsCatalog).filter((p) => p.startsWith(value)),
-      },
-      read: (_uri, vars) => {
-        const product = vars.product;
-        const entry = docsCatalog[product];
-        if (!entry) {
-          return {
-            text: `# Unknown product\n\nNo documentation skill for "${product}". Available: ${Object.keys(
-              docsCatalog,
-            ).join(", ")}.`,
-          };
-        }
-        const frontmatter = [
-          "---",
-          `name: ${product}`,
-          `description: ${entry.description}`,
-          "---",
-          "",
-        ].join("\n");
-        return { text: frontmatter + entry.body, mimeType: "text/markdown" };
-      },
-    },
-  ],
 });
 
-console.error("[skills-server] Extension: io.modelcontextprotocol/skills");
 console.error(
-  `[skills-server] Index will list: ${skillMap.size} skill-md + ${
+  "[skills-server] Extension: io.modelcontextprotocol/skills (directoryRead: true)",
+);
+console.error(
+  `[skills-server] Index will list: ${skillMap.size} file skill(s) + ${
     archivePath ? 1 : 0
-  } archive + 1 mcp-resource-template entry`,
+  } archive entry`,
 );
 
 // ---------------------------------------------------------------------------

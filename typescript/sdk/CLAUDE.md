@@ -18,11 +18,46 @@ Index entries may use any URI scheme. Functions that accept URIs from the index 
 
 Per SEP-2640, the structural constraints on `<skill-path>` apply *regardless of scheme*. `extractSkillPathFromUri()` extracts the path between `<scheme>://` and `/SKILL.md` for any URI; `listSkillsFromIndex()` and `listSkillsFromInstructions()` use it to populate `SkillSummary.skillPath`, falling back to the entry's `name` only when the URL doesn't match `<scheme>://<path>/SKILL.md`. The model-facing `skillPath` is therefore the SEP-defined locator across schemes.
 
-## Resource-template registration order
+## Index format (SEP-2640)
 
-`registerSkillResources()` registers user-declared templates from `templates[]` before the catch-all `skill://{+skillFilePath}`. This matters because the McpServer matches templates in registration order (`mcp.js` iterates `Object.values(_registeredResourceTemplates)` and returns the first match). The catch-all uses RFC 6570 reserved expansion (`{+...}`), so it would otherwise swallow specific patterns like `skill://docs/{product}/SKILL.md`.
+The `skill://index.json` schema is the WG's own (decoupled from the
+agentskills.io `.well-known` discovery format) and carries **no** `$schema` /
+version marker. Each entry is **type-less**:
 
-A `SkillTemplateDeclaration` without a `read` handler is enumerated in `skill://index.json` but **not** registered as a `ResourceTemplate` — useful for index-only declarations that point at an out-of-band resolution mechanism. Setting `complete` without `read` is a configuration error (the completion callbacks would never be wired) and `registerSkillResources` throws on this combination.
+- `frontmatter` — the skill's SKILL.md frontmatter copied **verbatim** as JSON.
+  Name and description live here, not as top-level entry fields. The server
+  captures the full block in `discoverSkills` (`SkillMetadata.frontmatter`);
+  the client reads `frontmatter.name` / `frontmatter.description`.
+- `url` + `digest` — present when the skill is served as individual files;
+  `digest` is `sha256:{hex}` over the SKILL.md raw bytes (computed once in
+  `discoverSkills` from the bytes it already reads).
+- `archives` — an array of `{ url, mimeType, digest }`, one per packed form.
+
+Every entry MUST have a `url`, a non-empty `archives`, or both;
+`listSkillsFromIndex` skips entries with neither and derives
+`SkillSummary.type` from the entry shape. There is no `mcp-resource-template`
+entry type and no parameterized-template serving feature — both were removed
+when the index schema decoupled from `.well-known`. The catch-all
+`skill://{+skillFilePath}` template (for supporting files) is unrelated and
+stays.
+
+## Directory enumeration (`resources/directory/read`)
+
+`directory.ts` owns the SEP-2640 method. `buildDirectoryTree(skillMap)` derives
+every directory implied by skill paths + scanned documents and its direct
+children (files with their mime; subdirectories with `inode/directory`);
+`makeDirectoryReadHandler` serves a paginated, metadata-only, non-recursive
+listing and throws `McpError(InvalidParams)` (`-32602`) on a non-directory or
+unknown URI. It is registered on the **low-level** `Server` via
+`server.server.setRequestHandler(DirectoryReadRequestSchema, …)` because it is
+an extension method with no high-level `McpServer` wrapper.
+
+The capability is opt-in and must be declared in **two** places that the SDK
+deliberately keeps separate: `declareSkillsExtension(server, { directoryRead:
+true })` advertises it in the initialize handshake (so it must run before
+`connect()`), and `registerSkillResources(…, { directoryRead: true })` installs
+the handler. The client gates calls with `serverSupportsDirectoryRead()` (reads
+the declared capability) before issuing `readDirectory()` / `walkDirectory()`.
 
 ## `_meta` policy
 
@@ -58,6 +93,9 @@ Behaviors normatively prescribed by SEP-2640 are on by default. Behaviors that c
 | Final-segment-equals-name validation | SEP-2640 | always enforced |
 | Skill name `^[a-z0-9-]+$` validation | SEP-2640 + agentskills.io | always enforced |
 | Archive safety | SEP-2640 | always enforced |
+| Per-entry `digest` in index (`sha256:`) | SEP-2640 | always emitted |
+| Digest verification on read | SEP-2640 MUST | opt-in (`verifyDigest` / `readSkillUriVerified`) |
+| `resources/directory/read` handler | SEP-2640 | opt-in (`directoryRead: true` + `declareSkillsExtension`) |
 | `instructions` discovery path | host SKILL.md | opt-in (`instructions: true`) |
 | Custom URI extractor | SDK | opt-in (`extractor`) |
 | Per-entry `<server>` in catalog XML | host SKILL.md | opt-in (`serverInEntries: true`) |

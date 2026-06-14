@@ -1,27 +1,71 @@
-import { describe, it, expect, vi } from "vitest";
-import { generateSkillIndex } from "./_server.js";
-import { listSkillsFromIndex, listSkillTemplatesFromIndex, listSkills, discoverSkills, discoverAndBuildCatalog } from "./_client.js";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { generateSkillIndex, sha256Digest } from "./_server.js";
+import {
+  listSkillsFromIndex,
+  listSkills,
+  discoverSkills,
+  discoverAndBuildCatalog,
+} from "./_client.js";
 import type { SkillMetadata } from "./types.js";
-import { SKILL_INDEX_SCHEMA } from "./types.js";
 import type { SkillsClient } from "./_client.js";
+
+const SHA256_RE = /^sha256:[0-9a-f]{64}$/;
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeSkill(overrides: Partial<SkillMetadata> & { name: string; skillPath: string; description: string }): SkillMetadata {
+function makeSkill(
+  overrides: Partial<SkillMetadata> & {
+    name: string;
+    skillPath: string;
+    description: string;
+  },
+): SkillMetadata {
   return {
     absolutePath: `/skills/${overrides.skillPath}/SKILL.md`,
     skillDir: `/skills/${overrides.skillPath}`,
     documents: [],
     size: 0,
     lastModified: "2026-01-01T00:00:00.000Z",
+    frontmatter: { name: overrides.name, description: overrides.description },
+    digest: "sha256:" + "0".repeat(64),
     ...overrides,
   };
 }
 
 function makeSkillMap(skills: SkillMetadata[]): Map<string, SkillMetadata> {
   return new Map(skills.map((s) => [s.skillPath, s]));
+}
+
+/** A type-less skill-md index entry (SEP-2640). */
+function skillMdEntry(
+  name: string,
+  url: string,
+  description: string,
+  extraFrontmatter: Record<string, unknown> = {},
+) {
+  return {
+    frontmatter: { name, description, ...extraFrontmatter },
+    url,
+    digest: "sha256:" + "a".repeat(64),
+  };
+}
+
+/** A type-less archive-only index entry (SEP-2640). */
+function archiveEntry(
+  name: string,
+  archiveUrl: string,
+  description: string,
+  mimeType = "application/gzip",
+) {
+  return {
+    frontmatter: { name, description },
+    archives: [{ url: archiveUrl, mimeType, digest: "sha256:" + "b".repeat(64) }],
+  };
 }
 
 /** Create a mock client that returns the given index JSON from readResource. */
@@ -33,6 +77,22 @@ function mockClientWithIndex(indexJson: unknown): SkillsClient {
     }),
   };
 }
+
+// Real temp archive files (the index reader hashes archive bytes for `digest`).
+let tmpDir: string;
+const archivePath = (name: string) => path.join(tmpDir, name);
+function writeArchive(name: string, bytes = `bytes-of-${name}`): string {
+  const p = archivePath(name);
+  fs.writeFileSync(p, bytes);
+  return p;
+}
+
+beforeAll(() => {
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ext-skills-index-"));
+});
+afterAll(() => {
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
 
 // ---------------------------------------------------------------------------
 // generateSkillIndex (server-side)
@@ -46,13 +106,36 @@ describe("generateSkillIndex", () => {
 
     const index = generateSkillIndex(map);
 
-    expect(index.$schema).toBe(SKILL_INDEX_SCHEMA);
+    expect("$schema" in index).toBe(false);
     expect(index.skills).toHaveLength(1);
     expect(index.skills[0]).toEqual({
-      name: "code-review",
-      type: "skill-md",
-      description: "Review code",
+      frontmatter: { name: "code-review", description: "Review code" },
       url: "skill://code-review/SKILL.md",
+      digest: "sha256:" + "0".repeat(64),
+    });
+  });
+
+  it("copies the full frontmatter block verbatim", () => {
+    const map = makeSkillMap([
+      makeSkill({
+        name: "refunds",
+        skillPath: "refunds",
+        description: "Refunds",
+        frontmatter: {
+          name: "refunds",
+          description: "Refunds",
+          license: "Apache-2.0",
+          metadata: { team: "billing" },
+        },
+      }),
+    ]);
+
+    const index = generateSkillIndex(map);
+    expect(index.skills[0].frontmatter).toEqual({
+      name: "refunds",
+      description: "Refunds",
+      license: "Apache-2.0",
+      metadata: { team: "billing" },
     });
   });
 
@@ -66,18 +149,18 @@ describe("generateSkillIndex", () => {
 
     expect(index.skills).toHaveLength(2);
     expect(index.skills[0].url).toBe("skill://acme/billing/refunds/SKILL.md");
-    expect(index.skills[0].name).toBe("refunds");
+    expect(index.skills[0].frontmatter.name).toBe("refunds");
     expect(index.skills[1].url).toBe("skill://acme/onboarding/SKILL.md");
-    expect(index.skills[1].name).toBe("onboarding");
+    expect(index.skills[1].frontmatter.name).toBe("onboarding");
   });
 
   it("returns empty skills array for empty map", () => {
     const index = generateSkillIndex(new Map());
-    expect(index.$schema).toBe(SKILL_INDEX_SCHEMA);
+    expect("$schema" in index).toBe(false);
     expect(index.skills).toEqual([]);
   });
 
-  it("all entries have type skill-md", () => {
+  it("every entry carries frontmatter, url, and a sha256 digest", () => {
     const map = makeSkillMap([
       makeSkill({ name: "a", skillPath: "a", description: "A" }),
       makeSkill({ name: "b", skillPath: "x/b", description: "B" }),
@@ -85,7 +168,10 @@ describe("generateSkillIndex", () => {
 
     const index = generateSkillIndex(map);
     for (const entry of index.skills) {
-      expect(entry.type).toBe("skill-md");
+      expect(entry.frontmatter).toBeTypeOf("object");
+      expect(typeof entry.url).toBe("string");
+      expect(entry.digest).toMatch(SHA256_RE);
+      expect("type" in entry).toBe(false);
     }
   });
 });
@@ -97,40 +183,38 @@ describe("generateSkillIndex", () => {
 describe("listSkillsFromIndex", () => {
   it("parses a valid index into SkillSummary array", async () => {
     const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
       skills: [
-        { name: "code-review", type: "skill-md", description: "Review code", url: "skill://code-review/SKILL.md" },
-        { name: "refunds", type: "skill-md", description: "Refunds", url: "skill://acme/billing/refunds/SKILL.md" },
+        skillMdEntry("code-review", "skill://code-review/SKILL.md", "Review code"),
+        skillMdEntry("refunds", "skill://acme/billing/refunds/SKILL.md", "Refunds"),
       ],
     });
 
     const skills = await listSkillsFromIndex(client);
 
     expect(skills).toHaveLength(2);
-    expect(skills![0]).toEqual({
+    expect(skills![0]).toMatchObject({
       name: "code-review",
       skillPath: "code-review",
       uri: "skill://code-review/SKILL.md",
       type: "skill-md",
       description: "Review code",
       mimeType: "text/markdown",
+      digest: "sha256:" + "a".repeat(64),
     });
-    expect(skills![1]).toEqual({
+    expect(skills![1]).toMatchObject({
       name: "refunds",
       skillPath: "acme/billing/refunds",
       uri: "skill://acme/billing/refunds/SKILL.md",
       type: "skill-md",
       description: "Refunds",
-      mimeType: "text/markdown",
     });
   });
 
-  it("filters out entries with unknown type", async () => {
+  it("skips entries with neither url nor archives", async () => {
     const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
       skills: [
-        { name: "good", type: "skill-md", description: "Good", url: "skill://good/SKILL.md" },
-        { name: "archive", type: "skill-tar-gz", description: "Archive", url: "https://example.com/archive.tar.gz" },
+        skillMdEntry("good", "skill://good/SKILL.md", "Good"),
+        { frontmatter: { name: "orphan", description: "No way to fetch me" } },
       ],
     });
 
@@ -160,14 +244,14 @@ describe("listSkillsFromIndex", () => {
   });
 
   it("returns null for malformed JSON (missing skills array)", async () => {
-    const client = mockClientWithIndex({ $schema: SKILL_INDEX_SCHEMA });
+    const client = mockClientWithIndex({});
     const skills = await listSkillsFromIndex(client);
     expect(skills).toBeNull();
   });
 
   it("reads from the correct well-known URI", async () => {
     const readResource = vi.fn().mockResolvedValue({
-      contents: [{ text: JSON.stringify({ $schema: SKILL_INDEX_SCHEMA, skills: [] }) }],
+      contents: [{ text: JSON.stringify({ skills: [] }) }],
     });
     const client: SkillsClient = { listResources: vi.fn(), readResource };
 
@@ -178,136 +262,101 @@ describe("listSkillsFromIndex", () => {
 });
 
 // ---------------------------------------------------------------------------
-// generateSkillIndex with template declarations
-// ---------------------------------------------------------------------------
-
-describe("generateSkillIndex with templates", () => {
-  it("appends mcp-resource-template entries per SEP format", () => {
-    const map = makeSkillMap([
-      makeSkill({ name: "code-review", skillPath: "code-review", description: "Review code" }),
-    ]);
-
-    const index = generateSkillIndex(map, [
-      { name: "docs", description: "Product docs", uriTemplate: "skill://docs/{product}/SKILL.md" },
-    ]);
-
-    expect(index.skills).toHaveLength(2);
-    expect(index.skills[0]).toEqual({
-      name: "code-review",
-      type: "skill-md",
-      description: "Review code",
-      url: "skill://code-review/SKILL.md",
-    });
-    // SEP: template entries use `url` (not uriTemplate) and omit `name`
-    expect(index.skills[1]).toEqual({
-      type: "mcp-resource-template",
-      description: "Product docs",
-      url: "skill://docs/{product}/SKILL.md",
-    });
-  });
-
-  it("works with empty skill map and only templates", () => {
-    const index = generateSkillIndex(new Map(), [
-      { name: "t1", description: "T1", uriTemplate: "skill://t1/{x}/SKILL.md" },
-    ]);
-
-    expect(index.skills).toHaveLength(1);
-    expect(index.skills[0].type).toBe("mcp-resource-template");
-  });
-
-  it("works with no templates (backward compat)", () => {
-    const map = makeSkillMap([
-      makeSkill({ name: "a", skillPath: "a", description: "A" }),
-    ]);
-
-    const index = generateSkillIndex(map);
-    expect(index.skills).toHaveLength(1);
-    expect(index.skills[0].type).toBe("skill-md");
-  });
-
-  it("accepts options object form", () => {
-    const map = makeSkillMap([
-      makeSkill({ name: "a", skillPath: "a", description: "A" }),
-    ]);
-
-    const index = generateSkillIndex(map, {
-      templates: [
-        { name: "docs", description: "D", uriTemplate: "skill://docs/{x}/SKILL.md" },
-      ],
-    });
-
-    expect(index.skills).toHaveLength(2);
-    expect(index.skills[1].type).toBe("mcp-resource-template");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// generateSkillIndex with archive entries (SEP-2640 normative type)
+// generateSkillIndex with archive declarations
 // ---------------------------------------------------------------------------
 
 describe("generateSkillIndex with archives", () => {
-  it("emits archive entries with correct shape", () => {
+  it("emits a per-skill archives array with url, mimeType, and digest", () => {
+    const p = writeArchive("pdf-processing.tar.gz");
     const index = generateSkillIndex(new Map(), {
       archives: [
         {
           name: "pdf-processing",
           description: "Extract and assemble PDFs",
           skillPath: "pdf-processing",
-          archivePath: "/tmp/pdf-processing.tar.gz",
+          archivePath: p,
         },
       ],
     });
 
     expect(index.skills).toHaveLength(1);
-    expect(index.skills[0]).toEqual({
+    expect(index.skills[0].frontmatter).toEqual({
       name: "pdf-processing",
-      type: "archive",
       description: "Extract and assemble PDFs",
+    });
+    expect(index.skills[0].url).toBeUndefined();
+    expect(index.skills[0].archives).toHaveLength(1);
+    expect(index.skills[0].archives![0]).toEqual({
       url: "skill://pdf-processing.tar.gz",
+      mimeType: "application/gzip",
+      digest: sha256Digest(fs.readFileSync(p)),
     });
   });
 
-  it("derives URL suffix from archivePath extension", () => {
-    const index = generateSkillIndex(new Map(), {
-      archives: [
-        { name: "x", description: "X", skillPath: "x", archivePath: "/tmp/x.zip" },
-        { name: "y", description: "Y", skillPath: "y", archivePath: "/tmp/y.tgz" },
-      ],
-    });
-
-    expect(index.skills[0].url).toBe("skill://x.zip");
-    expect(index.skills[1].url).toBe("skill://y.tar.gz");
-  });
-
-  it("respects explicit format override", () => {
+  it("uses the declaration's verbatim frontmatter when provided", () => {
+    const p = writeArchive("refunds.tar.gz");
     const index = generateSkillIndex(new Map(), {
       archives: [
         {
-          name: "x",
-          description: "X",
-          skillPath: "x",
-          archivePath: "/tmp/x.bundle",
-          format: "zip",
+          name: "refunds",
+          description: "Refunds",
+          skillPath: "refunds",
+          archivePath: p,
+          frontmatter: { name: "refunds", description: "Refunds", license: "MIT" },
         },
       ],
     });
-
-    expect(index.skills[0].url).toBe("skill://x.zip");
+    expect(index.skills[0].frontmatter).toEqual({
+      name: "refunds",
+      description: "Refunds",
+      license: "MIT",
+    });
   });
 
-  it("preserves multi-segment skillPath in URL", () => {
+  it("derives URL suffix and mimeType from archivePath extension", () => {
+    const px = writeArchive("x.zip");
+    const py = writeArchive("y.tgz");
+    const index = generateSkillIndex(new Map(), {
+      archives: [
+        { name: "x", description: "X", skillPath: "x", archivePath: px },
+        { name: "y", description: "Y", skillPath: "y", archivePath: py },
+      ],
+    });
+
+    expect(index.skills[0].archives![0].url).toBe("skill://x.zip");
+    expect(index.skills[0].archives![0].mimeType).toBe("application/zip");
+    expect(index.skills[1].archives![0].url).toBe("skill://y.tar.gz");
+    expect(index.skills[1].archives![0].mimeType).toBe("application/gzip");
+  });
+
+  it("respects explicit format override", () => {
+    const p = writeArchive("x.bundle");
+    const index = generateSkillIndex(new Map(), {
+      archives: [
+        { name: "x", description: "X", skillPath: "x", archivePath: p, format: "zip" },
+      ],
+    });
+
+    expect(index.skills[0].archives![0].url).toBe("skill://x.zip");
+    expect(index.skills[0].archives![0].mimeType).toBe("application/zip");
+  });
+
+  it("preserves multi-segment skillPath in the archive URL", () => {
+    const p = writeArchive("refunds-multi.tar.gz");
     const index = generateSkillIndex(new Map(), {
       archives: [
         {
           name: "refunds",
           description: "Refunds",
           skillPath: "acme/billing/refunds",
-          archivePath: "/tmp/refunds.tar.gz",
+          archivePath: p,
         },
       ],
     });
 
-    expect(index.skills[0].url).toBe("skill://acme/billing/refunds.tar.gz");
+    expect(index.skills[0].archives![0].url).toBe(
+      "skill://acme/billing/refunds.tar.gz",
+    );
   });
 
   it("rejects archive whose skillPath final segment != name", () => {
@@ -318,31 +367,32 @@ describe("generateSkillIndex with archives", () => {
             name: "wrong-name",
             description: "X",
             skillPath: "acme/billing/refunds",
-            archivePath: "/tmp/x.tar.gz",
+            archivePath: archivePath("never-read.tar.gz"),
           },
         ],
       }),
     ).toThrow(/final segment "refunds" does not match name "wrong-name"/);
   });
 
-  it("emits all three SEP entry types in one index", () => {
+  it("emits both skill-md and archive entries in one index", () => {
+    const p = writeArchive("b.tar.gz");
     const map = makeSkillMap([
       makeSkill({ name: "a", skillPath: "a", description: "A" }),
     ]);
 
     const index = generateSkillIndex(map, {
       archives: [
-        { name: "b", description: "B", skillPath: "b", archivePath: "/tmp/b.tar.gz" },
-      ],
-      templates: [
-        { name: "c", description: "C", uriTemplate: "skill://docs/{x}/SKILL.md" },
+        { name: "b", description: "B", skillPath: "b", archivePath: p },
       ],
     });
 
-    expect(index.skills).toHaveLength(3);
-    expect(index.skills[0].type).toBe("skill-md");
-    expect(index.skills[1].type).toBe("archive");
-    expect(index.skills[2].type).toBe("mcp-resource-template");
+    expect(index.skills).toHaveLength(2);
+    // skill-md entry: url + digest, no archives
+    expect(index.skills[0].url).toBe("skill://a/SKILL.md");
+    expect(index.skills[0].archives).toBeUndefined();
+    // archive entry: archives, no url
+    expect(index.skills[1].url).toBeUndefined();
+    expect(index.skills[1].archives).toHaveLength(1);
   });
 });
 
@@ -353,15 +403,7 @@ describe("generateSkillIndex with archives", () => {
 describe("listSkillsFromIndex with archives", () => {
   it("returns archive entries with type set", async () => {
     const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
-      skills: [
-        {
-          name: "pdf-processing",
-          type: "archive",
-          description: "PDFs",
-          url: "skill://pdf-processing.tar.gz",
-        },
-      ],
+      skills: [archiveEntry("pdf-processing", "skill://pdf-processing.tar.gz", "PDFs")],
     });
 
     const skills = await listSkillsFromIndex(client);
@@ -373,19 +415,20 @@ describe("listSkillsFromIndex with archives", () => {
       type: "archive",
       description: "PDFs",
       mimeType: "application/gzip",
+      digest: "sha256:" + "b".repeat(64),
     });
+    expect(skills![0].archives).toHaveLength(1);
   });
 
   it("derives skillPath by stripping archive suffix", async () => {
     const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
       skills: [
-        {
-          name: "refunds",
-          type: "archive",
-          description: "Refunds",
-          url: "skill://acme/billing/refunds.zip",
-        },
+        archiveEntry(
+          "refunds",
+          "skill://acme/billing/refunds.zip",
+          "Refunds",
+          "application/zip",
+        ),
       ],
     });
 
@@ -396,68 +439,15 @@ describe("listSkillsFromIndex with archives", () => {
 
   it("returns mixed skill-md and archive entries", async () => {
     const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
       skills: [
-        { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" },
-        {
-          name: "b",
-          type: "archive",
-          description: "B",
-          url: "skill://b.tar.gz",
-        },
-        { type: "mcp-resource-template", description: "T", url: "skill://docs/{x}/SKILL.md" },
+        skillMdEntry("a", "skill://a/SKILL.md", "A"),
+        archiveEntry("b", "skill://b.tar.gz", "B"),
       ],
     });
 
     const skills = await listSkillsFromIndex(client);
-    expect(skills).toHaveLength(2); // template excluded; archive included
+    expect(skills).toHaveLength(2);
     expect(skills!.map((s) => s.type)).toEqual(["skill-md", "archive"]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// listSkillTemplatesFromIndex
-// ---------------------------------------------------------------------------
-
-describe("listSkillTemplatesFromIndex", () => {
-  it("returns only mcp-resource-template entries", async () => {
-    const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
-      skills: [
-        { name: "code-review", type: "skill-md", description: "Review", url: "skill://code-review/SKILL.md" },
-        { type: "mcp-resource-template", description: "Docs", url: "skill://docs/{product}/SKILL.md" },
-      ],
-    });
-
-    const templates = await listSkillTemplatesFromIndex(client);
-    expect(templates).toHaveLength(1);
-    expect(templates![0]).toEqual({
-      name: undefined,
-      description: "Docs",
-      uriTemplate: "skill://docs/{product}/SKILL.md",
-    });
-  });
-
-  it("returns empty array when no templates exist", async () => {
-    const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
-      skills: [
-        { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" },
-      ],
-    });
-
-    const templates = await listSkillTemplatesFromIndex(client);
-    expect(templates).toEqual([]);
-  });
-
-  it("returns null when server has no index", async () => {
-    const client: SkillsClient = {
-      listResources: vi.fn(),
-      readResource: vi.fn().mockRejectedValue(new Error("Not found")),
-    };
-
-    const templates = await listSkillTemplatesFromIndex(client);
-    expect(templates).toBeNull();
   });
 });
 
@@ -468,11 +458,18 @@ describe("listSkillTemplatesFromIndex", () => {
 describe("listSkillsFromIndex with non-skill:// URI schemes", () => {
   it("handles entries with any URI scheme", async () => {
     const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
       skills: [
-        { name: "copilot-sdk", type: "skill-md", description: "Copilot SDK guide", url: "repo://github/awesome-copilot/contents/skills/copilot-sdk/SKILL.md" },
-        { name: "code-review", type: "skill-md", description: "Review code", url: "skill://code-review/SKILL.md" },
-        { name: "deploy-guide", type: "skill-md", description: "Deployment guide", url: "github://acme/platform/skills/deploy-guide/SKILL.md" },
+        skillMdEntry(
+          "copilot-sdk",
+          "repo://github/awesome-copilot/contents/skills/copilot-sdk/SKILL.md",
+          "Copilot SDK guide",
+        ),
+        skillMdEntry("code-review", "skill://code-review/SKILL.md", "Review code"),
+        skillMdEntry(
+          "deploy-guide",
+          "github://acme/platform/skills/deploy-guide/SKILL.md",
+          "Deployment guide",
+        ),
       ],
     });
 
@@ -480,122 +477,18 @@ describe("listSkillsFromIndex with non-skill:// URI schemes", () => {
 
     expect(skills).toHaveLength(3);
 
-    // Non-skill:// entry: uri preserved as-is, skillPath extracted per SEP
-    // (path between scheme:// and /SKILL.md, including authority)
     const copilot = skills!.find((s) => s.name === "copilot-sdk")!;
     expect(copilot.uri).toBe("repo://github/awesome-copilot/contents/skills/copilot-sdk/SKILL.md");
     expect(copilot.skillPath).toBe("github/awesome-copilot/contents/skills/copilot-sdk");
     expect(copilot.description).toBe("Copilot SDK guide");
 
-    // skill:// entry: skillPath extracted from URI structure
     const codeReview = skills!.find((s) => s.name === "code-review")!;
     expect(codeReview.uri).toBe("skill://code-review/SKILL.md");
     expect(codeReview.skillPath).toBe("code-review");
 
-    // Another non-skill:// scheme
     const deploy = skills!.find((s) => s.name === "deploy-guide")!;
     expect(deploy.uri).toBe("github://acme/platform/skills/deploy-guide/SKILL.md");
     expect(deploy.skillPath).toBe("acme/platform/skills/deploy-guide");
-  });
-
-  it("produces summaries that work with readSkillUri", async () => {
-    const readResource = vi.fn().mockResolvedValue({
-      contents: [{ text: "---\nname: copilot-sdk\ndescription: Guide\n---\n# Content" }],
-    });
-    const client: SkillsClient = {
-      listResources: vi.fn().mockResolvedValue({ resources: [] }),
-      readResource,
-    };
-
-    // Simulate reading a non-skill:// URI from an index entry
-    const { readSkillUri } = await import("./_client.js");
-    const uri = "repo://github/awesome-copilot/contents/skills/copilot-sdk/SKILL.md";
-    const content = await readSkillUri(client, uri);
-
-    expect(content).toContain("copilot-sdk");
-    expect(readResource).toHaveBeenCalledWith({ uri });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// listSkillsFromIndex ignores template entries
-// ---------------------------------------------------------------------------
-
-describe("listSkillsFromIndex with mixed entry types", () => {
-  it("returns only skill-md entries, ignoring templates", async () => {
-    const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
-      skills: [
-        { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" },
-        { type: "mcp-resource-template", description: "T1", url: "skill://t1/{x}/SKILL.md" },
-        { name: "b", type: "skill-md", description: "B", url: "skill://b/SKILL.md" },
-      ],
-    });
-
-    const skills = await listSkillsFromIndex(client);
-    expect(skills).toHaveLength(2);
-    expect(skills!.map((s) => s.name)).toEqual(["a", "b"]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// $schema validation in listSkillsFromIndex
-// ---------------------------------------------------------------------------
-
-describe("$schema validation", () => {
-  const validEntry = { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" };
-
-  it("does not warn for known schema URI", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
-      skills: [validEntry],
-    });
-
-    const skills = await listSkillsFromIndex(client);
-    expect(skills).toHaveLength(1);
-    expect(warnSpy).not.toHaveBeenCalled();
-    warnSpy.mockRestore();
-  });
-
-  it("warns but still returns skills for unknown schema URI", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const client = mockClientWithIndex({
-      $schema: "https://example.com/unknown-schema/1.0",
-      skills: [validEntry],
-    });
-
-    const skills = await listSkillsFromIndex(client);
-    expect(skills).toHaveLength(1);
-    expect(skills![0].name).toBe("a");
-    expect(warnSpy).toHaveBeenCalledOnce();
-    expect(warnSpy.mock.calls[0][0]).toContain("unknown-schema");
-    warnSpy.mockRestore();
-  });
-
-  it("does not warn when $schema is missing", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const client = mockClientWithIndex({
-      skills: [validEntry],
-    });
-
-    const skills = await listSkillsFromIndex(client);
-    expect(skills).toHaveLength(1);
-    expect(warnSpy).not.toHaveBeenCalled();
-    warnSpy.mockRestore();
-  });
-
-  it("does not warn when $schema is empty string", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const client = mockClientWithIndex({
-      $schema: "",
-      skills: [validEntry],
-    });
-
-    const skills = await listSkillsFromIndex(client);
-    expect(skills).toHaveLength(1);
-    expect(warnSpy).not.toHaveBeenCalled();
-    warnSpy.mockRestore();
   });
 });
 
@@ -618,27 +511,28 @@ describe("index round-trip (server generates → client consumes)", () => {
     expect(skills!.map((s) => s.name).sort()).toEqual(["code-review", "refunds"]);
     expect(skills!.find((s) => s.name === "refunds")!.skillPath).toBe("acme/billing/refunds");
     expect(skills!.find((s) => s.name === "code-review")!.skillPath).toBe("code-review");
+    // digest round-trips
+    expect(skills!.every((s) => SHA256_RE.test(s.digest ?? ""))).toBe(true);
   });
 
-  it("round-trips both skill-md and template entries", async () => {
-    const map = makeSkillMap([
-      makeSkill({ name: "code-review", skillPath: "code-review", description: "Review" }),
-    ]);
-    const templates = [
-      { name: "docs", description: "Product docs", uriTemplate: "skill://docs/{product}/SKILL.md" },
-    ];
-
-    const index = generateSkillIndex(map, templates);
+  it("round-trips an archive entry", async () => {
+    const p = writeArchive("roundtrip.tar.gz");
+    const index = generateSkillIndex(new Map(), {
+      archives: [
+        { name: "roundtrip", description: "RT", skillPath: "roundtrip", archivePath: p },
+      ],
+    });
     const client = mockClientWithIndex(index);
-
     const skills = await listSkillsFromIndex(client);
-    expect(skills).toHaveLength(1);
-    expect(skills![0].name).toBe("code-review");
 
-    const tmpl = await listSkillTemplatesFromIndex(client);
-    expect(tmpl).toHaveLength(1);
-    expect(tmpl![0].uriTemplate).toBe("skill://docs/{product}/SKILL.md");
-    expect(tmpl![0].name).toBeUndefined();
+    expect(skills).toHaveLength(1);
+    expect(skills![0]).toMatchObject({
+      name: "roundtrip",
+      skillPath: "roundtrip",
+      uri: "skill://roundtrip.tar.gz",
+      type: "archive",
+      digest: sha256Digest(fs.readFileSync(p)),
+    });
   });
 });
 
@@ -703,10 +597,7 @@ describe("listSkills", () => {
 describe("discoverSkills", () => {
   it("returns skills from index when available", async () => {
     const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
-      skills: [
-        { name: "code-review", type: "skill-md", description: "Review code", url: "skill://code-review/SKILL.md" },
-      ],
+      skills: [skillMdEntry("code-review", "skill://code-review/SKILL.md", "Review code")],
     });
 
     const skills = await discoverSkills(client);
@@ -735,7 +626,7 @@ describe("discoverSkills", () => {
   it("falls back to resources/list when index returns empty skills", async () => {
     const client: SkillsClient = {
       readResource: vi.fn().mockResolvedValue({
-        contents: [{ text: JSON.stringify({ $schema: SKILL_INDEX_SCHEMA, skills: [] }) }],
+        contents: [{ text: JSON.stringify({ skills: [] }) }],
       }),
       listResources: vi.fn().mockResolvedValue({
         resources: [
@@ -750,15 +641,12 @@ describe("discoverSkills", () => {
     expect(skills[0].name).toBe("fallback");
   });
 
-  it("falls back when index has only template entries", async () => {
+  it("falls back when index has only malformed (unfetchable) entries", async () => {
     const client: SkillsClient = {
       readResource: vi.fn().mockResolvedValue({
         contents: [{
           text: JSON.stringify({
-            $schema: SKILL_INDEX_SCHEMA,
-            skills: [
-              { type: "mcp-resource-template", description: "Docs", url: "skill://docs/{x}/SKILL.md" },
-            ],
+            skills: [{ frontmatter: { name: "orphan", description: "No url/archives" } }],
           }),
         }],
       }),
@@ -802,10 +690,7 @@ describe("discoverSkills", () => {
       readResource: vi.fn().mockResolvedValue({
         contents: [{
           text: JSON.stringify({
-            $schema: SKILL_INDEX_SCHEMA,
-            skills: [
-              { name: "from-index", type: "skill-md", description: "From index", url: "skill://from-index/SKILL.md" },
-            ],
+            skills: [skillMdEntry("from-index", "skill://from-index/SKILL.md", "From index")],
           }),
         }],
       }),
@@ -831,15 +716,10 @@ describe("discoverSkills", () => {
 describe("discoverAndBuildCatalog", () => {
   it("returns skills and catalog text", async () => {
     const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
-      skills: [
-        { name: "code-review", type: "skill-md", description: "Review code", url: "skill://code-review/SKILL.md" },
-      ],
+      skills: [skillMdEntry("code-review", "skill://code-review/SKILL.md", "Review code")],
     });
 
-    const result = await discoverAndBuildCatalog(client, {
-      serverName: "my-server",
-    });
+    const result = await discoverAndBuildCatalog(client, { serverName: "my-server" });
 
     expect(result.skills).toHaveLength(1);
     expect(result.skills[0].name).toBe("code-review");
@@ -850,25 +730,16 @@ describe("discoverAndBuildCatalog", () => {
 
   it("uses default toolName from READ_RESOURCE_TOOL", async () => {
     const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
-      skills: [
-        { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" },
-      ],
+      skills: [skillMdEntry("a", "skill://a/SKILL.md", "A")],
     });
 
-    const result = await discoverAndBuildCatalog(client, {
-      serverName: "test-server",
-    });
-
+    const result = await discoverAndBuildCatalog(client, { serverName: "test-server" });
     expect(result.catalog).toContain("`read_resource`");
   });
 
   it("allows overriding toolName", async () => {
     const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
-      skills: [
-        { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" },
-      ],
+      skills: [skillMdEntry("a", "skill://a/SKILL.md", "A")],
     });
 
     const result = await discoverAndBuildCatalog(client, {
@@ -886,9 +757,7 @@ describe("discoverAndBuildCatalog", () => {
       readResource: vi.fn().mockRejectedValue(new Error("Not found")),
     };
 
-    const result = await discoverAndBuildCatalog(client, {
-      serverName: "empty-server",
-    });
+    const result = await discoverAndBuildCatalog(client, { serverName: "empty-server" });
 
     expect(result.skills).toEqual([]);
     expect(result.catalog).toBe("");
@@ -896,28 +765,20 @@ describe("discoverAndBuildCatalog", () => {
 
   it("works without options entirely (serverName is optional)", async () => {
     const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
-      skills: [
-        { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" },
-      ],
+      skills: [skillMdEntry("a", "skill://a/SKILL.md", "A")],
     });
 
     const result = await discoverAndBuildCatalog(client);
 
     expect(result.skills).toHaveLength(1);
-    // No serverName → wrapper prose drops the "with server" clause
     expect(result.catalog).not.toContain("with server");
     expect(result.catalog).toContain("with the skill's URI");
-    // Default serverInEntries: false
     expect(result.catalog).not.toContain("<server>");
   });
 
   it("threads serverInEntries through to the catalog", async () => {
     const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
-      skills: [
-        { name: "a", type: "skill-md", description: "A", url: "skill://a/SKILL.md" },
-      ],
+      skills: [skillMdEntry("a", "skill://a/SKILL.md", "A")],
     });
 
     const result = await discoverAndBuildCatalog(client, {
@@ -926,20 +787,5 @@ describe("discoverAndBuildCatalog", () => {
     });
 
     expect(result.catalog).toContain("<server>my-server</server>");
-  });
-
-  it("includes server name for activation reliability", async () => {
-    const client = mockClientWithIndex({
-      $schema: SKILL_INDEX_SCHEMA,
-      skills: [
-        { name: "x", type: "skill-md", description: "X", url: "skill://x/SKILL.md" },
-      ],
-    });
-
-    const result = await discoverAndBuildCatalog(client, {
-      serverName: "production-skills",
-    });
-
-    expect(result.catalog).toContain("`production-skills`");
   });
 });

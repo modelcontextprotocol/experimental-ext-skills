@@ -1,16 +1,17 @@
 /**
- * Tests for registerSkillResources() — focused on the resource-template
- * registration path (read + completion wiring) introduced for SEP-2640's
- * mcp-resource-template entry type.
+ * Tests for registerSkillResources() — resource registration, `_meta`
+ * threading, the optional `skill://index.json`, and the SEP-2640
+ * `resources/directory/read` handler.
  */
 
 import { describe, it, expect } from "vitest";
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerSkillResources } from "./_server.js";
+import { DIRECTORY_READ_METHOD } from "./directory.js";
 import type { SkillMetadata } from "./types.js";
 
 // ---------------------------------------------------------------------------
-// Stub MCP server that records every resource() call
+// Stub MCP server that records resource() and setRequestHandler() calls.
 // ---------------------------------------------------------------------------
 
 interface RegisteredCall {
@@ -21,10 +22,19 @@ interface RegisteredCall {
   callback: (...args: any[]) => any;
 }
 
-function makeStubServer(): { calls: RegisteredCall[]; resource: (...args: unknown[]) => void } {
+interface HandlerCall {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  schema: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  handler: (...args: any[]) => any;
+}
+
+function makeStubServer() {
   const calls: RegisteredCall[] = [];
+  const handlers: HandlerCall[] = [];
   return {
     calls,
+    handlers,
     resource(...args: unknown[]) {
       const [name, uriOrTemplate, metadata, callback] = args as [
         string,
@@ -33,6 +43,10 @@ function makeStubServer(): { calls: RegisteredCall[]; resource: (...args: unknow
         (...a: unknown[]) => unknown,
       ];
       calls.push({ name, uriOrTemplate, metadata, callback });
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setRequestHandler(schema: any, handler: (...a: any[]) => any) {
+      handlers.push({ schema, handler });
     },
   };
 }
@@ -45,189 +59,39 @@ function emptySkillMap(): Map<string, SkillMetadata> {
   return new Map();
 }
 
+function skill(overrides: Partial<SkillMetadata> & {
+  name: string;
+  skillPath: string;
+}): SkillMetadata {
+  return {
+    description: "desc",
+    absolutePath: `/skills/${overrides.skillPath}/SKILL.md`,
+    skillDir: `/skills/${overrides.skillPath}`,
+    documents: [],
+    size: 100,
+    lastModified: "2026-01-01T00:00:00.000Z",
+    frontmatter: { name: overrides.name, description: "desc" },
+    digest: "sha256:" + "0".repeat(64),
+    ...overrides,
+  };
+}
+
 // ---------------------------------------------------------------------------
-// Template registration
+// _meta threading
 // ---------------------------------------------------------------------------
 
-describe("registerSkillResources — template declarations with read + complete", () => {
-  it("registers an MCP ResourceTemplate for declarations with a read handler", () => {
-    const server = makeStubServer();
-
-    registerSkillResources(server, emptySkillMap(), "/skills", {
-      template: false,
-      templates: [
-        {
-          name: "docs",
-          description: "Per-product docs",
-          uriTemplate: "skill://docs/{product}/SKILL.md",
-          read: () => ({ text: "# placeholder" }),
-        },
-      ],
-    });
-
-    const templateCall = server.calls.find((c) => c.name === "template:docs");
-    expect(templateCall).toBeDefined();
-    expect(templateCall!.uriOrTemplate).toBeInstanceOf(ResourceTemplate);
-    expect(
-      (templateCall!.uriOrTemplate as ResourceTemplate).uriTemplate.toString(),
-    ).toBe("skill://docs/{product}/SKILL.md");
-  });
-
-  it("skips registration when no read handler is provided", () => {
-    const server = makeStubServer();
-
-    registerSkillResources(server, emptySkillMap(), "/skills", {
-      template: false,
-      templates: [
-        {
-          name: "docs",
-          description: "Index-only template",
-          uriTemplate: "skill://docs/{product}/SKILL.md",
-          // no read, no complete
-        },
-      ],
-    });
-
-    expect(server.calls.find((c) => c.name === "template:docs")).toBeUndefined();
-  });
-
-  it("invokes the read handler with the resolved URI and bound variables", async () => {
-    const server = makeStubServer();
-    let observedUri: string | undefined;
-    let observedVars: Record<string, string> | undefined;
-
-    registerSkillResources(server, emptySkillMap(), "/skills", {
-      template: false,
-      templates: [
-        {
-          name: "docs",
-          description: "Per-product docs",
-          uriTemplate: "skill://docs/{product}/SKILL.md",
-          read: (uri, vars) => {
-            observedUri = uri;
-            observedVars = vars;
-            return { text: `# Docs for ${vars.product}` };
-          },
-        },
-      ],
-    });
-
-    const call = server.calls.find((c) => c.name === "template:docs")!;
-    const result = await call.callback(
-      new URL("skill://docs/widget-api/SKILL.md"),
-      { product: "widget-api" },
-    );
-
-    expect(observedUri).toBe("skill://docs/widget-api/SKILL.md");
-    expect(observedVars).toEqual({ product: "widget-api" });
-    expect(result.contents[0].text).toBe("# Docs for widget-api");
-    expect(result.contents[0].mimeType).toBe("text/markdown");
-  });
-
-  it("flattens array-valued template variables to their first element", async () => {
-    const server = makeStubServer();
-    let observedVars: Record<string, string> | undefined;
-
-    registerSkillResources(server, emptySkillMap(), "/skills", {
-      template: false,
-      templates: [
-        {
-          name: "docs",
-          description: "Per-product docs",
-          uriTemplate: "skill://docs/{product}/SKILL.md",
-          read: (_uri, vars) => {
-            observedVars = vars;
-            return { text: "ok" };
-          },
-        },
-      ],
-    });
-
-    const call = server.calls.find((c) => c.name === "template:docs")!;
-    await call.callback(new URL("skill://docs/x/SKILL.md"), {
-      product: ["x", "y"],
-    });
-
-    expect(observedVars).toEqual({ product: "x" });
-  });
-
-  it("wires the per-variable completion callback to the ResourceTemplate", async () => {
-    const server = makeStubServer();
-
-    registerSkillResources(server, emptySkillMap(), "/skills", {
-      template: false,
-      templates: [
-        {
-          name: "docs",
-          description: "Per-product docs",
-          uriTemplate: "skill://docs/{product}/SKILL.md",
-          read: () => ({ text: "ok" }),
-          complete: {
-            product: (value) =>
-              ["widget-api", "gizmo-api", "gadget-api"].filter((p) =>
-                p.startsWith(value),
-              ),
-          },
-        },
-      ],
-    });
-
-    const call = server.calls.find((c) => c.name === "template:docs")!;
-    const template = call.uriOrTemplate as ResourceTemplate;
-    const completer = template.completeCallback("product");
-    expect(completer).toBeDefined();
-
-    const all = await completer!("");
-    expect(all).toEqual(["widget-api", "gizmo-api", "gadget-api"]);
-
-    const filtered = await completer!("g");
-    expect(filtered).toEqual(["gizmo-api", "gadget-api"]);
-  });
-
-  it("returns an error body when the read handler throws", async () => {
-    const server = makeStubServer();
-
-    registerSkillResources(server, emptySkillMap(), "/skills", {
-      template: false,
-      templates: [
-        {
-          name: "docs",
-          description: "Per-product docs",
-          uriTemplate: "skill://docs/{product}/SKILL.md",
-          read: () => {
-            throw new Error("backing store unreachable");
-          },
-        },
-      ],
-    });
-
-    const call = server.calls.find((c) => c.name === "template:docs")!;
-    const result = await call.callback(
-      new URL("skill://docs/x/SKILL.md"),
-      { product: "x" },
-    );
-
-    expect(result.contents[0].text).toContain("backing store unreachable");
-  });
-
+describe("registerSkillResources — _meta threading", () => {
   it("threads SkillMetadata.meta into the SKILL.md resource _meta", () => {
     const server = makeStubServer();
     const skillMap = new Map<string, SkillMetadata>([
       [
         "code-review",
-        {
+        skill({
           name: "code-review",
           skillPath: "code-review",
           description: "Review code",
-          absolutePath: "/skills/code-review/SKILL.md",
-          skillDir: "/skills/code-review",
-          documents: [],
-          size: 100,
-          lastModified: "2026-01-01T00:00:00.000Z",
-          meta: {
-            "io.modelcontextprotocol.skills/provenance": "acme/internal",
-          },
-        },
+          meta: { "io.modelcontextprotocol.skills/provenance": "acme/internal" },
+        }),
       ],
     ]);
 
@@ -243,67 +107,23 @@ describe("registerSkillResources — template declarations with read + complete"
   it("omits _meta from registration when SkillMetadata.meta is unset", () => {
     const server = makeStubServer();
     const skillMap = new Map<string, SkillMetadata>([
-      [
-        "code-review",
-        {
-          name: "code-review",
-          skillPath: "code-review",
-          description: "Review code",
-          absolutePath: "/skills/code-review/SKILL.md",
-          skillDir: "/skills/code-review",
-          documents: [],
-          size: 100,
-          lastModified: "2026-01-01T00:00:00.000Z",
-        },
-      ],
+      ["code-review", skill({ name: "code-review", skillPath: "code-review", description: "Review code" })],
     ]);
 
     registerSkillResources(server, skillMap, "/skills", { template: false });
     const skillCall = server.calls.find((c) => c.name === "code-review");
     expect(skillCall!.metadata._meta).toBeUndefined();
   });
+});
 
-  it("throws when a template declaration has complete without read", () => {
-    const server = makeStubServer();
-    expect(() =>
-      registerSkillResources(server, emptySkillMap(), "/skills", {
-        template: false,
-        templates: [
-          {
-            name: "docs",
-            description: "Per-product docs",
-            uriTemplate: "skill://docs/{product}/SKILL.md",
-            // complete provided but no read → completion would never wire up
-            complete: {
-              product: () => ["widget-api"],
-            },
-          },
-        ],
-      }),
-    ).toThrow(/has `complete` callbacks but no `read` handler/);
-  });
+// ---------------------------------------------------------------------------
+// skill://index.json registration
+// ---------------------------------------------------------------------------
 
-  it("allows a template declaration with neither read nor complete (index-only)", () => {
-    const server = makeStubServer();
-    expect(() =>
-      registerSkillResources(server, emptySkillMap(), "/skills", {
-        template: false,
-        templates: [
-          {
-            name: "docs",
-            description: "Index-only",
-            uriTemplate: "skill://docs/{product}/SKILL.md",
-          },
-        ],
-      }),
-    ).not.toThrow();
-  });
-
+describe("registerSkillResources — index resource", () => {
   it("registers skill://index.json by default", () => {
     const server = makeStubServer();
-    registerSkillResources(server, emptySkillMap(), "/skills", {
-      template: false,
-    });
+    registerSkillResources(server, emptySkillMap(), "/skills", { template: false });
     expect(server.calls.find((c) => c.name === "skills-index")).toBeDefined();
   });
 
@@ -316,25 +136,78 @@ describe("registerSkillResources — template declarations with read + complete"
     expect(server.calls.find((c) => c.name === "skills-index")).toBeUndefined();
   });
 
-  it("registers user templates before the catch-all skill-file template", () => {
+  it("registers the catch-all skill-file template when template: true", () => {
     const server = makeStubServer();
+    registerSkillResources(server, emptySkillMap(), "/skills", { template: true });
+    const catchAll = server.calls.find((c) => c.name === "skill-file");
+    expect(catchAll).toBeDefined();
+    expect(catchAll!.uriOrTemplate).toBeInstanceOf(ResourceTemplate);
+  });
+});
 
+// ---------------------------------------------------------------------------
+// resources/directory/read handler
+// ---------------------------------------------------------------------------
+
+describe("registerSkillResources — directoryRead", () => {
+  it("does not register a directory/read handler by default", () => {
+    const server = makeStubServer();
+    registerSkillResources(server, emptySkillMap(), "/skills", { template: false });
+    expect(server.handlers).toHaveLength(0);
+  });
+
+  it("registers a resources/directory/read handler when directoryRead: true", () => {
+    const server = makeStubServer();
     registerSkillResources(server, emptySkillMap(), "/skills", {
-      template: true, // catch-all enabled
-      templates: [
-        {
-          name: "docs",
-          description: "Per-product docs",
-          uriTemplate: "skill://docs/{product}/SKILL.md",
-          read: () => ({ text: "ok" }),
-        },
-      ],
+      template: false,
+      directoryRead: true,
     });
 
-    const docsIdx = server.calls.findIndex((c) => c.name === "template:docs");
-    const catchAllIdx = server.calls.findIndex((c) => c.name === "skill-file");
-    expect(docsIdx).toBeGreaterThanOrEqual(0);
-    expect(catchAllIdx).toBeGreaterThanOrEqual(0);
-    expect(docsIdx).toBeLessThan(catchAllIdx);
+    expect(server.handlers).toHaveLength(1);
+    // The schema routes by its `method` literal.
+    const method = server.handlers[0].schema.shape.method.value;
+    expect(method).toBe(DIRECTORY_READ_METHOD);
+  });
+
+  it("registers the handler on the low-level server (server.server) when present", () => {
+    const low = makeStubServer();
+    const high = { resource: low.resource, server: low };
+    registerSkillResources(high, emptySkillMap(), "/skills", {
+      template: false,
+      directoryRead: true,
+    });
+    expect(low.handlers).toHaveLength(1);
+  });
+
+  it("serves a directory listing for a registered skill", async () => {
+    const server = makeStubServer();
+    const skillMap = new Map<string, SkillMetadata>([
+      [
+        "code-review",
+        skill({
+          name: "code-review",
+          skillPath: "code-review",
+          documents: [
+            { path: "references/GUIDE.md", mimeType: "text/markdown", size: 10 },
+          ],
+        }),
+      ],
+    ]);
+
+    registerSkillResources(server, skillMap, "/skills", {
+      template: false,
+      directoryRead: true,
+    });
+
+    const handler = server.handlers[0].handler;
+    const result = await handler({
+      method: DIRECTORY_READ_METHOD,
+      params: { uri: "skill://code-review" },
+    });
+
+    const names = result.resources.map((r: { name: string }) => r.name).sort();
+    expect(names).toEqual(["SKILL.md", "references"]);
+    const refDir = result.resources.find((r: { name: string }) => r.name === "references");
+    expect(refDir.mimeType).toBe("inode/directory");
   });
 });

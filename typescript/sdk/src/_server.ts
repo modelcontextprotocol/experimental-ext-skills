@@ -12,18 +12,18 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { createHash } from "node:crypto";
 import { parse as parseYaml } from "yaml";
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type {
   SkillMetadata,
   SkillDocument,
   SkillIndex,
-  SkillTemplateDeclaration,
+  SkillIndexEntry,
   SkillArchiveDeclaration,
   ArchiveFormat,
   RegisterSkillResourcesOptions,
 } from "./types.js";
-import { SKILL_INDEX_SCHEMA } from "./types.js";
 import { getMimeType, isTextMimeType } from "./mime.js";
 import {
   buildSkillUri,
@@ -32,9 +32,21 @@ import {
   isValidSkillName,
 } from "./uri.js";
 import { archiveMimeType, archiveSuffix } from "./archive.js";
+import {
+  DirectoryReadRequestSchema,
+  makeDirectoryReadHandler,
+} from "./directory.js";
 
 /** Maximum file size for skill files (1MB). */
 const MAX_FILE_SIZE = 1 * 1024 * 1024;
+
+/**
+ * Compute a SHA-256 digest of raw bytes, formatted `sha256:{hex}` (64
+ * lowercase hex), as required for `skill://index.json` entries by SEP-2640.
+ */
+export function sha256Digest(data: Buffer | string): string {
+  return "sha256:" + createHash("sha256").update(data).digest("hex");
+}
 
 /**
  * Parse YAML frontmatter from SKILL.md content.
@@ -293,8 +305,12 @@ export function discoverSkills(
     }
 
     try {
-      const content = fs.readFileSync(skillMdPath, "utf-8");
+      // Read raw bytes once: the digest is over the raw file bytes (SEP-2640),
+      // while parsing needs the UTF-8 decoding.
+      const fileBytes = fs.readFileSync(skillMdPath);
+      const content = fileBytes.toString("utf-8");
       const { frontmatter } = parseFrontmatter(content);
+      const digest = sha256Digest(fileBytes);
 
       const name = frontmatter.name;
       const description = frontmatter.description;
@@ -345,6 +361,8 @@ export function discoverSkills(
         name: name.trim(),
         skillPath,
         description: description.trim(),
+        frontmatter,
+        digest,
         absolutePath: skillMdPath,
         skillDir,
         documents,
@@ -432,9 +450,7 @@ export function loadDocument(
  * Options for generateSkillIndex().
  */
 export interface GenerateSkillIndexOptions {
-  /** Resource template declarations → mcp-resource-template entries. */
-  templates?: SkillTemplateDeclaration[];
-  /** Archive declarations → archive entries. */
+  /** Archive declarations → per-skill `archives` entries. */
   archives?: SkillArchiveDeclaration[];
 }
 
@@ -462,65 +478,71 @@ function archiveResourceUri(decl: SkillArchiveDeclaration): string {
 }
 
 /**
- * Generate the skill://index.json discovery index.
+ * Validate an archive declaration against the SEP path/name rules and read
+ * its bytes, returning the index `archives[]` reference for it.
+ */
+function archiveIndexRef(decl: SkillArchiveDeclaration): {
+  url: string;
+  mimeType: string;
+  digest: string;
+} {
+  // SEP constraint: final segment of skillPath MUST equal frontmatter name.
+  const finalSegment = decl.skillPath.split("/").pop()!;
+  if (finalSegment !== decl.name) {
+    throw new Error(
+      `Archive declaration: skillPath "${decl.skillPath}" final segment "${finalSegment}" does not match name "${decl.name}". Per SEP-2640, the final segment of the skill path MUST equal the frontmatter name.`,
+    );
+  }
+  // SEP constraint: the name MUST satisfy the Agent Skills naming rule.
+  if (!isValidSkillName(decl.name)) {
+    throw new Error(
+      `Archive declaration: name "${decl.name}" violates the Agent Skills naming rule. Names must contain only lowercase letters, digits, and hyphens.`,
+    );
+  }
+  let bytes: Buffer;
+  try {
+    bytes = fs.readFileSync(decl.archivePath);
+  } catch (err) {
+    throw new Error(
+      `Failed to read archive "${decl.archivePath}" for skill "${decl.name}": ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  return {
+    url: archiveResourceUri(decl),
+    mimeType: archiveMimeType(resolveArchiveFormat(decl)),
+    digest: sha256Digest(bytes),
+  };
+}
+
+/**
+ * Generate the `skill://index.json` discovery index (SEP-2640).
  *
- * Follows the Agent Skills well-known URI discovery index format. Includes
- * one entry per skill in `skillMap` (`type: "skill-md"`), one per archive
- * declaration (`type: "archive"`), and one per template declaration
- * (`type: "mcp-resource-template"`) — all three SEP-defined entry types.
- *
- * Backwards-compat: a bare `SkillTemplateDeclaration[]` may be passed as
- * the second argument in place of an options object.
+ * Emits one type-less entry per skill in `skillMap` — `{ frontmatter, url,
+ * digest }`, where `frontmatter` is the skill's full SKILL.md frontmatter
+ * copied verbatim — and one entry per archive declaration —
+ * `{ frontmatter, archives: [{ url, mimeType, digest }] }`. The index has no
+ * `$schema`/version marker.
  */
 export function generateSkillIndex(
   skillMap: Map<string, SkillMetadata>,
-  optionsOrTemplates?:
-    | GenerateSkillIndexOptions
-    | SkillTemplateDeclaration[],
+  options?: GenerateSkillIndexOptions,
 ): SkillIndex {
-  const options: GenerateSkillIndexOptions = Array.isArray(optionsOrTemplates)
-    ? { templates: optionsOrTemplates }
-    : optionsOrTemplates ?? {};
+  const opts = options ?? {};
 
-  const skillEntries = Array.from(skillMap.entries()).map(([skillPath, skill]) => ({
-    name: skill.name,
-    type: "skill-md" as const,
-    description: skill.description,
-    url: buildSkillUri(skillPath),
+  const skillEntries: SkillIndexEntry[] = Array.from(skillMap.values()).map(
+    (skill) => ({
+      frontmatter: skill.frontmatter,
+      url: buildSkillUri(skill.skillPath),
+      digest: skill.digest,
+    }),
+  );
+
+  const archiveEntries: SkillIndexEntry[] = (opts.archives ?? []).map((a) => ({
+    frontmatter: a.frontmatter ?? { name: a.name, description: a.description },
+    archives: [archiveIndexRef(a)],
   }));
 
-  const archiveEntries = (options.archives ?? []).map((a) => {
-    // SEP constraint: final segment of skillPath MUST equal frontmatter name
-    const finalSegment = a.skillPath.split("/").pop()!;
-    if (finalSegment !== a.name) {
-      throw new Error(
-        `Archive declaration: skillPath "${a.skillPath}" final segment "${finalSegment}" does not match name "${a.name}". Per SEP-2640, the final segment of the skill path MUST equal the frontmatter name.`,
-      );
-    }
-    // SEP constraint: the name MUST satisfy the Agent Skills naming rule.
-    if (!isValidSkillName(a.name)) {
-      throw new Error(
-        `Archive declaration: name "${a.name}" violates the Agent Skills naming rule. Names must contain only lowercase letters, digits, and hyphens.`,
-      );
-    }
-    return {
-      name: a.name,
-      type: "archive" as const,
-      description: a.description,
-      url: archiveResourceUri(a),
-    };
-  });
-
-  const templateEntries = (options.templates ?? []).map((t) => ({
-    type: "mcp-resource-template" as const,
-    description: t.description,
-    url: t.uriTemplate,
-  }));
-
-  return {
-    $schema: SKILL_INDEX_SCHEMA,
-    skills: [...skillEntries, ...archiveEntries, ...templateEntries],
-  };
+  return { skills: [...skillEntries, ...archiveEntries] };
 }
 
 /**
@@ -533,10 +555,9 @@ export function generateSkillIndex(
  *   - skill://index.json — well-known discovery index (SEP enumeration)
  *
  * Optionally registers:
- *   - One MCP `ResourceTemplate` per `templates[]` declaration with a `read`
- *     handler — wired to MCP completion via per-variable `complete` callbacks.
- *   - skill://{+skillFilePath} — catch-all template for supporting files
- *     (registered last so specific template patterns match first).
+ *   - skill://{+skillFilePath} — catch-all template for supporting files.
+ *   - A `resources/directory/read` handler (when `directoryRead: true`) so
+ *     hosts can enumerate the files under each individually-served skill.
  */
 export function registerSkillResources(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -550,24 +571,8 @@ export function registerSkillResources(
     index = true,
     audience = ["assistant"],
     archives = [],
-    templates = [],
+    directoryRead = false,
   } = options ?? {};
-
-  // Surface a likely-unintended config: a template declaration carrying
-  // completion callbacks but no read handler is enumerated in
-  // `skill://index.json` only. Without `read`, the SDK can't register an
-  // MCP ResourceTemplate, so `complete` would silently never reach the
-  // completion API. Index-only declarations are valid (per CLAUDE.md), but
-  // they should not pass `complete`.
-  for (const decl of templates) {
-    if (!decl.read && decl.complete) {
-      throw new Error(
-        `SkillTemplateDeclaration "${decl.name}" has \`complete\` callbacks but no \`read\` handler. ` +
-          `Without \`read\`, no MCP ResourceTemplate is registered and \`complete\` cannot be wired to the completion API. ` +
-          `Either add a \`read\` handler, or drop \`complete\` for index-only declarations.`,
-      );
-    }
-  }
 
   // Compute the most recent lastModified across all skills for aggregate resources
   const latestModified = skillMap.size > 0
@@ -668,14 +673,14 @@ export function registerSkillResources(
   // Well-known discovery index (SEP enumeration mechanism). Optional —
   // servers with unenumerable catalogs can pass `index: false`.
   if (index) {
-    const indexJson = generateSkillIndex(skillMap, { archives, templates });
+    const indexJson = generateSkillIndex(skillMap, { archives });
     const indexJsonStr = JSON.stringify(indexJson, null, 2);
     server.resource(
       "skills-index",
       INDEX_JSON_URI,
       {
         description:
-          "Discovery index of available skills, following the Agent Skills well-known URI format",
+          "Discovery index of available skills served by this server (skill://index.json)",
         mimeType: "application/json",
         size: Buffer.byteLength(indexJsonStr),
         annotations: {
@@ -695,63 +700,19 @@ export function registerSkillResources(
     );
   }
 
-  // Parameterized resource templates from declarations.
-  // Registered before the catch-all so specific patterns match first
-  // (the McpServer iterates templates in registration order).
-  for (const decl of templates) {
-    if (!decl.read) continue;
-
-    const readHandler = decl.read;
-    server.resource(
-      `template:${decl.name}`,
-      new ResourceTemplate(decl.uriTemplate, {
-        list: undefined,
-        complete: decl.complete,
-      }),
-      {
-        description: decl.description,
-        mimeType: "text/markdown",
-        annotations: {
-          audience,
-          priority: 0.6,
-          lastModified: latestModified,
-        },
-      },
-      async (uri: URL, variables: Record<string, string | string[]>) => {
-        const flatVars: Record<string, string> = {};
-        for (const [k, v] of Object.entries(variables)) {
-          flatVars[k] = Array.isArray(v) ? v[0] : v;
-        }
-        try {
-          const result = await readHandler(uri.href, flatVars);
-          return {
-            contents: [
-              {
-                uri: uri.href,
-                mimeType: result.mimeType ?? "text/markdown",
-                ...(result.text !== undefined ? { text: result.text } : {}),
-                ...(result.blob !== undefined ? { blob: result.blob } : {}),
-              },
-            ],
-          };
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          return {
-            contents: [
-              {
-                uri: uri.href,
-                text: `# Error\n\nFailed to read templated skill "${decl.name}": ${message}`,
-              },
-            ],
-          };
-        }
-      },
-    );
+  // SEP-2640 `resources/directory/read`: enumerate the files under each
+  // individually-served skill directory. Registered on the low-level request
+  // router (this is an extension method, not part of the high-level resource
+  // API). The server MUST also advertise the capability via
+  // `declareSkillsExtension(server, { directoryRead: true })` before connect.
+  if (directoryRead) {
+    const handler = makeDirectoryReadHandler(skillMap);
+    // McpServer exposes the underlying low-level Server as `.server`.
+    const lowLevel = server.server ?? server;
+    lowLevel.setRequestHandler(DirectoryReadRequestSchema, handler);
   }
 
-  // Catch-all resource template for supporting files. Registered last so
-  // user-declared specific templates above match first.
+  // Catch-all resource template for supporting files.
   if (template) {
     server.resource(
       "skill-file",

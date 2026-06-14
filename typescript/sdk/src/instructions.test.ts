@@ -10,7 +10,6 @@ import {
   discoverSkills,
 } from "./_client.js";
 import type { SkillsClient } from "./_client.js";
-import { SKILL_INDEX_SCHEMA } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // extractSkillUrisFromInstructions
@@ -140,13 +139,11 @@ describe("listSkillsFromInstructions", () => {
 describe("discoverSkills with server instructions", () => {
   it("does NOT mine instructions by default", async () => {
     const indexJson = {
-      $schema: SKILL_INDEX_SCHEMA,
       skills: [
         {
-          name: "from-index",
-          type: "skill-md",
-          description: "Index",
+          frontmatter: { name: "from-index", description: "Index" },
           url: "skill://from-index/SKILL.md",
+          digest: "sha256:" + "a".repeat(64),
         },
       ],
     };
@@ -172,13 +169,11 @@ describe("discoverSkills with server instructions", () => {
 
   it("merges instructions URIs with index entries when opted in", async () => {
     const indexJson = {
-      $schema: SKILL_INDEX_SCHEMA,
       skills: [
         {
-          name: "from-index",
-          type: "skill-md",
-          description: "Index",
+          frontmatter: { name: "from-index", description: "Index" },
           url: "skill://from-index/SKILL.md",
+          digest: "sha256:" + "a".repeat(64),
         },
       ],
     };
@@ -212,13 +207,11 @@ describe("discoverSkills with server instructions", () => {
 
   it("does not duplicate an instructions URI that's already in the index", async () => {
     const indexJson = {
-      $schema: SKILL_INDEX_SCHEMA,
       skills: [
         {
-          name: "shared",
-          type: "skill-md",
-          description: "Shared",
+          frontmatter: { name: "shared", description: "Shared" },
           url: "skill://shared/SKILL.md",
+          digest: "sha256:" + "a".repeat(64),
         },
       ],
     };

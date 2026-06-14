@@ -7,12 +7,12 @@
  *
  *   1. READ_RESOURCE_TOOL                 — host-provided tool schema
  *   2. listSkillsFromIndex()              — `skill://index.json` discovery
- *      - includes both `skill-md` and `archive` entries
- *   3. listSkillTemplatesFromIndex()      — `mcp-resource-template` entries
+ *      - entries carry verbatim `frontmatter`, `url`+`digest`, and/or `archives`
+ *   3. readDirectory() / walkDirectory()  — `resources/directory/read`
  *   4. listSkills()                       — fallback via `resources/list`
  *   5. readSkillContent()                 — read an individual SKILL.md
  *   6. readSkillArchive()                 — fetch + safely unpack a .tar.gz
- *   7. Resolve a parameterized template   — completion API → resources/read
+ *   7. verifyDigest()                     — integrity-check a read against the index
  *   8. readSkillDocument()                — supporting-file flow
  *
  * Connects to the skills-server via stdio (spawns it as a child process).
@@ -24,19 +24,20 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { CompleteResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
   READ_RESOURCE_TOOL,
   listSkills,
   listSkillsFromIndex,
-  listSkillTemplatesFromIndex,
   readSkillContent,
-  readSkillUri,
   readSkillArchive,
   readSkillDocument,
   buildSkillsSummary,
   discoverAndBuildCatalog,
   extractSkillUrisFromInstructions,
+  serverSupportsDirectoryRead,
+  readDirectory,
+  walkDirectory,
+  verifyDigest,
 } from "@modelcontextprotocol/experimental-ext-skills/client";
 import { buildSkillUri } from "@modelcontextprotocol/experimental-ext-skills";
 
@@ -117,26 +118,27 @@ async function main(): Promise<void> {
     }
 
     // -----------------------------------------------------------------------
-    // 3. Resource templates (third SEP entry type)
+    // 3. resources/directory/read — enumerate a skill directory
     // -----------------------------------------------------------------------
-    header("3. listSkillTemplatesFromIndex() — mcp-resource-template entries");
-    const templates = await listSkillTemplatesFromIndex(client);
-    if (!templates || templates.length === 0) {
-      console.log("(no template entries in this server's index)");
+    header("3. readDirectory() — resources/directory/read enumeration");
+    if (!serverSupportsDirectoryRead(client)) {
+      console.log(
+        "(server did not declare the directoryRead capability — skipping)",
+      );
     } else {
-      console.log(`Found ${templates.length} template(s):\n`);
-      for (const t of templates) {
-        console.log(`  Name:         ${t.name ?? "(unnamed)"}`);
-        console.log(`  URI Template: ${t.uriTemplate}`);
-        console.log(`  Description:  ${t.description}`);
-        console.log();
+      const refundsRoot = "skill://acme/billing/refunds";
+      console.log(`Listing ${refundsRoot} (metadata only, non-recursive):\n`);
+      const { resources } = await readDirectory(client, refundsRoot);
+      for (const child of resources) {
+        const kind = child.mimeType === "inode/directory" ? "dir " : "file";
+        console.log(`  [${kind}] ${child.name}  (${child.uri})`);
       }
-      console.log(
-        "Hosts wire {variables} in the template to the MCP completion API",
-      );
-      console.log(
-        "so users can interactively browse parameterized skill namespaces.",
-      );
+
+      subheader("walkDirectory() — recurse to list every descendant file");
+      const files = await walkDirectory(client, refundsRoot);
+      for (const f of files.sort((a, b) => a.uri.localeCompare(b.uri))) {
+        console.log(`  ${f.uri}`);
+      }
     }
 
     // -----------------------------------------------------------------------
@@ -191,47 +193,30 @@ async function main(): Promise<void> {
     }
 
     // -----------------------------------------------------------------------
-    // 7. Resolve a parameterized template via completion + resources/read
+    // 7. Digest verification — integrity-check a read against the index
     // -----------------------------------------------------------------------
-    header("7. Resource Template — completion + resources/read");
-    const templateEntry = (templates ?? [])[0];
-    if (templateEntry) {
-      console.log(`Template URI: ${templateEntry.uriTemplate}\n`);
-
-      // Ask the server which {product} values it supports via the MCP
-      // completion API. Real hosts wire this into a UI; here we print it.
-      subheader("MCP completion API → candidate {product} values");
-      const completion = await client.request(
-        {
-          method: "completion/complete",
-          params: {
-            ref: {
-              type: "ref/resource",
-              uri: templateEntry.uriTemplate,
-            },
-            argument: { name: "product", value: "" },
-          },
-        },
-        CompleteResultSchema,
+    header("7. verifyDigest() — integrity-check against the index digest");
+    const verifyTarget = (indexSkills ?? []).find(
+      (s) => s.type === "skill-md" && s.digest,
+    );
+    if (verifyTarget) {
+      console.log(`Skill:        ${verifyTarget.uri}`);
+      console.log(`Index digest: ${verifyTarget.digest}\n`);
+      const content = await readSkillContent(client, verifyTarget.skillPath);
+      const ok = verifyDigest(content, verifyTarget.digest!);
+      console.log(
+        ok
+          ? "Content matches the index digest ✓ (SEP-2640: hosts MUST verify)"
+          : "Content does NOT match the index digest ✗ — possible tamper/drift",
       );
-      const completions = completion?.completion?.values ?? [];
-      console.log(`Candidates: ${completions.join(", ") || "(none)"}`);
-
-      const product = completions[0];
-      if (product) {
-        const resolvedUri = templateEntry.uriTemplate.replace(
-          "{product}",
-          product,
-        );
-        subheader(`Resolved URI → resources/read`);
-        console.log(`Resolved: ${resolvedUri}\n`);
-        const text = await readSkillUri(client, resolvedUri);
-        preview(text, 15);
-      } else {
-        console.log("(no completions returned — server may not provide them)");
-      }
+      console.log(
+        "\nNote: the index digest is over the SKILL.md raw bytes, and SKILL.md",
+      );
+      console.log(
+        "is UTF-8, so hashing the received text (UTF-8) matches byte-for-byte.",
+      );
     } else {
-      console.log("(no template entries to demo)");
+      console.log("(no skill-md entry with a digest to verify)");
     }
 
     // -----------------------------------------------------------------------
@@ -300,13 +285,13 @@ async function main(): Promise<void> {
     // -----------------------------------------------------------------------
     header("Demo Complete");
     console.log("Demonstrated SEP-2640 features:");
-    console.log("  [SEP-2133]  Extension declaration (io.modelcontextprotocol/skills)");
+    console.log("  [SEP-2640]  Extension declaration (io.modelcontextprotocol/skills)");
     console.log("  [SEP-2640]  skill:// URI scheme + multi-segment paths");
-    console.log("  [SEP-2640]  skill://index.json discovery");
+    console.log("  [SEP-2640]  skill://index.json discovery (verbatim frontmatter, url+digest, archives)");
+    console.log("  [SEP-2640]  resources/directory/read enumeration (directoryRead capability)");
     console.log("  [SEP-2640]  Server instructions — third discovery path");
-    console.log("  [SEP-2640]  All three entry types: skill-md, archive, mcp-resource-template");
     console.log("  [SEP-2640]  Archive fetch + safe unpack (.tar.gz, archive safety)");
-    console.log("  [SEP-2640]  Resource template — completion API + resources/read");
+    console.log("  [SEP-2640]  Digest verification against the index");
     console.log("  [Hosts]     read_resource tool surface + per-entry <server> in catalog");
     console.log("  [Hosts]     supporting-file flow");
     console.log();

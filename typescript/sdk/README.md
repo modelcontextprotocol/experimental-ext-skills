@@ -34,22 +34,30 @@ import {
 // Recursively scan a directory for SKILL.md files
 const skillMap = discoverSkills("./skills");
 
-// Create server and declare the skills extension (SEP-2133)
+// Create server and declare the skills extension (SEP-2640).
+// Pass { directoryRead: true } to advertise resources/directory/read.
 const server = new McpServer(
   { name: "my-server", version: "1.0.0" },
   { capabilities: { resources: {} } },
 );
-declareSkillsExtension(server.server);
+declareSkillsExtension(server.server, { directoryRead: true });
 
-// Register all skill resources (SKILL.md, index, supporting-file template)
+// Register all skill resources (SKILL.md, index, supporting-file template,
+// and the resources/directory/read handler).
 registerSkillResources(server, skillMap, "./skills", {
-  template: true,    // enable resource template for supporting files
+  template: true,        // enable resource template for supporting files
+  directoryRead: true,   // implement resources/directory/read (pairs with the declaration above)
   // audience defaults to ["assistant"] — skills consumed only by the model
   // use ["user", "assistant"] for skills also shown in a skill browser UI
 });
 
 await server.connect(new StdioServerTransport());
 ```
+
+> **Directory enumeration is opt-in.** Declaring `directoryRead: true` and
+> passing `{ directoryRead: true }` to `registerSkillResources` are a pair:
+> the first advertises the capability in the initialize handshake (so it must
+> run before `connect()`), the second installs the handler.
 
 ### Skill directory structure
 
@@ -83,13 +91,11 @@ Instructions for the agent...
 The server registers, per the SEP:
 
 - `skill://{skillPath}/SKILL.md` — one per discovered skill
-- `skill://index.json` — discovery index (all skills + archives + templates)
-- One MCP `ResourceTemplate` per `templates[]` declaration with a `read`
-  handler — readable as `resources/read` with completion wired to the MCP
-  completion API (see *Resource templates* below)
+- `skill://index.json` — discovery index (file skills + archive distributions)
 - `skill://{+skillFilePath}` — catch-all resource template for supporting
-  files (optional, on by default; registered last so specific patterns above
-  match first)
+  files (optional, on by default)
+- A `resources/directory/read` handler when `directoryRead: true` (see
+  *Directory enumeration* below)
 
 ### Resource annotations
 
@@ -110,40 +116,28 @@ for (const skill of skillMap.values()) {
 }
 ```
 
-- **`priority`** is set per resource type: 1.0 (SKILL.md), 0.9 (archive), 0.8 (index), 0.6 (declared resource templates), 0.2 (supporting-file catch-all)
-- **`lastModified`** uses per-skill mtime for SKILL.md, archive mtime for archives, and the most recent mtime across all skills for aggregate resources (index, templates)
-- **`size`** is set on all resources except the templates (which vary per request)
+- **`priority`** is set per resource type: 1.0 (SKILL.md), 0.9 (archive), 0.8 (index), 0.2 (supporting-file catch-all)
+- **`lastModified`** uses per-skill mtime for SKILL.md, archive mtime for archives, and the most recent mtime across all skills for the index
+- **`size`** is set on all resources except the catch-all template (which varies per request)
 
-### Resource templates
+### Directory enumeration
 
-Servers with parameterized skill namespaces can declare `mcp-resource-template` entries. The declaration drives three things at once: the entry in `skill://index.json`, an MCP `ResourceTemplate` registered for the URI pattern (so resolved URIs are readable via `resources/read`), and per-variable completions wired to the MCP completion API.
+When `directoryRead: true`, the server implements the SEP-2640
+`resources/directory/read` method so hosts can enumerate the files under a
+skill directory without knowing every URI up front — an `ls`-style,
+metadata-only, paginated, non-recursive listing. Directories are identified
+by `mimeType: "inode/directory"`.
 
 ```typescript
-registerSkillResources(server, skillMap, "./skills", {
-  templates: [
-    {
-      name: "docs",
-      description: "Product documentation",
-      uriTemplate: "skill://docs/{product}/SKILL.md",
-      // Wire {product} to the MCP completion API.
-      complete: {
-        product: (value) =>
-          ["widget-api", "gizmo-api", "gadget-api"].filter((p) =>
-            p.startsWith(value),
-          ),
-      },
-      // Read handler invoked when a host calls resources/read against a
-      // matching URI. Receives the resolved URI and bound variables.
-      read: async (_uri, vars) => {
-        const md = await loadDocsForProduct(vars.product);
-        return { text: md, mimeType: "text/markdown" };
-      },
-    },
-  ],
-});
+declareSkillsExtension(server.server, { directoryRead: true }); // before connect()
+registerSkillResources(server, skillMap, "./skills", { directoryRead: true });
 ```
 
-If `read` is omitted, the template is enumerated only — useful for index-only declarations that point at an out-of-band resolution mechanism.
+The handler is backed by the in-memory skill map (skill paths + scanned
+supporting documents), so it covers skills served as individual files.
+Archive-distributed skills are opaque to the server and are not walked. On the
+client, gate calls with `serverSupportsDirectoryRead(client)` and use
+`readDirectory()` / `walkDirectory()` (see *Client usage*).
 
 ### Custom `_meta` per skill
 
@@ -164,7 +158,7 @@ The SDK passes `meta` through to the SKILL.md resource's `_meta` field; keys SHO
 
 ### Archive distribution
 
-Per SEP-2640, a skill MAY also be distributed as a single packed resource (`.tar.gz` or `.zip`). Pass declarations to `registerSkillResources()`; the SDK reads each archive at startup, registers it as an MCP resource at `skill://<skillPath>.<format>`, and includes it in `skill://index.json` with `type: "archive"`:
+Per SEP-2640, a skill MAY also be distributed as a single packed resource (`.tar.gz` or `.zip`). Pass declarations to `registerSkillResources()`; the SDK reads each archive at startup, registers it as an MCP resource at `skill://<skillPath>.<format>`, and adds an index entry whose `archives` array carries the archive's `url`, `mimeType`, and a SHA-256 `digest`:
 
 ```typescript
 registerSkillResources(server, skillMap, "./skills", {
@@ -213,13 +207,16 @@ For more control, use the lower-level functions directly:
 import {
   discoverSkills,
   listSkillsFromIndex,
-  listSkillTemplatesFromIndex,
   readSkillUri,
   readSkillContent,
   readSkillArchive,
   readSkillDocument,
   buildSkillsCatalog,
   buildSkillsSummary,
+  serverSupportsDirectoryRead,
+  readDirectory,
+  walkDirectory,
+  verifyDigest,
   READ_RESOURCE_TOOL,
 } from "@modelcontextprotocol/experimental-ext-skills/client";
 
@@ -227,12 +224,24 @@ import {
 // Includes both type: "skill-md" and type: "archive" entries.
 const skills = await discoverSkills(client);
 
-// Or use specific discovery mechanisms:
-const indexSkills = await listSkillsFromIndex(client);   // skill://index.json (returns null if unavailable)
-const templates = await listSkillTemplatesFromIndex(client); // mcp-resource-template entries
+// Or read skill://index.json directly (returns null if unavailable). Each
+// summary carries name/description (from the entry's verbatim frontmatter),
+// uri, and the index `digest`.
+const indexSkills = await listSkillsFromIndex(client);
+
+// Enumerate a skill directory (only if the server declared the capability).
+if (serverSupportsDirectoryRead(client)) {
+  const { resources } = await readDirectory(client, "skill://acme/billing/refunds");
+  const allFiles = await walkDirectory(client, "skill://acme/billing/refunds");
+}
 
 // Read skill content by URI (works with any scheme: skill://, repo://, github://, etc.)
 const content = await readSkillUri(client, skill.uri);
+
+// Integrity-check a read against the index digest (SEP-2640: hosts MUST verify).
+if (skill.digest) {
+  const ok = verifyDigest(content, skill.digest);
+}
 
 // Or by skill path (convenience, skill:// scheme only)
 const md = await readSkillContent(client, "acme/billing/refunds");
@@ -272,6 +281,41 @@ for (const summary of skills) {
 ```
 
 The host MUST support both `.tar.gz` (`application/gzip`) and `.zip` (`application/zip`); the SDK dispatches on `mimeType` (with URL-suffix fallback). Archive safety is enforced: path traversal, absolute paths, and out-of-tree symlinks are rejected, with bounded total size, per-file size, and entry count to defend against decompression bombs.
+
+### Digest: integrity and caching
+
+Each index entry carries a `sha256:{hex}` `digest` (over the SKILL.md raw bytes; archives carry their own under `archives[].digest`). It serves **two distinct purposes**, and they are different operations:
+
+**1. Integrity / tamper-detection** — verify retrieved content against the advertised digest (SEP-2640 asks hosts to do this):
+
+```typescript
+import { verifyDigest, readSkillUriVerified } from "@modelcontextprotocol/experimental-ext-skills/client";
+
+const content = await readSkillContent(client, summary.skillPath);
+if (summary.digest && !verifyDigest(content, summary.digest)) {
+  // content was altered in transit or drifted from what the index advertised
+}
+
+// Or read + verify in one call (throws on mismatch):
+const verified = await readSkillUriVerified(client, summary.uri, summary.digest!);
+```
+
+`SKILL.md` is UTF-8, so hashing the received `text` (as UTF-8) matches the server's raw-byte hash exactly — a UTF-8 decode→encode round-trip is byte-identical (CRLF, BOM, multibyte all preserved). Only genuinely non-UTF-8 content (disallowed for `SKILL.md`) would differ.
+
+**2. Caching** — this is the digest's headline purpose, and it does **not** hash content. Store each skill's digest from a prior index read; on a later poll, refetch only the (small) index and compare the new digest against the stored one. Equal ⇒ the skill content is unchanged, skip refetching it (skill payloads can be large):
+
+```typescript
+// `cache` is your own Map<uri, digest> from a previous run.
+const fresh = await listSkillsFromIndex(client) ?? [];
+for (const s of fresh) {
+  if (s.digest && cache.get(s.uri) === s.digest) continue; // unchanged — skip refetch
+  const content = await readSkillContent(client, s.skillPath);
+  cache.set(s.uri, s.digest!);
+  // ... (re)load content
+}
+```
+
+The SDK exposes `SkillSummary.digest` for this comparison but doesn't manage a cache store — that belongs to the host. The same compare also surfaces drift (e.g. an agent edited a skill locally) for a `/skills list`-style view.
 
 ### Scheme-agnostic discovery
 
@@ -322,7 +366,6 @@ const fromInstructions = await listSkillsFromInstructions(
 skill://code-review/SKILL.md                     # single-segment path
 skill://acme/billing/refunds/SKILL.md            # multi-segment path
 skill://acme/billing/refunds/templates/email.md  # supporting file
-skill://docs/{product}/SKILL.md                   # parameterized template
 skill://pdf-processing.tar.gz                     # archive distribution
 skill://index.json                                # discovery index
 ```
@@ -337,7 +380,7 @@ import { parseSkillUri, buildSkillUri, isSkillContentUri } from "@modelcontextpr
 
 - [Skills Extension SEP (PR #69)](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69) -- the spec this implements
 - [Skills Over MCP Interest Group](https://github.com/modelcontextprotocol/experimental-ext-skills) -- parent repository
-- [Agent Skills well-known URI spec](https://github.com/agentskills/agentskills/pull/254) -- HTTP discovery spec the bridge targets
+- [Agent Skills specification](https://agentskills.io/specification) -- the skill format (frontmatter, directory layout) this transports
 - [Server example](../../examples/skills-server/typescript/) -- reference MCP server
 - [Client example](../../examples/skills-client/typescript/) -- reference MCP client
 
