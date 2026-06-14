@@ -384,11 +384,21 @@ export async function readSkillUri(
  * the README "Caching with the index digest" section.
  *
  * The comparison is case-insensitive on the hex.
+ *
+ * Throws if `expected` is not a well-formed `sha256:{64 hex}` digest, so a
+ * caller can distinguish "content was tampered" (returns `false`) from "the
+ * index handed me a digest I can't interpret" (throws) — the latter must not
+ * be silently treated as a mismatch when SEP-2640 makes verification a MUST.
  */
 export function verifyDigest(
   data: Buffer | string,
   expected: string,
 ): boolean {
+  if (!/^sha256:[0-9a-f]{64}$/i.test(expected)) {
+    throw new Error(
+      `Malformed digest "${expected}": expected "sha256:" followed by 64 hex characters`,
+    );
+  }
   const actual = "sha256:" + createHash("sha256").update(data).digest("hex");
   return actual.toLowerCase() === expected.toLowerCase();
 }
@@ -458,7 +468,7 @@ export async function readDirectory(
 }
 
 /**
- * Walk a directory subtree depth-first via repeated `resources/directory/read`
+ * Walk a directory subtree breadth-first via repeated `resources/directory/read`
  * calls, yielding every descendant file (not directories). Convenience over
  * {@link readDirectory} for hosts that want to materialize a whole skill.
  */

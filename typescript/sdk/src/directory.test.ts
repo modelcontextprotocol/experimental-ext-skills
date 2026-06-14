@@ -209,6 +209,15 @@ describe("verifyDigest", () => {
   it("is case-insensitive on the hex", () => {
     expect(verifyDigest(data, digest.toUpperCase())).toBe(true);
   });
+
+  it("throws (rather than returning false) on a malformed expected digest", () => {
+    expect(() => verifyDigest(data, "not-a-digest")).toThrow(/Malformed digest/);
+    expect(() => verifyDigest(data, "sha256:abc")).toThrow(/Malformed digest/);
+    expect(() => verifyDigest(data, "sha256:")).toThrow(/Malformed digest/);
+    expect(() => verifyDigest(data, "md5:" + "0".repeat(32))).toThrow(
+      /Malformed digest/,
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

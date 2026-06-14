@@ -50,7 +50,12 @@ export function sha256Digest(data: Buffer | string): string {
 
 /**
  * Parse YAML frontmatter from SKILL.md content.
- * Expects content to start with --- and have a closing ---.
+ * Expects content to start with --- and have a closing --- on its own line.
+ *
+ * Uses a line-anchored match so a `---` inside the body (e.g. a markdown
+ * horizontal rule, or `---` within a multi-line YAML value) doesn't terminate
+ * the frontmatter early. This mirrors the client-side parseSkillFrontmatter()
+ * so the server and client agree on exactly where the frontmatter ends.
  */
 function parseFrontmatter(content: string): {
   frontmatter: Record<string, unknown>;
@@ -60,17 +65,17 @@ function parseFrontmatter(content: string): {
     throw new Error("SKILL.md must start with YAML frontmatter (---)");
   }
 
-  const parts = content.split("---");
-  if (parts.length < 3) {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+  if (!match) {
     throw new Error("SKILL.md frontmatter not properly closed with ---");
   }
 
-  const frontmatter = parseYaml(parts[1]) as Record<string, unknown>;
+  const frontmatter = parseYaml(match[1]) as Record<string, unknown>;
   if (typeof frontmatter !== "object" || frontmatter === null) {
     throw new Error("SKILL.md frontmatter must be a YAML mapping");
   }
 
-  const body = parts.slice(2).join("---").trim();
+  const body = content.slice(match[0].length).trim();
   return { frontmatter, body };
 }
 

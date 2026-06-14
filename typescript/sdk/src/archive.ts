@@ -115,38 +115,46 @@ function extractTarGz(
   data: Buffer,
   options: Required<ExtractArchiveOptions>,
 ): Promise<UnpackedSkillArchive> {
-  let decompressed: Buffer;
-  try {
-    decompressed = zlib.gunzipSync(data);
-  } catch (err) {
-    return Promise.reject(
-      new Error(
-        `Failed to gunzip tar.gz archive: ${err instanceof Error ? err.message : String(err)}`,
-      ),
-    );
-  }
-
-  if (decompressed.length > options.maxTotalSize) {
-    return Promise.reject(
-      new Error(
-        `Decompressed archive size (${decompressed.length}) exceeds maxTotalSize (${options.maxTotalSize})`,
-      ),
-    );
-  }
-
   return new Promise<UnpackedSkillArchive>((resolve, reject) => {
     const files = new Map<string, Buffer>();
     let totalSize = 0;
     let entryCount = 0;
     let aborted = false;
+    let decompressedBytes = 0;
+
+    const gunzip = zlib.createGunzip();
+    const extractor = tarExtract();
 
     const abort = (err: Error) => {
       if (aborted) return;
       aborted = true;
+      gunzip.destroy();
+      extractor.destroy();
       reject(err);
     };
 
-    const extractor = tarExtract();
+    // Decompression-bomb defense: bound the *decompressed* byte count as it
+    // streams out of gunzip, rather than inflating the whole (possibly
+    // gigabyte) payload into memory up front with gunzipSync. We abort as soon
+    // as the inflated size crosses maxTotalSize, mirroring the incremental
+    // size check on the zip path.
+    gunzip.on("data", (chunk: Buffer) => {
+      decompressedBytes += chunk.length;
+      if (decompressedBytes > options.maxTotalSize) {
+        abort(
+          new Error(
+            `Decompressed archive size exceeds maxTotalSize (${options.maxTotalSize})`,
+          ),
+        );
+      }
+    });
+    gunzip.on("error", (err) => {
+      abort(
+        new Error(
+          `Failed to gunzip tar.gz archive: ${err instanceof Error ? err.message : String(err)}`,
+        ),
+      );
+    });
 
     extractor.on("entry", (header, stream, next) => {
       if (aborted) {
@@ -233,7 +241,7 @@ function extractTarGz(
     });
     extractor.on("error", abort);
 
-    Readable.from(decompressed).pipe(extractor);
+    Readable.from(data).pipe(gunzip).pipe(extractor);
   });
 }
 

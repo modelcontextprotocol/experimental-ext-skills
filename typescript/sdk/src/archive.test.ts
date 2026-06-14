@@ -279,6 +279,24 @@ describe("archive safety (.tar.gz)", () => {
       ),
     ).rejects.toThrow(/maxTotalSize|exceeds maxTotalSize/);
   });
+
+  it("rejects a gzip bomb before fully inflating it", async () => {
+    // 4 MB of zeros compresses to a few KB but decompresses well past the
+    // 1 MB bound. The tar.gz path must abort while *streaming* the inflated
+    // bytes, not gunzip the whole payload into memory first.
+    const bomb = await buildTarGz([
+      { name: "SKILL.md", data: "---\nname: x\ndescription: y\n---" },
+      { name: "zeros.bin", data: Buffer.alloc(4 * 1024 * 1024) },
+    ]);
+    expect(bomb.length).toBeLessThan(1024 * 1024); // tiny compressed
+    await expect(
+      extractSkillArchive(
+        bomb,
+        { mimeType: "application/gzip" },
+        { maxTotalSize: 1024 * 1024, maxFileSize: 8 * 1024 * 1024 },
+      ),
+    ).rejects.toThrow(/maxTotalSize/);
+  });
 });
 
 /**
