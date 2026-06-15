@@ -36,6 +36,7 @@ import {
   DirectoryReadRequestSchema,
   makeDirectoryReadHandler,
 } from "./directory.js";
+import { SKILLS_EXTENSION_ID } from "./resource-extensions.js";
 
 /** Maximum file size for skill files (1MB). */
 const MAX_FILE_SIZE = 1 * 1024 * 1024;
@@ -423,7 +424,10 @@ export function loadDocument(
   skillsDir: string,
   isText: boolean,
 ): { text: string } | { blob: string } {
-  if (documentPath.includes("..")) {
+  // Reject `..` as a path *segment* (traversal), not as a substring — a
+  // filename like `notes..final.md` is legitimate. `isPathWithinBase` below is
+  // the real containment guard; this matches archive.ts:validateEntryPath.
+  if (documentPath.split(/[\\/]/).some((s) => s === "..")) {
     throw new Error("Path traversal not allowed");
   }
 
@@ -457,6 +461,14 @@ export function loadDocument(
 export interface GenerateSkillIndexOptions {
   /** Archive declarations → per-skill `archives` entries. */
   archives?: SkillArchiveDeclaration[];
+  /**
+   * Precomputed `sha256:{hex}` digests keyed by archive declaration, for
+   * callers that have already read the archive bytes (e.g.
+   * `registerSkillResources` reads them to serve). Entries without a
+   * precomputed digest fall back to reading the file. Keyed by declaration
+   * identity so two declarations sharing an `archivePath` don't collide.
+   */
+  archiveDigests?: Map<SkillArchiveDeclaration, string>;
 }
 
 /**
@@ -483,10 +495,16 @@ function archiveResourceUri(decl: SkillArchiveDeclaration): string {
 }
 
 /**
- * Validate an archive declaration against the SEP path/name rules and read
- * its bytes, returning the index `archives[]` reference for it.
+ * Validate an archive declaration against the SEP path/name rules and return
+ * the index `archives[]` reference for it. Reads the archive bytes to compute
+ * the digest unless `precomputedDigest` is supplied (when the caller has
+ * already read the same bytes to serve them — avoids a second read and any
+ * drift between the served bytes and the advertised digest).
  */
-function archiveIndexRef(decl: SkillArchiveDeclaration): {
+function archiveIndexRef(
+  decl: SkillArchiveDeclaration,
+  precomputedDigest?: string,
+): {
   url: string;
   mimeType: string;
   digest: string;
@@ -504,18 +522,24 @@ function archiveIndexRef(decl: SkillArchiveDeclaration): {
       `Archive declaration: name "${decl.name}" violates the Agent Skills naming rule. Names must contain only lowercase letters, digits, and hyphens.`,
     );
   }
-  let bytes: Buffer;
-  try {
-    bytes = fs.readFileSync(decl.archivePath);
-  } catch (err) {
-    throw new Error(
-      `Failed to read archive "${decl.archivePath}" for skill "${decl.name}": ${err instanceof Error ? err.message : String(err)}`,
-    );
+  let digest: string;
+  if (precomputedDigest !== undefined) {
+    digest = precomputedDigest;
+  } else {
+    let bytes: Buffer;
+    try {
+      bytes = fs.readFileSync(decl.archivePath);
+    } catch (err) {
+      throw new Error(
+        `Failed to read archive "${decl.archivePath}" for skill "${decl.name}": ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    digest = sha256Digest(bytes);
   }
   return {
     url: archiveResourceUri(decl),
     mimeType: archiveMimeType(resolveArchiveFormat(decl)),
-    digest: sha256Digest(bytes),
+    digest,
   };
 }
 
@@ -544,7 +568,7 @@ export function generateSkillIndex(
 
   const archiveEntries: SkillIndexEntry[] = (opts.archives ?? []).map((a) => ({
     frontmatter: a.frontmatter ?? { name: a.name, description: a.description },
-    archives: [archiveIndexRef(a)],
+    archives: [archiveIndexRef(a, opts.archiveDigests?.get(a))],
   }));
 
   return { skills: [...skillEntries, ...archiveEntries] };
@@ -588,6 +612,10 @@ export function registerSkillResources(
     : undefined;
 
   // Register archive resources before the index, so the index can reference them.
+  // The digest of each archive is computed once here, from the same bytes we
+  // serve, and reused for the index — so the advertised digest can't drift from
+  // the served artifact (and the file is read only once).
+  const archiveDigests = new Map<SkillArchiveDeclaration, string>();
   for (const archive of archives) {
     const format = resolveArchiveFormat(archive);
     const uri = archiveResourceUri(archive);
@@ -601,6 +629,7 @@ export function registerSkillResources(
         `Failed to read archive "${archive.archivePath}" for skill "${archive.name}": ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+    archiveDigests.set(archive, sha256Digest(archiveBytes));
     const archiveBase64 = archiveBytes.toString("base64");
     let archiveModified: string;
     try {
@@ -678,7 +707,7 @@ export function registerSkillResources(
   // Well-known discovery index (SEP enumeration mechanism). Optional —
   // servers with unenumerable catalogs can pass `index: false`.
   if (index) {
-    const indexJson = generateSkillIndex(skillMap, { archives });
+    const indexJson = generateSkillIndex(skillMap, { archives, archiveDigests });
     const indexJsonStr = JSON.stringify(indexJson, null, 2);
     server.resource(
       "skills-index",
@@ -714,6 +743,20 @@ export function registerSkillResources(
     const handler = makeDirectoryReadHandler(skillMap);
     // McpServer exposes the underlying low-level Server as `.server`.
     const lowLevel = server.server ?? server;
+
+    // The handler is useless unless the capability was also advertised in the
+    // initialize handshake — well-behaved clients gate on it and will never
+    // call an undeclared method. Warn loudly rather than fail silently.
+    const declared =
+      lowLevel.getCapabilities?.()?.extensions?.[SKILLS_EXTENSION_ID]
+        ?.directoryRead === true;
+    if (!declared) {
+      console.error(
+        `[skills] registerSkillResources({ directoryRead: true }) installed the resources/directory/read handler, but the capability is not declared. ` +
+          `Call declareSkillsExtension(server, { directoryRead: true }) BEFORE server.connect() — otherwise clients will never invoke it.`,
+      );
+    }
+
     lowLevel.setRequestHandler(DirectoryReadRequestSchema, handler);
   }
 
