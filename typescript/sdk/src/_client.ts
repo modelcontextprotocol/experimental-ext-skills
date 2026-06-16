@@ -361,7 +361,9 @@ export async function readSkillUri(
 ): Promise<string> {
   const result = await client.readResource({ uri });
   const content = result.contents[0];
-  if (content && "text" in content && content.text) return content.text;
+  if (content && "text" in content && typeof content.text === "string") {
+    return content.text;
+  }
   throw new Error(`Expected text content for ${uri}`);
 }
 
@@ -478,9 +480,16 @@ export async function walkDirectory(
 ): Promise<DirectoryChild[]> {
   const files: DirectoryChild[] = [];
   const queue: string[] = [rootUri];
+  // Guard against a misbehaving server: don't re-enter a directory we've
+  // already walked (cyclic listings), and bail out of a page loop whose
+  // `nextCursor` never advances (which would otherwise spin forever).
+  const visited = new Set<string>();
   while (queue.length > 0) {
     const dir = queue.shift()!;
+    if (visited.has(dir)) continue;
+    visited.add(dir);
     let cursor: string | undefined;
+    const seenCursors = new Set<string>();
     do {
       const { resources, nextCursor } = await readDirectory(client, dir, {
         cursor,
@@ -492,6 +501,12 @@ export async function walkDirectory(
           files.push(child);
         }
       }
+      if (nextCursor !== undefined && seenCursors.has(nextCursor)) {
+        throw new Error(
+          `Pagination did not advance for ${dir}: server returned a repeated cursor`,
+        );
+      }
+      if (nextCursor !== undefined) seenCursors.add(nextCursor);
       cursor = nextCursor;
     } while (cursor);
   }
@@ -756,26 +771,31 @@ export async function listSkillsFromInstructions(
   const uris = extract(instructions);
   if (uris.length === 0) return [];
 
-  const summaries: SkillSummary[] = [];
-  for (const uri of uris) {
-    try {
+  // The per-URI reads are independent, so issue them concurrently rather than
+  // serially round-tripping. URIs we can't read or parse are dropped — they're
+  // advisory and shouldn't fail discovery for the rest.
+  const results = await Promise.allSettled(
+    uris.map(async (uri): Promise<SkillSummary> => {
       const text = await readSkillUri(client, uri);
       const fm = parseSkillFrontmatter(text);
-      const skillPath =
-        extractSkillPathFromUri(uri) ?? fm?.name ?? uri;
-      summaries.push({
+      const skillPath = extractSkillPathFromUri(uri) ?? fm?.name ?? uri;
+      return {
         name: fm?.name ?? skillPath,
         skillPath,
         uri,
         type: "skill-md",
         description: fm?.description,
         mimeType: "text/markdown",
-      });
-    } catch {
-      // Instructions may name a URI we can't read or parse — skip it.
-    }
-  }
-  return summaries;
+      };
+    }),
+  );
+
+  return results
+    .filter(
+      (r): r is PromiseFulfilledResult<SkillSummary> =>
+        r.status === "fulfilled",
+    )
+    .map((r) => r.value);
 }
 
 /**

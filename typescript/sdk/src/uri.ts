@@ -39,6 +39,15 @@ export function isValidSkillName(name: string): boolean {
 }
 
 /**
+ * Whether a final path segment names a skill's content file. The canonical
+ * spelling is `SKILL.md` (the {@link SKILL_FILENAME} sentinel); we also accept
+ * any case variant since some filesystems/servers are case-insensitive.
+ */
+export function isSkillContentFilename(segment: string): boolean {
+  return segment === SKILL_FILENAME || segment.toLowerCase() === "skill.md";
+}
+
+/**
  * Parsed components of a skill:// URI.
  */
 export interface ParsedSkillUri {
@@ -77,7 +86,7 @@ export function parseSkillUri(uri: string): ParsedSkillUri | null {
   const afterLast = rest.slice(slashIndex + 1);
 
   // Known sentinel: SKILL.md as the last segment
-  if (afterLast === SKILL_FILENAME || afterLast.toLowerCase() === "skill.md") {
+  if (isSkillContentFilename(afterLast)) {
     return { skillPath: beforeLast, filePath: afterLast };
   }
 
@@ -135,11 +144,7 @@ export function buildSkillUri(skillPath: string, filePath?: string): string {
  */
 export function isSkillContentUri(uri: string): boolean {
   const parsed = parseSkillUri(uri);
-  return (
-    parsed !== null &&
-    (parsed.filePath === SKILL_FILENAME ||
-      parsed.filePath.toLowerCase() === "skill.md")
-  );
+  return parsed !== null && isSkillContentFilename(parsed.filePath);
 }
 
 /**
@@ -169,7 +174,7 @@ export function extractSkillPathFromUri(uri: string): string | null {
   if (slashIndex <= 0) return null;
 
   const lastSegment = rest.slice(slashIndex + 1);
-  if (lastSegment !== SKILL_FILENAME && lastSegment.toLowerCase() !== "skill.md") {
+  if (!isSkillContentFilename(lastSegment)) {
     return null;
   }
 

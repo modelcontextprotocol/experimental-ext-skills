@@ -20,6 +20,8 @@ import {
   verifyDigest,
   serverSupportsDirectoryRead,
   readDirectory,
+  walkDirectory,
+  readSkillUri,
   type SkillsClient,
 } from "./_client.js";
 import { sha256Digest } from "./_server.js";
@@ -309,5 +311,94 @@ describe("client directory helpers", () => {
       { method: DIRECTORY_READ_METHOD, params: { uri: "skill://x", cursor: "abc" } },
       expect.anything(),
     );
+  });
+
+  it("walkDirectory descends subdirectories and collects only files", async () => {
+    const request = vi.fn(async (req: { params: { uri: string } }) => {
+      if (req.params.uri === "skill://x")
+        return {
+          resources: [
+            { uri: "skill://x/SKILL.md", name: "SKILL.md", mimeType: "text/markdown" },
+            { uri: "skill://x/refs", name: "refs", mimeType: INODE_DIRECTORY_MIME },
+          ],
+        };
+      return {
+        resources: [
+          { uri: "skill://x/refs/GUIDE.md", name: "GUIDE.md", mimeType: "text/markdown" },
+        ],
+      };
+    });
+    const client = clientWithCaps({ directoryRead: true }, request as never);
+
+    const files = await walkDirectory(client, "skill://x");
+    expect(files.map((f) => f.uri).sort()).toEqual([
+      "skill://x/SKILL.md",
+      "skill://x/refs/GUIDE.md",
+    ]);
+  });
+
+  it("walkDirectory bails out instead of looping on a non-advancing cursor", async () => {
+    // A misbehaving server that always returns the same nextCursor would
+    // otherwise spin forever; the helper must detect the repeat and throw.
+    const request = vi.fn().mockResolvedValue({
+      resources: [{ uri: "skill://x/a.md", name: "a.md", mimeType: "text/markdown" }],
+      nextCursor: "stuck",
+    });
+    const client = clientWithCaps({ directoryRead: true }, request);
+
+    await expect(walkDirectory(client, "skill://x")).rejects.toThrow(
+      /did not advance/,
+    );
+  });
+
+  it("walkDirectory does not re-enter a directory it already visited (cycle guard)", async () => {
+    // Two directories that list each other would loop forever without a
+    // visited set. The walk must terminate and visit each dir once.
+    const request = vi.fn(async (req: { params: { uri: string } }) => {
+      if (req.params.uri === "skill://x")
+        return {
+          resources: [{ uri: "skill://y", name: "y", mimeType: INODE_DIRECTORY_MIME }],
+        };
+      return {
+        resources: [{ uri: "skill://x", name: "x", mimeType: INODE_DIRECTORY_MIME }],
+      };
+    });
+    const client = clientWithCaps({ directoryRead: true }, request as never);
+
+    const files = await walkDirectory(client, "skill://x");
+    expect(files).toEqual([]);
+    // skill://x and skill://y each read exactly once.
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// readSkillUri
+// ---------------------------------------------------------------------------
+
+describe("readSkillUri", () => {
+  function clientReturning(content: unknown): SkillsClient {
+    return {
+      listResources: vi.fn(),
+      readResource: vi.fn().mockResolvedValue({ contents: [content] }),
+    };
+  }
+
+  it("returns the text content of a resource", async () => {
+    const text = await readSkillUri(clientReturning({ text: "# Hello" }), "skill://x/SKILL.md");
+    expect(text).toBe("# Hello");
+  });
+
+  it("returns an empty string for a legitimately empty text resource", async () => {
+    // Regression: the guard previously tested the falsy `text` value, so an
+    // empty (zero-byte) file was rejected as "Expected text content".
+    const text = await readSkillUri(clientReturning({ text: "" }), "skill://x/empty.txt");
+    expect(text).toBe("");
+  });
+
+  it("throws when the content carries no text field", async () => {
+    await expect(
+      readSkillUri(clientReturning({ blob: "AAAA" }), "skill://x/img.png"),
+    ).rejects.toThrow(/Expected text content/);
   });
 });
