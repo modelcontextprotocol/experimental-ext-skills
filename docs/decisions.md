@@ -166,7 +166,7 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 
 ### 2026-04-19: Filesystem is a host-side implementation detail
 
-**Status:** Proposed
+**Status:** Accepted
 
 **Context:** Previous meetings surfaced an open question: whether the Skills Extension SEP should require, forbid, or remain silent on a local filesystem as a host capability. The SEP as drafted is de facto filesystem-agnostic (resources are URI-addressable, `read_resource` is the recommended loading path) but does not state this as a normative requirement, leaving skill authors without a portability guarantee and hosts without clear scope.
 
@@ -186,7 +186,7 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 
 ### 2026-04-19: Archives permitted as server-side packaging optimization
 
-**Status:** Proposed
+**Status:** Accepted
 
 **Context:** On 2026-03-24, a commit to the Skills Extension SEP (PR #69, [`9e73838c`](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69/commits/9e73838cda478f3bba4996a06a69d3142fb0a91c)) removed `type: "archive"` from the `skill://index.json` schema with the rationale that archives do not apply when files are individually addressable. On further review, there are four costs not addressed in the original commit: asymmetry with the Agent Skills discovery RFC, which defines both `skill-md` and `archive` distribution types; loss of atomicity across multi-file skill reads; N+1 round trips for hosts that pre-materialize skills; and loss of UNIX file metadata (executable bits, symlinks) that has no representation when each file is served as an individual MCP resource.
 
@@ -199,3 +199,80 @@ For background on the ADR format, see [adr.github.io](https://adr.github.io/).
 - [Issue #61](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/61) — thread weighing archive vs. individual-file distribution
 - [Agent Skills discovery RFC](https://github.com/cloudflare/agent-skills-discovery-rfc) — upstream format source
 - April 14, 2026 office hours — discussion treated archives as supported
+
+---
+
+### 2026-06-02: Reinstate the `digest` field in `skill://index.json`
+
+**Status:** Accepted
+
+**Context:** SEP-2640's `skill://index.json` binding follows the [Agent Skills well-known discovery index](https://github.com/agentskills/agentskills/pull/254) with two stated differences — the `url` field carries a full MCP resource URI, and the per-entry `digest` field is omitted "(integrity is the transport's concern over an authenticated MCP connection)" — plus one MCP-specific addition, the `mcp-resource-template` `type` value. In the upstream index each skill entry carries a `digest` (a `sha256:<hex>` content hash) serving two purposes: (1) integrity — letting an index host attest that a served skill matches what the index advertised, which matters when the index and the skill artifacts live on different hosts (e.g., index on one domain, archives on a CDN); and (2) caching — a client stores the digest, refetches only the index, and skips refetching unchanged skill content, which can run to tens of MB. The same trade-off was argued upstream on [agentskills#254](https://github.com/agentskills/agentskills/pull/254), where Peter Alexander questioned the digest's value over HTTP (standard HTTP caching could cover it) and Jonathan Hefner defended it on cross-domain integrity and lockstep-consistency grounds. Over MCP, purpose (1) does not apply, since the same server serves both the index and the skill resources; and the cleaner long-term answer to (2) — a general resource-freshness mechanism (resource metadata or ETags) — does not exist in the base protocol today. The omission was revisited in the June 2, 2026 Working Session and in the [#skills-over-mcp-wg](https://discord.com/channels/1358869848138059966/1464745826629976084) Discord channel, where the group converged on putting `digest` back.
+
+**Decision:** Reinstate the per-entry `digest` field in `skill://index.json`, matching the upstream Agent Skills discovery index (a `sha256:<hex>` content hash). The SEP's index-format description and field table are updated to add `skills[].digest`. With this change, the binding's only remaining divergences from the upstream index format are the `url` field's MCP-resource-URI semantics and the MCP-specific `mcp-resource-template` `type` value; `digest` and `archive` both align with upstream.
+
+**Rationale:** Caching is the practical driver. Absent a resource-level freshness mechanism in the current spec, the index digest is the client's primary signal for whether cached skill content is still current; skill payloads are large enough that blindly refetching on every index poll is wasteful. Notably, the caching argument that was marginal over HTTP — where we resisted the digest because standard HTTP caching already exists — is the one that carries the decision over MCP, precisely because MCP has no equivalent caching layer or `resources/metadata`/ETag facility yet. The digest may become redundant once the protocol grows such a facility, at which point this binding can defer to it; but omitting it now leaves clients with no freshness signal within the reading model this SEP defines, a near-term cost too large to accept for the sake of avoiding an eventual redundancy. A secondary benefit raised in discussion is tamper and drift detection: a client can compare the advertised digest against cached content and warn the user when a skill has changed — including the case where an agent has modified skill content locally — for example on a `/skills list` view. A further consideration, raised by Jonathan Hefner in both the upstream thread and the June 2 session, is consistency across interdependent skills: when a client reads the index and then fetches several skills in sequence, a digest lets it detect content shifting underneath it mid-fetch and retry. The original integrity argument for *omitting* the field still holds — integrity is not the digest's job over a single authenticated connection — but integrity was never the reason to *include* it; caching is. Finally, reinstating the field realigns the binding with the upstream discovery format, consistent with the SEP's framing as a transport binding that delegates format to agentskills.io — the same principle the SEP already invokes to permit `archive` distribution (see the related decision below).
+
+**References:**
+- [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) — Skills Extension; canonical text on the `sep/skills-extension` branch. The "Enumeration via `skill://index.json`" section currently states `digest` is omitted and the index field table has no `digest` row — both to be updated.
+- [agentskills/agentskills#254](https://github.com/agentskills/agentskills/pull/254) — upstream Agent Skills well-known discovery index defining the per-entry `digest` (`sha256:<hex>`) for integrity and caching; includes the Peter Alexander / Jonathan Hefner thread weighing the same trade-off over HTTP.
+- [Agent Skills Discovery RFC](https://github.com/cloudflare/agent-skills-discovery-rfc) — Cloudflare provenance for the index format and SHA-256 digests.
+- [Meeting Notes — Skills Over MCP WG](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg) — June 2, 2026 Working Session.
+- [#skills-over-mcp-wg Discord](https://discord.com/channels/1358869848138059966/1464745826629976084) — latest digest reinstatement thread.
+
+---
+
+### 2026-06-05: Decouple the index schema from `.well-known`; keep it a file with verbatim frontmatter and per-skill archives
+
+**Status:** Proposed
+
+**Context:** SEP-2640's index was originally specified as the [Agent Skills `.well-known` discovery index](https://github.com/agentskills/agentskills/pull/254) with a few MCP-specific differences (see 2026-06-02), so that a client consuming the HTTP `.well-known` index could consume `skill://index.json` with the same code. Peter Alexander reported being unable to confirm that the upstream `.well-known` agent-skills discovery spec will land: it has implementations in the wild but no governance momentum into the agentskills.io spec itself. Binding the SEP's index to a stalled upstream blocks progress, so the thread converged on defining the WG's own schema.
+
+**Decision:**
+
+- **Decouple the index schema from the `.well-known` discovery format.** The WG defines its own `skill://index.json` schema rather than mirroring upstream; alignment with `.well-known` is no longer a design constraint.
+- **Keep the index as a file resource; do not elevate to a `skills/list` protocol method.** Elevation was considered — the principal motivation for a file had been matching `.well-known`, now removed — and set aside.
+- **Each skill entry carries `url`, `digest`, a `frontmatter` object, and an `archives` array:**
+  - `frontmatter` is a *full, verbatim copy* of the skill's `SKILL.md` frontmatter. The schema designates no specific fields and neither includes nor excludes any — it is the whole block.
+  - `archives` is a list of `{ url, mediaType, digest }`, each describing one archive representation of the skill (e.g. `application/gzip`, `application/zip`).
+- **Archives move from separate `type: "archive"` index entries (see 2026-04-19) to the per-skill `archives` array.** This amends the representation in that decision; archives remain a server-side packaging option, now expressed as a property of the skill rather than a sibling entry.
+
+**Rationale:**
+
+- *Decoupling.* The upstream `.well-known` format has real implementations but is not progressing through agentskills.io governance, and the SEP cannot wait on it; owning the schema unblocks the WG. The cost is divergence from a format that has consumers, so the schema should stay close enough to re-converge if upstream revives — but the hard dependency is removed. This retires the "mirror/realign with upstream" rationale that the 2026-04-19 (archives) and 2026-06-02 (digest) decisions invoked. Both still stand on their own merits — archives for dual-format distribution, digest for caching and cross-fetch consistency — but neither is justified by upstream alignment any longer.
+- *File over method.* A `skills/list` method would make "skill" a named concept in the protocol, which conflicts with the skills-as-files philosophy of the SEP and of skills themselves. The capabilities a method would add — enumeration, pagination, change notification — are already available from resource improvements (a directory-style listing and `resources/list_changed`), so a method adds primitive surface without a matching gain. Keeping a file also leaves the index free to advertise non-skill entry types (e.g. primitive groups) as a progressive-discovery entry point later; that flexibility is a side effect of decoupling, explicitly not an in-scope expansion here.
+- *Verbatim frontmatter.* `name` and `description` live in the frontmatter per the [Agent Skills spec](https://agentskills.io/specification#frontmatter); promoting them to top-level entry properties would require special-case logic to avoid duplicating them and would invite recurring debate over which fields belong in the index. Copying the full frontmatter block verbatim avoids both, keeps the index's skill semantics pinned to the agent-skills spec (no drift), and automatically covers client-side compatibility filtering (raised by Bloomberg): `compatibility`, `metadata`, and any other fields arrive by definition rather than being individually whitelisted.
+- *Archives as a per-skill array.* Expressing archives as a property of the skill, rather than as separate entries, resolves the "archive + `SKILL.md` simultaneously" item without duplicating `name`/`description`/frontmatter across two entries, and lets a server offer several formats, each with its own `mediaType` and `digest`. Per-archive `digest` mirrors the entry-level digest's caching/consistency role for each packaged form.
+
+**References:**
+
+- [#skills-over-mcp-wg Discord](https://discord.com/channels/1358869848138059966/1464745826629976084) — index-schema thread, 2026-06-04/05 (Peter Alexander, Ola Hungerford, Sam Kothari).
+
+---
+
+### 2026-06-09: Directory enumeration via a dedicated `resources/directory/read` method
+
+**Status:** Proposed
+
+**Context:** A skill is a directory of files, and hosts that materialize a skill (or otherwise walk its contents) need to enumerate the files under a skill root without already knowing every URI. An earlier SEP draft did this with a scoped `resources/list(uri="skill://…")` call, but the base MCP spec does not guarantee scoped `resources/list`, leaving this extension with a protocol dependency it could not rely on (the SEP's "Why an Index Resource Rather Than `resources/list`?" section records the move away from that approach). The 2026-06-02 Working Session listed "try to get `resources/list(uri)` into the protocol" as an action item; the MCP core maintainer (dsp) was on board, leaving the WG to spec the mechanism. The design was worked out over the following week in the SEP feedback thread and landed in [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) on 2026-06-09.
+
+**Decision:** Add a dedicated `resources/directory/read` method to the protocol for listing the children of a directory-like resource:
+
+- Directories are identified by `mimeType` `inode/directory`.
+- `resources/directory/read(uri)` returns a **paginated list of `Resource`** — the same response shape as `resources/list` (cursor-based pagination included). It returns **metadata only** (each child's `uri`, `name`, `title`, `mimeType`, etc.), **not** the contents of the children — equivalent to `ls`, not a recursive read.
+- Calling `resources/directory/read` on a non-directory resource is an error.
+- The method name is plural-`resources/`, consistent with the existing `resources/read` and `resources/list` (an earlier `resource/directory/read` spelling was a typo).
+- This is introduced as a skills-extension-scoped capability for now; if it works well, the WG expects to promote it to core MCP and may add further directory verbs in a later spec version.
+
+**Rationale:** The WG considered three options and rejected the two that overload existing verbs:
+
+1. *Make `resources/read` return a child listing when the target is a directory.* Rejected: it would give `resources/read` a result schema that varies by `mimeType`, which risks breaking backward compatibility for clients already calling `resources/read` on URIs that are now classified as directories.
+2. *Give `resources/list` an optional `uri`/subpath parameter.* This was the least-effort option for clients (Sam Kothari's preference) and was seriously weighed. Rejected: `resources/list` with and without a `uri` would carry different semantics — with no argument it returns *everything* the server exposes, which is a confusing thing to overload a scoping parameter onto. A dedicated verb keeps each method's contract single-meaning.
+3. *A new `resources/directory/read` verb* (chosen): a distinct method with a stable, single result schema (reusing the `resources/list` response type, so no new shape to learn), a clear error on misuse, and no change to the semantics of any existing call. Peter Alexander proposed and specced this form (coordinating the protocol change with MCP core); Sam Kothari confirmed it solves the materialization/enumeration use case ("sgtm") and had no objection to the dedicated verb once the overloading trade-offs were laid out.
+
+Returning metadata-only (URIs + descriptive fields, no contents) keeps the call cheap and `ls`-like, letting a host walk a skill tree and decide what to fetch via `resources/read`, rather than forcing the server to inline potentially large file contents. Tying directory-ness to the standard `inode/directory` `mimeType` reuses an existing convention instead of inventing a flag.
+
+**References:**
+- [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) — Skills Extension; `resources/directory/read` added in [commit `2e04c48`](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640/changes/2e04c48da90224000e750ffd54a3611f2824fbc0) (2026-06-09).
+- [#skills-over-mcp-wg Discord](https://discord.com/channels/1358869848138059966/1464745826629976084) — directory-read design thread, 2026-06-04 through 2026-06-09 (Peter Alexander, Sam Kothari, Ola Hungerford).
+- [Meeting Notes — Skills Over MCP WG](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg) — June 2, 2026 Working Session (action item: get `resources/list(uri)` into the protocol).
+- SEP draft, "Why an Index Resource Rather Than `resources/list`?" — records the earlier scoped-`resources/list` approach this method supersedes for directory enumeration.
