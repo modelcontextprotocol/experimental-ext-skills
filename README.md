@@ -45,6 +45,7 @@ See [problem-statement.md](docs/problem-statement.md) for full details.
 | [Client MCP Support](docs/client-mcp-support.md) | Survey of model-facing MCP resource loading and SEP-2640 support across open-source clients |
 | [Decision Log](docs/decisions.md) | Record of key decisions with context and rationale |
 | [Rationale](docs/rationale.md) | Design rationale for SEP-2640's Resources-based skills extension |
+| [Glossary](docs/glossary.md) | Working definitions for key Skills Over MCP terms |
 
 ## Contributing
 
