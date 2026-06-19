@@ -17,3 +17,5 @@ A tracker of MCP servers, dev tools, SDKs, and skills repositories that are cand
 | Azure Skills Plugin | [microsoft/azure-skills](https://github.com/microsoft/azure-skills) | Microsoft | _none yet_ | 25 Azure SKILL.md skills bundled with [Azure MCP Server](https://github.com/microsoft/mcp/tree/main/servers/Azure.Mcp.Server) + Foundry MCP; distributed as a plugin, not via MCP |
 | Figma MCP | _TBD_ | Figma | _none yet_ | Contact: Discord `adityamuttur` — candidate for SEP-2640 testing |
 | Adobe MCP | _TBD_ | Adobe | _none yet_ | Contact: Discord `justinmathew8592` — candidate for SEP-2640 testing |
+| Slack | _TBD_ | Slack | _none yet_ | Expressed interest in SEP-2640 — candidate for testing |
+| Bloomberg | _internal_ | Bloomberg | _none yet_ | Using skills-over-MCP internally; not public |
