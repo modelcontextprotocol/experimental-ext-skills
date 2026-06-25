@@ -207,6 +207,7 @@ For more control, use the lower-level functions directly:
 import {
   discoverSkills,
   listSkillsFromIndex,
+  readSkill,
   readSkillUri,
   readSkillContent,
   readSkillArchive,
@@ -235,19 +236,23 @@ if (serverSupportsDirectoryRead(client)) {
   const allFiles = await walkDirectory(client, "skill://acme/billing/refunds");
 }
 
-// Read skill content by URI (works with any scheme: skill://, repo://, github://, etc.)
-const content = await readSkillUri(client, skill.uri);
+// Read a discovered skill, verified against the index digest by default
+// (SEP-2640: hosts MUST verify retrieved content). Works for both
+// type: "skill-md" (returns SKILL.md text) and type: "archive" (returns the
+// unpacked files). Throws on a digest mismatch, or if the entry has no digest.
+const content = await readSkill(client, skill); // skill: SkillSummary
 
-// Integrity-check a read against the index digest (SEP-2640: hosts MUST verify).
-if (skill.digest) {
-  const ok = verifyDigest(content, skill.digest);
-}
+// Lower-level: read by URI (any scheme). Pass the index digest to verify;
+// omit it only when no digest is available (e.g. resources/list discovery).
+const raw = await readSkillUri(client, skill.uri, skill.digest);
 
-// Or by skill path (convenience, skill:// scheme only)
+// Or by skill path (convenience, skill:// scheme only — no digest to verify)
 const md = await readSkillContent(client, "acme/billing/refunds");
 
-// Fetch + unpack an archive-distributed skill
-const archive = await readSkillArchive(client, "skill://pdf-processing.tar.gz");
+// Fetch + unpack an archive-distributed skill, verifying its bytes first
+const archive = await readSkillArchive(client, "skill://pdf-processing.tar.gz", {
+  expectedDigest: skill.digest,
+});
 const archiveSkillMd = archive.files.get("SKILL.md")!.toString("utf-8");
 
 // Read a supporting file
@@ -272,7 +277,11 @@ import { readSkillArchive } from "@modelcontextprotocol/experimental-ext-skills/
 const skills = await listSkillsFromIndex(client) ?? [];
 for (const summary of skills) {
   if (summary.type === "archive") {
-    const archive = await readSkillArchive(client, summary.uri);
+    // Pass the index digest so the archive bytes are verified before unpacking
+    // (or use readSkill(client, summary), which does this for you).
+    const archive = await readSkillArchive(client, summary.uri, {
+      expectedDigest: summary.digest,
+    });
     const skillMd = archive.files.get("SKILL.md")!.toString("utf-8");
     // Other files in archive.files keyed by relative path —
     // identical namespace to skill://<skillPath>/<file-path>
@@ -286,19 +295,24 @@ The host MUST support both `.tar.gz` (`application/gzip`) and `.zip` (`applicati
 
 Each index entry carries a `sha256:{hex}` `digest` (over the SKILL.md raw bytes; archives carry their own under `archives[].digest`). It serves **two distinct purposes**, and they are different operations:
 
-**1. Integrity / tamper-detection** — verify retrieved content against the advertised digest (SEP-2640 asks hosts to do this):
+**1. Integrity / tamper-detection** — SEP-2640 makes this a **MUST**: hosts must verify retrieved content against the advertised digest. The SDK verifies by default in its read path, so the simplest correct call is `readSkill()` with a discovered summary — it checks the content (skill-md) or raw archive bytes against `summary.digest` and throws on mismatch (or if the entry carries no digest):
 
 ```typescript
-import { verifyDigest, readSkillUriVerified } from "@modelcontextprotocol/experimental-ext-skills/client";
+import { readSkill, readSkillUri, verifyDigest } from "@modelcontextprotocol/experimental-ext-skills/client";
 
-const content = await readSkillContent(client, summary.skillPath);
+// Default-verified read (recommended). skill-md → SKILL.md text; archive → unpacked files.
+const content = await readSkill(client, summary);
+
+// Reading by URI verifies when you pass the index digest:
+const verified = await readSkillUri(client, summary.uri, summary.digest);
+
+// Or check content you already hold:
 if (summary.digest && !verifyDigest(content, summary.digest)) {
   // content was altered in transit or drifted from what the index advertised
 }
-
-// Or read + verify in one call (throws on mismatch):
-const verified = await readSkillUriVerified(client, summary.uri, summary.digest!);
 ```
+
+`readSkill()` throws when `summary.digest` is absent, since a conforming index always carries one; pass `{ allowUnverified: true }` to read from a non-conforming server anyway.
 
 `SKILL.md` is UTF-8, so hashing the received `text` (as UTF-8) matches the server's raw-byte hash exactly — a UTF-8 decode→encode round-trip is byte-identical (CRLF, BOM, multibyte all preserved). Only genuinely non-UTF-8 content (disallowed for `SKILL.md`) would differ.
 

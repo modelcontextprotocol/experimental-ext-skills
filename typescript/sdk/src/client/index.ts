@@ -11,6 +11,7 @@ export {
   listSkillsFromIndex,
   listSkillsFromInstructions,
   extractSkillUrisFromInstructions,
+  readSkill,
   readSkillUri,
   readSkillContent,
   readSkillArchive,
@@ -35,5 +36,7 @@ export type {
   InstructionsUriExtractor,
   UnpackedSkillArchive,
   ExtractArchiveOptions,
+  ReadSkillArchiveOptions,
+  ReadSkillOptions,
 } from "../types.js";
 export type { DirectoryChild, DirectoryReadResult } from "../directory.js";

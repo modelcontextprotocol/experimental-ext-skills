@@ -31,6 +31,8 @@ import type {
   InstructionsUriExtractor,
   UnpackedSkillArchive,
   ExtractArchiveOptions,
+  ReadSkillArchiveOptions,
+  ReadSkillOptions,
 } from "./types.js";
 import { generateSkillsXMLFromSummaries } from "./xml.js";
 import {
@@ -353,18 +355,29 @@ export async function listSkillsFromIndex(
  * This is the primary read function for skills discovered via listSkillsFromIndex(),
  * which may return URIs in any scheme. Pass the SkillSummary.uri value directly.
  *
+ * When `expectedDigest` (a `sha256:{hex}` from the index entry) is supplied,
+ * the returned content is verified against it and a mismatch throws — the
+ * tamper check SEP-2640 makes a MUST. Omit it only when no index digest is
+ * available (e.g. URIs found via `resources/list` or instructions mining).
+ *
  * Per PR #69: this is the SDK wrapper for client.read_skill_uri().
  */
 export async function readSkillUri(
   client: SkillsClient,
   uri: string,
+  expectedDigest?: string,
 ): Promise<string> {
   const result = await client.readResource({ uri });
   const content = result.contents[0];
-  if (content && "text" in content && typeof content.text === "string") {
-    return content.text;
+  if (!content || !("text" in content) || typeof content.text !== "string") {
+    throw new Error(`Expected text content for ${uri}`);
   }
-  throw new Error(`Expected text content for ${uri}`);
+  if (expectedDigest !== undefined && !verifyDigest(content.text, expectedDigest)) {
+    throw new Error(
+      `Digest mismatch for ${uri}: content does not match index digest ${expectedDigest}`,
+    );
+  }
+  return content.text;
 }
 
 /**
@@ -409,19 +422,16 @@ export function verifyDigest(
  * Read a skill resource and verify it against an expected `sha256:{hex}`
  * digest (e.g. `SkillSummary.digest`). Throws if the digest does not match.
  * Returns the text content on success.
+ *
+ * Thin wrapper over {@link readSkillUri} with a required digest; prefer
+ * {@link readSkill} when you hold the discovered `SkillSummary`.
  */
 export async function readSkillUriVerified(
   client: SkillsClient,
   uri: string,
   expectedDigest: string,
 ): Promise<string> {
-  const text = await readSkillUri(client, uri);
-  if (!verifyDigest(text, expectedDigest)) {
-    throw new Error(
-      `Digest mismatch for ${uri}: content does not match index digest ${expectedDigest}`,
-    );
-  }
-  return text;
+  return readSkillUri(client, uri, expectedDigest);
 }
 
 /**
@@ -653,6 +663,11 @@ export function buildSkillsCatalog(
  * archive safety: rejects path-traversal, absolute paths, symlinks
  * resolving outside the skill directory, and decompression bombs.
  *
+ * When `options.expectedDigest` (the archive entry's `digest` from the
+ * index) is supplied, the raw archive bytes are verified against it
+ * *before* unpacking — both the SEP-2640 integrity MUST and a cheap guard
+ * that rejects a tampered archive before any decompression work.
+ *
  * The returned `files` map is keyed by paths relative to the skill root.
  * After unpacking, `files.get("SKILL.md")` is the skill's content, and
  * other entries correspond to `skill://<skillPath>/<file-path>` exactly
@@ -662,14 +677,16 @@ export function buildSkillsCatalog(
  * ```typescript
  * const summary = (await listSkillsFromIndex(client))!
  *   .find((s) => s.type === "archive")!;
- * const archive = await readSkillArchive(client, summary.uri);
+ * const archive = await readSkillArchive(client, summary.uri, {
+ *   expectedDigest: summary.digest,
+ * });
  * const skillMd = archive.files.get("SKILL.md")!.toString("utf-8");
  * ```
  */
 export async function readSkillArchive(
   client: SkillsClient,
   archiveUri: string,
-  options?: ExtractArchiveOptions,
+  options?: ReadSkillArchiveOptions,
 ): Promise<UnpackedSkillArchive> {
   const result = await client.readResource({ uri: archiveUri });
   const content = result.contents[0];
@@ -691,11 +708,73 @@ export async function readSkillArchive(
     );
   }
 
+  // SEP-2640: verify the retrieved archive bytes against the index digest
+  // before unpacking, so tampered content is rejected up front.
+  if (
+    options?.expectedDigest !== undefined &&
+    !verifyDigest(bytes, options.expectedDigest)
+  ) {
+    throw new Error(
+      `Digest mismatch for ${archiveUri}: archive bytes do not match index digest ${options.expectedDigest}`,
+    );
+  }
+
   return extractSkillArchive(
     bytes,
     { mimeType: content.mimeType, url: archiveUri },
     options,
   );
+}
+
+/**
+ * Read a discovered skill, verifying it against the digest the index
+ * provided — the recommended read path once you hold a {@link SkillSummary}
+ * from {@link discoverSkills} / {@link listSkillsFromIndex}.
+ *
+ * SEP-2640 makes host-side integrity verification a MUST, so this verifies
+ * by default:
+ *   - `type: "skill-md"` → reads `summary.uri` and checks the text against
+ *     `summary.digest`; returns the SKILL.md content.
+ *   - `type: "archive"`  → fetches and unpacks `summary.uri`, checking the
+ *     raw archive bytes against `summary.digest`; returns the unpacked files.
+ *
+ * If `summary.digest` is absent the skill cannot be verified. Since a
+ * conforming index always carries a digest, this throws by default; pass
+ * `{ allowUnverified: true }` to read anyway (non-conforming servers only).
+ */
+export async function readSkill(
+  client: SkillsClient,
+  summary: SkillSummary & { type: "archive" },
+  options?: ReadSkillOptions,
+): Promise<UnpackedSkillArchive>;
+export async function readSkill(
+  client: SkillsClient,
+  summary: SkillSummary & { type?: "skill-md" },
+  options?: ReadSkillOptions,
+): Promise<string>;
+export async function readSkill(
+  client: SkillsClient,
+  summary: SkillSummary,
+  options?: ReadSkillOptions,
+): Promise<string | UnpackedSkillArchive>;
+export async function readSkill(
+  client: SkillsClient,
+  summary: SkillSummary,
+  options?: ReadSkillOptions,
+): Promise<string | UnpackedSkillArchive> {
+  const digest = summary.digest;
+  if (digest === undefined && !options?.allowUnverified) {
+    throw new Error(
+      `Cannot verify skill "${summary.name}" (${summary.uri}): the index entry carries no digest. ` +
+        `SEP-2640 requires a digest and makes verification mandatory. ` +
+        `Pass { allowUnverified: true } to read it without verification.`,
+    );
+  }
+
+  if (summary.type === "archive") {
+    return readSkillArchive(client, summary.uri, { expectedDigest: digest });
+  }
+  return readSkillUri(client, summary.uri, digest);
 }
 
 /**

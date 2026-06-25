@@ -94,7 +94,7 @@ Behaviors normatively prescribed by SEP-2640 are on by default. Behaviors that c
 | Skill name `^[a-z0-9-]+$` validation | SEP-2640 + agentskills.io | always enforced |
 | Archive safety | SEP-2640 | always enforced |
 | Per-entry `digest` in index (`sha256:`) | SEP-2640 | always emitted |
-| Digest verification on read | SEP-2640 MUST | opt-in (`verifyDigest` / `readSkillUriVerified`) |
+| Digest verification on read | SEP-2640 MUST | default-on in the read path: `readSkill()` verifies against the summary digest; `readSkillUri(uri, digest)` / `readSkillArchive(uri, { expectedDigest })` verify when given the index digest; `verifyDigest` / `readSkillUriVerified` remain for manual checks |
 | `resources/directory/read` handler | SEP-2640 | opt-in (`directoryRead: true` + `declareSkillsExtension`) |
 | `instructions` discovery path | host SKILL.md | opt-in (`instructions: true`) |
 | Custom URI extractor | SDK | opt-in (`extractor`) |

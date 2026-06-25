@@ -245,6 +245,35 @@ export interface ExtractArchiveOptions {
 }
 
 /**
+ * Options for `readSkillArchive()`. Extends the extraction bounds with the
+ * SEP-2640 integrity check: when `expectedDigest` is supplied (the archive
+ * entry's `digest` from `skill://index.json`), the raw archive bytes are
+ * verified against it *before* unpacking, and a mismatch throws.
+ */
+export interface ReadSkillArchiveOptions extends ExtractArchiveOptions {
+  /**
+   * Expected `sha256:{hex}` digest of the archive bytes (from the index
+   * entry). When present, the bytes are verified before extraction and a
+   * mismatch throws. SEP-2640 makes this verification a MUST for hosts.
+   */
+  expectedDigest?: string;
+}
+
+/**
+ * Options for `readSkill()`.
+ */
+export interface ReadSkillOptions {
+  /**
+   * Permit reading when the discovered skill carries no `digest`. Default
+   * `false`: SEP-2640 makes host-side verification a MUST and requires the
+   * index to carry a digest, so a missing digest is treated as a conformance
+   * error rather than silently skipping verification. Set `true` only for
+   * non-conforming servers where you accept reading unverified content.
+   */
+  allowUnverified?: boolean;
+}
+
+/**
  * The `skill://index.json` resource content (SEP-2640).
  *
  * The WG owns this schema; it is intentionally decoupled from the

@@ -18,6 +18,8 @@ export type {
   ArchiveFormat,
   UnpackedSkillArchive,
   ExtractArchiveOptions,
+  ReadSkillArchiveOptions,
+  ReadSkillOptions,
   SkillsCatalogOptions,
   DiscoverSkillsOptions,
   DiscoverCatalogOptions,
