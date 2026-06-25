@@ -1,5 +1,7 @@
 # Open Questions
 
+> ℹ️ **This document is not actively maintained.** It captures a snapshot of early discussion. Current open questions and decisions are tracked in the [meeting notes discussions](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg), [Discord #skills-over-mcp-wg](https://discord.com/channels/1358869848138059966/1464745826629976084), and on the [SEP-2640 PR](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640).
+
 ## 1. Is this a registry problem or an MCP server problem?
 
 > **See also:** [#44](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/44) — Define well-known URI schemes and naming patterns for skill resources
