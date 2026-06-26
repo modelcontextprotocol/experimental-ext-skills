@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "guildbridge": { "type": "http", "url": "https://guildbridge.modelcontextprotocol.io/mcp" },
+    "github": { "type": "http", "url": "https://api.githubcopilot.com/mcp/" },
+    "mcp-docs": { "type": "http", "url": "https://modelcontextprotocol.io/mcp" }
+  }
+}

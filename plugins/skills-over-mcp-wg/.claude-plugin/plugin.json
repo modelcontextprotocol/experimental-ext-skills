@@ -1,0 +1,9 @@
+{
+  "name": "skills-over-mcp-wg",
+  "version": "0.1.0",
+  "description": "Search and brief on Skills Over MCP Working Group activity — decision log, meeting notes, SEP threads, and Discord",
+  "author": { "name": "Skills Over MCP Working Group" },
+  "repository": "https://github.com/modelcontextprotocol/experimental-ext-skills",
+  "license": "Apache-2.0",
+  "keywords": ["mcp", "skills", "working-group", "github", "discord", "research"]
+}
