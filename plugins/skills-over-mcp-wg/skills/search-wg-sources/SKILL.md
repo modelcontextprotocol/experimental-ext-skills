@@ -2,7 +2,7 @@
 name: search-wg-sources
 description: Search Skills Over MCP WG sources — decision log, meeting notes, active SEP threads, Discord, issues & PRs
 license: Apache-2.0
-compatibility: Run from a local clone of the experimental-ext-skills repo (reads docs/decisions.md and sibling docs). Needs network access and the guildbridge, github, and mcp-docs MCP servers, or the gh CLI as a fallback.
+compatibility: Run from a local clone of the experimental-ext-skills repo (reads docs/decisions.md). Needs network access and the guildbridge, github, and mcp-docs MCP servers, or the gh CLI as a fallback.
 user_invocable: true
 arguments:
   - name: topic
@@ -18,13 +18,9 @@ This skill answers "what does the WG think / what has been decided / what's in f
 
 Work top-down. The first three sources are where live coordination happens; weight them most heavily.
 
-1. **Decision log (in-repo, authoritative for settled questions)** — `docs/decisions.md`, relative to this repo. ADR-lite entries, each with a `Status` field (`Accepted` / `Proposed` / `Rejected` / `Superseded`). Grep here first to separate what's *decided* from what's still open. Then check the sibling living docs in `docs/`:
-   - `open-questions.md` — unresolved questions actively seeking input
-   - `approaches.md` — approaches under exploration and their status
-   - `sep-draft-skills-extension.md` — the working draft behind SEP-2640
-   - `related-work.md` — member implementations and external prior art
+1. **Decision log (in-repo, authoritative for settled questions)** — `docs/decisions.md`, relative to this repo. ADR-lite entries, each with a `Status` field (`Accepted` / `Proposed` / `Rejected` / `Superseded`). Grep here first to separate what's *decided* from what's still open. You may also check `docs/related-work.md` for member implementations and external prior art.
 
-   These ship in the same repo as this skill, so read them locally (Grep/Read). Everything below is external — link by URL.
+   These ship in the same repo as this skill, so read them locally (Grep/Read). Don't lean on the other `docs/*.md` files (e.g. `open-questions.md`, `approaches.md`, `sep-draft-skills-extension.md`) — they are not actively maintained; the live design discussion is on the SEP threads and Discord below. Everything below is external — link by URL.
 
 2. **Active SEP threads** — the live design debate lives on GitHub PRs in `modelcontextprotocol/modelcontextprotocol`:
    - **SEP-2640 — Skills Extension** (primary): https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640 — serve skills over MCP via the Resources primitive.
@@ -127,7 +123,7 @@ Collect all sources as footnotes at the end. Every quote and claim should have a
 ## General strategy
 
 1. Generate search terms and variants (camelCase, space-separated).
-2. Grep the in-repo decision log and `docs/` first — separate settled from open.
+2. Grep the in-repo decision log (`docs/decisions.md`) first — separate settled from open.
 3. Pull the active SEP threads (SEP-2640, #2527; closed SEP-2076/2093 for history) and deep-dive the relevant ones.
 4. Search meeting-notes discussions (GraphQL) and the `#skills-over-mcp-wg` Discord (guildbridge).
 5. Search `experimental-ext-skills` issues/PRs (open and closed).
