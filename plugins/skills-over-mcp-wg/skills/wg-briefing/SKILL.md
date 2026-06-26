@@ -20,7 +20,11 @@ A quick "what's happened lately" read across the WG's surfaces. Defaults to a da
 
 2. **Gather only what's new or changed in the window**, in this order:
    - **Decision log** — `git log -p --since="<window>" -- docs/decisions.md` (run from this repo). Note any added or changed entries and their `Status`.
-   - **Active SEP threads** — new comments, commits, or status changes on SEP-2640 (https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) and PR #2527. Use the `github` MCP server or `gh`.
+   - **Active SEP threads** — new activity on SEP-2640 (https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) and PR #2527, using the `github` MCP server (`pull_request_read`) or `gh`. A PR has **three separate comment surfaces** and you MUST check all of them — the conversation tab alone misses the substantive engineering and security discussion, which usually lives in inline review threads:
+     - `method: get_comments` — top-level conversation comments.
+     - `method: get_reviews` — review submissions; note any `CHANGES_REQUESTED` / `APPROVED` and **who** (maintainer reviews like `localden`, `dsp-ant`, `pja-ant` are high-signal — a maintainer requesting changes is often the single most important item in the window).
+     - `method: get_review_comments` — inline review threads tied to specific lines. This is where deep security/spec critique lands. Each thread carries `is_resolved` — surface unresolved maintainer threads, and note resolved ones as settled. If the result is too large to read inline, it's saved to a file; slice it by character range (or hand it to a subagent) rather than skipping it.
+     Filter every surface by `created_at`/`updated_at` within the window, and attribute comments to their author. Also note new commits and the PR's `mergeable_state`.
    - **Meeting notes** — new or updated discussions in category `meeting-notes-skills-over-mcp-wg` on `modelcontextprotocol/modelcontextprotocol` (GraphQL `search`, filter by `createdAt`/`updatedAt` within the window).
    - **Discord `#skills-over-mcp-wg`** — recent messages via the `guildbridge` server (`read_messages` on channel `1464745826629976084`, guild `1358869848138059966`).
    - **Issues & PRs** — newly opened, closed, or merged items on `modelcontextprotocol/experimental-ext-skills` within the window.
@@ -39,7 +43,7 @@ A quick "what's happened lately" read across the WG's surfaces. Defaults to a da
 - What changed (or "No changes.") with links.
 
 ## SEP threads
-- New comments / status on SEP-2640, #2527 (or "No activity.").
+- New conversation comments, review submissions (incl. `CHANGES_REQUESTED` by maintainers), and inline review threads on SEP-2640, #2527 — flag unresolved maintainer threads (or "No activity.").
 
 ## Meeting notes
 - New/updated notes (or "No new notes.").
