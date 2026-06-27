@@ -14,7 +14,7 @@ MCP servers give agents tools, but tools alone are insufficient for complex work
 
 Skills are *context*, and MCP is a *context protocol*. Agents already connect to remote services over MCP to get tools — they can get the know-how to use those tools through the same channel. A remote MCP server can serve both its tools and the instructions for using them together, as a single atomic unit. This also enables automatic discovery (connect to a server, find its skills), dynamic updates (server-side changes flow without reinstall), multi-server composition (skills orchestrating tools across servers), and enterprise distribution (RBAC, multi-tenant, version-adaptive content) — all through infrastructure MCP servers already provide.
 
-See [why-and-when.md](docs/why-and-when.md) for the full value proposition and a guide for when MCP distribution applies vs. simpler alternatives.
+See [why-and-when.md](docs/why-and-when.md) for the full value proposition and a guide for when MCP distribution applies vs. simpler alternatives. For an accessible external framing of the premise, see Angie Jones's ["Skills Over MCP"](https://aaif.io/blog/skills-over-mcp/) (Agentic AI Foundation) — "ship the manual with the product."
 
 ## Problem Statement
 
