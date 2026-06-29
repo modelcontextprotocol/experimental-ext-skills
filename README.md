@@ -40,6 +40,7 @@ See [problem-statement.md](docs/problem-statement.md) for full details.
 | [Experimental Findings](docs/experimental-findings.md) | Results from implementations and testing |
 | [Related Work](docs/related-work.md) | SEPs, implementations, and external resources |
 | [Decision Log](docs/decisions.md) | Record of key decisions with context and rationale |
+| [Glossary](docs/glossary.md) | Working definitions for key Skills Over MCP terms |
 
 ## Contributing
 
