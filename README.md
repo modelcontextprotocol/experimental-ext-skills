@@ -39,6 +39,7 @@ See [problem-statement.md](docs/problem-statement.md) for full details.
 | [Open Questions](docs/open-questions.md) | Unresolved questions with community input (see also [issues](https://github.com/modelcontextprotocol/experimental-ext-skills/issues) and [meeting notes](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg)) |
 | [Experimental Findings](docs/experimental-findings.md) | Results from implementations and testing |
 | [Related Work](docs/related-work.md) | SEPs, implementations, and external resources |
+| [Glossary](docs/glossary.md) | Working definitions for key Skills Over MCP terms |
 | [Decision Log](docs/decisions.md) | Record of key decisions with context and rationale |
 
 ## Contributing
