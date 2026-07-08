@@ -9,7 +9,6 @@ This threat model covers the **delivery and host-handling layer** for skills ser
 Out of scope:
 
 - **The skill format itself.** YAML frontmatter fields, naming rules, and the progressive-disclosure model are delegated to the [Agent Skills specification](https://agentskills.io/specification) and governed there. This document treats a `SKILL.md` as an opaque instruction blob for the model.
-- **"Helper" / code-execution skills.** The Working Group [scoped skills to the instructor format](decisions.md) (static instructional content, not bundled arbitrary local code) on 2026-02-14, precisely because static content is easier to security-vet. A skill that *is* an executable is out of scope; a skill that *instructs the model to execute something* is very much in scope (threat category T2 below).
 
 Throughout, "host" means the MCP client application that surfaces skills to a model, and normative keywords (MUST/SHOULD/MAY) are used in the RFC 2119 sense. Claims about required host behavior are grounded in the executable adversarial corpus at [`dangerous-skills-mcp`](https://github.com/olaservo/dangerous-skills-mcp) — every fixture referenced below (`adv-*`) is a runnable test case with a documented oracle, deployed live at `https://olaservo-dangerous-skills-mcp.hf.space/mcp`.
 
@@ -28,13 +27,9 @@ Throughout, "host" means the MCP client application that surfaces skills to a mo
 - The **integrity of the model's context** — what instructions reach the model, and whether the model can tell trusted context from untrusted skill content.
 - **Persisted user-approval state** — a "yes, load this skill" decision must not silently transfer to different content later.
 
-**The core boundary: skill content is untrusted input.** A server being connected does not make its skill content authoritative. This is the position recorded in [open-questions.md §10](open-questions.md#10-how-should-skills-handle-security-and-trust-boundaries) and it drives everything else:
+**The core boundary: skill content is untrusted input.** A server being connected does not make its skill content authoritative.
 
-> "If skills can be abused for prompt injection, what mitigations should be spec'd? (provenance, gating, explicit policy)" — [Prince Roshan](https://github.com/Agent-Hellboy)
-
-> "The trust model is same as MCP, based on server trust, so broadly I think we want to discourage using MCP as a mechanism for providing a skills marketplace for arbitrary 3rd party content." — [Sam Morrow](https://github.com/SamMorrowDrums) (GitHub), via Discord
-
-Two consequences follow, and both are MUSTs in SEP-2640's Security Implications: **origin MUST be visible to the model** (an MCP-served skill MUST NOT be presented as indistinguishable from a local filesystem skill), and **skills are data, not directives** (a host MUST NOT treat skill resources as higher-authority than other context). Withholding origin from the model makes the untrusted-input rule unenforceable at the layer that acts on it.
+As a consequence: **origin MUST be visible to the model** (an MCP-served skill MUST NOT be presented as indistinguishable from a local filesystem skill), and **skills are data, not directives** (a host MUST NOT treat skill resources as higher-authority than other context). Withholding origin from the model makes the untrusted-input rule unenforceable at the layer that acts on it.
 
 ## Adversary model
 
@@ -175,22 +170,6 @@ Every adversarial fixture in [`dangerous-skills-mcp/src/adversarial/catalog.ts`]
 | `adv-archive-normalization-collision` **[A]** | Archive collision | normalize + case-fold before dup check (C1) | reject | Yes — §Archives |
 | `adv-live-read-divergence` **[A]** | Archive integrity | serve from verified copy, not live read (B2) | gate | Yes — §Integrity |
 | `refunds` (×2) **[A]** | Archive addressing | archive-only keyed by `frontmatter.name` (A2) | reject | Bug present; A2 proposes full-path keying |
-
-## Reference-implementation findings
-
-From the mcpkit SDK, contributed by **panyam** (Working Group), which implements the skills consumer side:
-
-> "We treat a skill as data over `resources/read`, never written to disk and never executed, and I've enforced it with a test that fails the build if the package imports `os`/`exec` or writes to disk, so 'the host can't run a delivered skill' is checkable rather than promised. (Loaders will be an exception to this but only for writing skills under very specific conditions.)" — panyam, via Discord (2026-07-01)
-
-> "I ran our skills SDK against the non-archive slice of [`dangerous-skills-mcp`] and each case maps to a guard — digest mismatch, frontmatter, and `resources/directory/read` traversal were all rejected. One gap I did find is that our non-archive digest covers `SKILL.md` only, so supporting files are not pinned." — panyam, via Discord (2026-07-01)
-
-Two things are worth extracting. First, "skills are data, not code" can be made a **build-time invariant** rather than a runtime promise — a test that fails the build on an `os`/`exec` import or a disk write turns the no-implicit-execution property into something CI checks. Second, panyam's independently-found gap is exactly the `adv-supporting-file-digest-swap` (B1) case: the non-archive digest pins only `SKILL.md`, so supporting files fetched via the directory walk are unpinned. Two independent implementations reaching the same gap is a signal it needs a spec answer.
-
-## Residual gaps and open items
-
-- **Supporting-file digest coverage (B1).** The index digest covers `SKILL.md` only. Every supporting file fetched via `resources/read` or the directory walk is unpinned. `install` narrows the exposure window (the host verifies and freezes at install), but there is currently no per-file integrity for supporting files in the individual-file model. Confirmed independently by the mcpkit implementation.
-- **Requirements not yet in SEP-2640.** After reconciling against the current SEP text, only a small set of fixtures encode host obligations the SEP does not yet mandate — all in the individual-file (non-archive) fetch path that survives archive removal: `file:`-scheme artifact-URL rejection with scheme-matching (`adv-file-url`), a raw size cap applied when a resource is *fetched and decoded* rather than only when an archive is *unpacked* (`adv-oversized-payload`), and extension of the cumulative per-server budget to cover the `url`-plus-supporting-files directory-walk path, not only archive bytes (`adv-walk-budget`). These are tracked as the PR #831 hardening follow-up. The C1 archive expansions (setuid clearing, non-regular rejection, cumulative budget, normalization-collision), B2 re-verification and serve-from-verified-copy, D5 `allowed-tools` gating, and D7 content-bound approval — which the corpus's fixture tags still label "proposed" — are already normative in the SEP revision this document tracks.
-- **Distribution-channel trust.** Independent of any single skill, the WG's position ([open-questions.md §10](open-questions.md#10-how-should-skills-handle-security-and-trust-boundaries)) is that MCP's authenticated server model is a more controlled channel than ad-hoc git-repo distribution, but the trust model should align with existing MCP server-trust boundaries and not turn MCP into a marketplace for arbitrary third-party skill content.
 
 ## Appendix A — Archive threat model (retained for reference)
 
