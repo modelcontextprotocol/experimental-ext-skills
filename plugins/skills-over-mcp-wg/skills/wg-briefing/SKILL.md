@@ -25,7 +25,7 @@ A quick "what's happened lately" read across the WG's surfaces. Defaults to a da
      - `method: get_reviews` — review submissions; note any `CHANGES_REQUESTED` / `APPROVED` and **who** (maintainer reviews like `localden`, `dsp-ant`, `pja-ant` are high-signal — a maintainer requesting changes is often the single most important item in the window).
      - `method: get_review_comments` — inline review threads tied to specific lines. This is where deep security/spec critique lands. Each thread carries `is_resolved` — surface unresolved maintainer threads, and note resolved ones as settled. If the result is too large to read inline, it's saved to a file; slice it by character range (or hand it to a subagent) rather than skipping it.
      Filter every surface by `created_at`/`updated_at` within the window, and attribute comments to their author. Also note new commits and the PR's `mergeable_state`.
-   - **Meeting notes** — new or updated discussions in category `meeting-notes-skills-over-mcp-wg` on `modelcontextprotocol/modelcontextprotocol` (GraphQL `search`, filter by `createdAt`/`updatedAt` within the window).
+   - **Meeting notes** — new or updated discussions on `modelcontextprotocol/modelcontextprotocol` in both the `meeting-notes-skills-over-mcp-wg` category and the `meeting-notes-core-maintainers` category (the latter periodically covers WG-relevant direction). GraphQL `search`, once per category, filtered by `createdAt`/`updatedAt` within the window.
    - **Discord `#skills-over-mcp-wg`** — recent messages via the `guildbridge` server (`read_messages` on channel `1464745826629976084`, guild `1358869848138059966`).
    - **Issues & PRs** — newly opened, closed, or merged items on `modelcontextprotocol/experimental-ext-skills` within the window.
 
@@ -46,7 +46,7 @@ A quick "what's happened lately" read across the WG's surfaces. Defaults to a da
 - New conversation comments, review submissions (incl. `CHANGES_REQUESTED` by maintainers), and inline review threads on SEP-2640, #2527 — flag unresolved maintainer threads (or "No activity.").
 
 ## Meeting notes
-- New/updated notes (or "No new notes.").
+- New/updated notes across the WG and core-maintainer categories (or "No new notes.").
 
 ## Discord
 - Notable threads or sentiment (or "Quiet.").

@@ -29,9 +29,11 @@ Work top-down. The first three sources are where live coordination happens; weig
 
    When a thread is relevant, deep-dive it (see [Deep diving](#deep-diving-into-a-pr-or-discussion)).
 
-3. **Meeting notes** — GitHub Discussions, category `meeting-notes-skills-over-mcp-wg` on `modelcontextprotocol/modelcontextprotocol`: https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg
+3. **Meeting notes** — GitHub Discussions on `modelcontextprotocol/modelcontextprotocol`. Sweep two categories:
+   - `meeting-notes-skills-over-mcp-wg` (the WG's own notes): https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg
+   - `meeting-notes-core-maintainers` (core maintainer notes — they periodically touch on direction relevant to this WG): https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-core-maintainers
 
-   There is no `gh search discussions`. Use the GraphQL API and scope to the category:
+   There is no `gh search discussions`. Use the GraphQL API and scope to a category — run it once per category, swapping the `category:` filter:
 
    ```bash
    gh api graphql -f query='query { search(query: "repo:modelcontextprotocol/modelcontextprotocol category:meeting-notes-skills-over-mcp-wg <topic>", type: DISCUSSION, first: 20) { nodes { ... on Discussion { title url body createdAt author { login } authorAssociation category { name } comments(first: 20) { nodes { body author { login } authorAssociation } } } } } }'
@@ -45,6 +47,8 @@ Work top-down. The first three sources are where live coordination happens; weig
 5. **Issues & PRs** — `modelcontextprotocol/experimental-ext-skills` (the WG repo), open **and** closed/merged for historical context. Use the `github` MCP server's search tools (`search_issues`, `search_pull_requests`) or `gh search prs` / `gh search issues`.
 
 6. **Spec content (background)** — the `mcp-docs` server (`search_model_context_protocol` tool) is authoritative for current protocol concepts and API references. Use it to ground terminology, not for WG opinion.
+
+7. **Agent Skills spec (related work)** — this WG builds directly on the Agent Skills spec, so prior decisions and in-flight discussion there frequently inform WG questions (format, frontmatter fields, progressive disclosure, etc.). When a topic touches the skill format itself, invoke the sibling **`search-agentskills-github`** skill to sweep the `agentskills/agentskills` GitHub org (PRs, issues, discussions, code). Treat what it finds as external prior art — link by URL and keep Agent Skills decisions distinct from this WG's decisions.
 
 For historical decisions, prioritize the decision log, merged PRs, and closed issues over open items.
 
@@ -125,6 +129,7 @@ Collect all sources as footnotes at the end. Every quote and claim should have a
 1. Generate search terms and variants (camelCase, space-separated).
 2. Grep the in-repo decision log (`docs/decisions.md`) first — separate settled from open.
 3. Pull the active SEP threads (SEP-2640, #2527; closed SEP-2076/2093 for history) and deep-dive the relevant ones.
-4. Search meeting-notes discussions (GraphQL) and the `#skills-over-mcp-wg` Discord (guildbridge).
+4. Search meeting-notes discussions — both the `meeting-notes-skills-over-mcp-wg` and `meeting-notes-core-maintainers` categories (GraphQL) — and the `#skills-over-mcp-wg` Discord (guildbridge).
 5. Search `experimental-ext-skills` issues/PRs (open and closed).
-6. Aggregate into the output format above — settled → in-flight → sentiment — with maintainer quotes and footnotes for every claim.
+6. If the topic touches the skill format itself, run the `search-agentskills-github` skill for Agent Skills prior art.
+7. Aggregate into the output format above — settled → in-flight → sentiment — with maintainer quotes and footnotes for every claim.
