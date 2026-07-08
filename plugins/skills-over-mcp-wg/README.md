@@ -36,9 +36,10 @@ Search across the WG's surfaces and return one attributed answer — leading wit
 
 - Decision log (`docs/decisions.md`, in-repo) — authoritative for settled questions
 - [SEP-2640: Skills Extension](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) and related/historical SEP threads
-- [Meeting notes discussions](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg)
+- [WG meeting notes](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg) and [core maintainer meeting notes](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-core-maintainers)
 - [`#skills-over-mcp-wg` Discord](https://discord.com/channels/1358869848138059966/1464745826629976084)
 - [`experimental-ext-skills` issues & PRs](https://github.com/modelcontextprotocol/experimental-ext-skills)
+- Agent Skills spec prior art via the bundled `/search-agentskills-github` skill (when a topic touches the skill format itself)
 
 **Example:**
 
@@ -58,4 +59,14 @@ A short briefing of what's changed across the same sources within a time window 
 /wg-briefing
 /wg-briefing 1 week
 /wg-briefing 2 weeks
+```
+
+### `/search-agentskills-github <topic>`
+
+Search the [Agent Skills](https://github.com/agentskills/agentskills) GitHub org — PRs, issues, discussions, and code — for prior decisions and related work. The WG builds on the Agent Skills spec, so `/search-wg-sources` calls into this skill when a topic touches the skill format itself; it's also useful on its own.
+
+**Example:**
+
+```
+/search-agentskills-github frontmatter fields
 ```

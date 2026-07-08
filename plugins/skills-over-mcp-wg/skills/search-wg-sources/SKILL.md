@@ -48,7 +48,7 @@ Work top-down. The first three sources are where live coordination happens; weig
 
 6. **Spec content (background)** — the `mcp-docs` server (`search_model_context_protocol` tool) is authoritative for current protocol concepts and API references. Use it to ground terminology, not for WG opinion.
 
-7. **Agent Skills spec (related work)** — this WG builds directly on the Agent Skills spec, so prior decisions and in-flight discussion there frequently inform WG questions (format, frontmatter fields, progressive disclosure, etc.). When a topic touches the skill format itself, invoke the sibling **`search-agentskills-github`** skill to sweep the `agentskills/agentskills` GitHub org (PRs, issues, discussions, code). Treat what it finds as external prior art — link by URL and keep Agent Skills decisions distinct from this WG's decisions.
+7. **Agent Skills spec (related work)** — this WG builds directly on the Agent Skills spec, so prior decisions and in-flight discussion there frequently inform WG questions (format, frontmatter fields, progressive disclosure, etc.). When a topic touches the skill format itself, invoke the **`search-agentskills-github`** skill (bundled in this plugin) to sweep the `agentskills/agentskills` GitHub org (PRs, issues, discussions, code). Treat what it finds as external prior art — link by URL and keep Agent Skills decisions distinct from this WG's decisions.
 
 For historical decisions, prioritize the decision log, merged PRs, and closed issues over open items.
 
