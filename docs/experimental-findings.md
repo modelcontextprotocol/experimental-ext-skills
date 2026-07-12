@@ -6,23 +6,30 @@
 
 ## McpGraph: Skills in MCP Server Repo
 
-**Repo:** [TeamSparkAI/mcpGraph](https://github.com/TeamSparkAI/mcpGraph)
-**Skill:** [mcpgraphtoolkit/SKILL.md](https://github.com/TeamSparkAI/mcpGraph/blob/main/skills/mcpgraphtoolkit/SKILL.md) (875+ lines)
+**Date:** Early 2026 (approximate)
 
-Bob Dickinson built a standalone SKILL.md file that lives in the same repo as the MCP server, but they weren't formally connected. The skill instructs agents on building directed graphs of MCP nodes to orchestrate tool calls.
+**Implementation:**
+- **Repo:** [TeamSparkAI/mcpGraph](https://github.com/TeamSparkAI/mcpGraph)
+- **Author:** Bob Dickinson
+- **Skill file(s):** [mcpgraphtoolkit/SKILL.md](https://github.com/TeamSparkAI/mcpGraph/blob/main/skills/mcpgraphtoolkit/SKILL.md) (875+ lines)
 
-**Findings:**
+**Approach tested:** Skills colocated with MCP server (see `docs/approaches.md`)
 
-- Claude ignored the SKILL.md initially, even when the skill and server had similar descriptions
-- Claude would fail at using the server tools a couple times, then read the skill and succeed
-- Expected Claude to start with the skill ("I know how to do X") before the server ("I do X"), but it didn't
+**Setup:**
+- **Clients tested:** Claude (specific client not documented)
+- **Models tested:** Claude (specific model not documented)
+- **Configuration notes:** SKILL.md lives in the same repo as the MCP server, not formally connected
 
-**Resolution:** Added a server instruction telling the agent to read the SKILL.md before using the tool. That one change caused Claude to reliably read the skill first.
+**What was tested:** Whether agents read and follow skill instructions when they're colocated with the server but not explicitly linked. Tested discovery and loading behavior.
 
-**Remaining concerns:**
+**Results:**
+- **What worked:** After adding a server instruction telling the agent to read the SKILL.md before using the tool, Claude reliably read the skill first
+- **What didn't:** Claude initially ignored the SKILL.md even when the skill and server had similar descriptions. Expected Claude to start with the skill ("I know how to do X") before the server ("I do X"), but it didn't. Claude would fail at using server tools, then read the skill and succeed.
+- **Surprises:** A single server instruction was enough to fix the loading order problem
 
-- This workaround works for 1:1 skill-to-server case, but doesn't solve discovery — users installing from a registry don't know to also install the skill
-- Distinguishes between "skill required to make the server work at all" vs. "skill that orchestrates tools you could use without it" — potentially different solutions needed
+**Requirements addressed:** Skill discovery and loading behavior (see `docs/requirements.md`)
+
+**Limitations:** This workaround works for 1:1 skill-to-server case only. Does not solve discovery for users installing from a registry. The distinction between "skill required to make the server work at all" vs. "skill that orchestrates tools you could use without it" may require different solutions.
 
 ## Skilljack MCP
 
