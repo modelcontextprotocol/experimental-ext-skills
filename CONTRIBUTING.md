@@ -9,6 +9,10 @@ This Working Group welcomes contributions from anyone interested in skills distr
 - Sharing experimental findings from your own implementations
 - Contributing to documentation and pattern evaluation
 
+## Contributing Findings
+
+If you have experimental results from implementing skills-over-MCP, add them to `docs/experimental-findings.md` using the [findings template](docs/findings-template.md). This keeps entries consistent and ensures nothing important is omitted.
+
 ## Communication Channels
 
 | Channel | Purpose | Response Expectation |
