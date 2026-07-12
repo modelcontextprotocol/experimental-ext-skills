@@ -33,11 +33,29 @@
 
 ## Skilljack MCP
 
-**Repo:** [olaservo/skilljack-mcp](https://github.com/olaservo/skilljack-mcp)
+**Date:** Early 2026 (approximate)
 
-Loads skills into tool descriptions. Uses dynamic tool updates to keep the skills manifest current.
+**Implementation:**
+- **Repo:** [olaservo/skilljack-mcp](https://github.com/olaservo/skilljack-mcp)
+- **Author:** olaservo
 
-Example eval approach and observations here: https://github.com/olaservo/skilljack-mcp/blob/main/evals/README.md
+**Approach tested:** Skills-as-tools (dynamic tool descriptions)
+
+**Setup:**
+- **Clients tested:** Not documented
+- **Models tested:** Not documented
+- **Configuration notes:** Skills loaded into tool descriptions via dynamic tool updates
+
+**What was tested:** Whether loading skill content into tool descriptions and using dynamic tool updates to keep the skills manifest current improves skill adherence.
+
+**Results:**
+- **What worked:** Dynamic tool updates keep the skills manifest current
+- **What didn't:** Not documented (see [eval README](https://github.com/olaservo/skilljack-mcp/blob/main/evals/README.md) for details)
+- **Surprises:** Not documented
+
+**Requirements addressed:** Skill delivery via tool descriptions (see `docs/requirements.md`)
+
+**Limitations:** Detailed results are in the repo's eval README, not summarized here. Setup and model details not documented.
 
 ## FastMCP 3.0 Skills Support
 
