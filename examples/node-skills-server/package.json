@@ -1,0 +1,18 @@
+{
+  "name": "node-skills-server-example",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal reference implementation of SEP-2640 (Skills Extension) — serves Agent Skills over MCP via the Resources primitive.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "gray-matter": "^4.0.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
