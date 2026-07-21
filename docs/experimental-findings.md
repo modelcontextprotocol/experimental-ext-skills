@@ -4,6 +4,24 @@
 
 > **Contributing findings?** Start with the [experimental findings template](findings-template.md).
 
+## Prototype: skill Resource Discovery and Loading (Issue #66)
+
+**Repo:** [`prototypes/issue-66-skill-resource-loading/`](../prototypes/issue-66-skill-resource-loading/) (this repo, personal fork exploration — not submitted upstream)
+
+Built a standalone Node.js MCP server + client pair to exercise [issue #66](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/66) against the merged [SEP-2640 draft](sep-draft-skills-extension.md), rather than the older custom-methods design #66 originally cited. Considered wiring this into an existing production MCP server first (a Shop-Africa/"SASE" search server) but that server had already tried and deliberately reverted protocol-level skill wiring in favor of plain filesystem-only Agent Skill content — reviving that felt like the wrong foundation for a clean test, so this is a from-scratch fixture instead.
+
+**Findings:**
+
+- The four-way scheme convergence the URI-scheme survey describes ([skill-uri-scheme.md](skill-uri-scheme.md)) holds up in practice: implementing `skill://<skill-path>/SKILL.md` end-to-end (server registration → `resources/list` → `resources/read`) required no protocol changes beyond what a stock `@modelcontextprotocol/sdk` `Server` already supports — no SDK-level skill helpers exist yet, so the mapping (frontmatter parsing, path-to-name validation, index generation) had to be hand-rolled.
+- The "enumeration is optional" design point ([sep-draft-skills-extension.md §Why Is Enumeration Optional?](sep-draft-skills-extension.md#why-is-enumeration-optional)) is real and testable: a skill (`hidden-skill`) excluded from both `resources/list` and `skill://index.json` was still successfully read via a bare `resources/read` call. This required using the low-level `Server` API directly — the SDK's higher-level `McpServer.registerResource()` helper auto-lists anything registered through it, so it can't produce an unlisted-but-readable resource; that's a real ergonomic gap for servers wanting the "hidden skill" pattern.
+- Enforcing "final `<skill-path>` segment MUST equal frontmatter `name`" at load time (throwing otherwise) was cheap to add and caught what would otherwise be a silent spec violation — worth SDK helpers validating this by default.
+- Noticed a discrepancy in this repo's own docs: `sep-draft-skills-extension.md` states the index `digest` field is omitted, but [PR #96](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/96) is titled "reinstate `digest` field in `skill://index.json`" — the two are inconsistent and unresolved as of this writing.
+
+**Remaining concerns:**
+
+- This does not satisfy #66's actual acceptance criteria (integration in a *major* open-source client like VS Code) — it's a local test bed, not a client integration. Left open which client, if any, this should feed into next.
+- No evaluation was done of `resources/subscribe`/`resources/updated` for live skill updates — the fixture skills are static for the lifetime of the server process.
+
 ## McpGraph: Skills in MCP Server Repo
 
 **Date:** Not documented
