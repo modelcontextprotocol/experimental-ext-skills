@@ -22,6 +22,8 @@ Throughout, "host" means the MCP client application that surfaces skills to a mo
 - **Host** — the client application. Trusted. Responsible for every mitigation in this document.
 - **Model** — the agent consuming skill instructions. Trusted to *decide* whether to follow a skill, but only if the host gives it the information (origin, provenance) to make that decision.
 
+**Protocol surface.** SEP-2640 gives the host three server methods, all authored by the (possibly malicious) server: `skills/list` enumerates a server's skills as paginated entries — each carrying `frontmatter`, the `SKILL.md` `uri`, and the per-file `resources` digest set; `skills/get` returns that same entry for a single skill by URI, including skills absent from the listing, and is the host's way to refresh one skill's digests; and the optional `resources/directory/read` lists the direct children of a directory resource (metadata only) for scoped navigation of supporting files. Individual files are read with the base `resources/read`. Everything an adversary asserts — the entry, the digests, the child listing — rides these methods; none of it is a trust signal on its own.
+
 **Assets to protect.**
 
 - The **host filesystem and the user's credentials** reachable from it (SSH keys, tokens, `~/.claude/CLAUDE.md`-style agent config).
@@ -138,8 +140,9 @@ Size limits that live only in a (now-deferred) archive extractor leave the indiv
 | :--- | :--- | :--- | :--- |
 | `adv-oversized-payload` | `SKILL.md` resource is ~16 MiB (honest digest) — over any sane raw cap. | reject | No — SEP does not yet bound resource-fetch size (PR #831) |
 | `adv-walk-budget` | ~27 MiB of supporting files dragged in via the directory walk, on a server already near its per-server budget. | reject | No — no SEP per-server fetch budget yet (PR #831) |
+| *enumeration exhaustion* | `skills/list` (or `resources/directory/read`) returns an unbounded stream of pages via an endless `nextCursor`, exhausting the host at discovery time — before any file is fetched. | reject | Proposed — pagination is SEP-defined but unbounded; **no corpus fixture yet** |
 
-A host MUST bound the raw size of a fetched resource *before* fully reading/decoding it (honoring the advertised `Resource.size` and capping the read regardless), and MUST apply a cumulative per-server budget to walk-fetched supporting files, not only to any archive path. Note the SEP removed archives (see Appendix A), so the *only* remaining path for these attacks is per-file fetch and directory-walk — which makes a fetch-layer cap, rather than an extractor-layer cap, the correct place for the bound.
+A host MUST bound the raw size of a fetched resource *before* fully reading/decoding it (honoring the advertised `Resource.size` and capping the read regardless), and MUST apply a cumulative per-server budget to walk-fetched supporting files, not only to any archive path. Note the SEP removed archives (see Appendix A), so the *only* remaining path for the file-size attacks is per-file fetch and directory-walk — which makes a fetch-layer cap, rather than an extractor-layer cap, the correct place for the bound. Separately, the exhaustion surface starts *before* any file is read: `skills/list` and `resources/directory/read` are both cursor-paginated (`nextCursor`), and SEP-2640 bounds neither the page count nor the total entry count. A host MUST cap the number of pages (or total entries) it will follow from a single server's enumeration, and treat a listing that refuses to terminate as it would any other resource-exhaustion attack — the `ttlMs`/`cacheScope` freshness hints the SEP added to `skills/list` are caching signals, not a bound.
 
 ### T7 — Cache isolation and durable origin
 
@@ -183,6 +186,7 @@ Every adversarial fixture in [`dangerous-skills-mcp/src/adversarial/catalog.ts`]
 | *directory-walk escape* | T5 Confused deputy | `resources` URIs in-subtree; unlisted read = failure | reject | Proposed — no corpus fixture yet |
 | `adv-oversized-payload` | T6 Exhaustion | size cap before decode (fetch layer) | reject | No — PR #831 |
 | `adv-walk-budget` | T6 Exhaustion | per-server budget on walk | reject | No — PR #831 |
+| *enumeration exhaustion* | T6 Exhaustion | bound `skills/list` / directory-read pagination | reject | Proposed — no corpus fixture yet |
 | *cross-origin name shadow* | T8 Impersonation | per-origin name namespacing | re-prompt | Proposed — no corpus fixture yet |
 | *nested activation ride-in* | T9 Nested consent | per-skill approval for nested skills | gate | Proposed — no corpus fixture yet |
 | `adv-archive-traversal` **[A]** | Archive traversal | Deferred (was: unpack MUSTs) | reject | Deferred — §Appendix: Deferred Features |
@@ -265,7 +269,8 @@ Threats the current SEP revision does **not** fully close, and directions raised
 - **Skills without `resources` have no integrity.** Dynamically generated skills MAY omit `resources`; such a skill cannot be content-bound and a host MAY decline it. Hosts that choose to load them are trusting unverifiable bytes for the session.
 - **`file:` and non-`skill://` artifact URLs** (`adv-file-url`) are not yet addressed in the SEP — tracked as a PR #831 follow-up. Match on scheme, not string prefix.
 - **Fetch-layer size and per-server budget** (`adv-oversized-payload`, `adv-walk-budget`) are not yet SEP-mandated for the per-file fetch and directory-walk paths — also PR #831.
-- **No corpus fixture yet** exercises cross-origin name-collision impersonation (T8), directory-walk subtree escape (T5), or nested-skill consent (T9). These are proposed corpus additions; the SEP mandates the host behavior, but the runnable oracle does not exist yet.
+- **Enumeration pagination is unbounded.** `skills/list` and `resources/directory/read` are cursor-paginated but the SEP caps neither page nor entry count, so a host must impose its own limit (T6). Not yet SEP-mandated.
+- **No corpus fixture yet** exercises cross-origin name-collision impersonation (T8), directory-walk subtree escape (T5), nested-skill consent (T9), or enumeration exhaustion (T6). These are proposed corpus additions; the SEP mandates (or, for pagination, leaves open) the host behavior, but the runnable oracle does not exist yet.
 
 ## References
 
