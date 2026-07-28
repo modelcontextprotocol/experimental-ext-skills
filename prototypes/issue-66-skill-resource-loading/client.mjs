@@ -64,8 +64,7 @@ async function main() {
 
   section("5. Loading a sub-resource via a relative reference");
   const refunds = loaded.find((s) => s.name === "refunds");
-  const relativeRefMatch = /`(templates\/[\w.-]+)`/.exec(refunds.text);
-  const relativeRef = relativeRefMatch[1];
+  const relativeRef = /`([\w-]+\/[\w.-]+)`/.exec(refunds.text)[1];
   const subResourceUri = resolveRelativeReference(refunds.uri, relativeRef);
   console.log(`  refunds/SKILL.md references "${relativeRef}" -> resolved to ${subResourceUri}`);
   const subResource = await client.readResource({ uri: subResourceUri });
