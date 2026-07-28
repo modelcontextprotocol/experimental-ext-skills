@@ -17,6 +17,8 @@ Implemented `skill://` discovery in VS Code proper, the client [issue #66](https
 - **Adding a skill source has a wider blast radius than expected.** `PromptsStorage` is shadowed by a parallel `AICustomizationSource` string union and an exhaustive switch in the extension-host protocol layer; a new variant breaks both. Worth noting for other hosts: "where can a skill come from" is often encoded in more than one place.
 - **Enumeration being optional is easy to get wrong by construction.** Both discovery mechanisms (`skill://index.json` and `resources/list`) are attempted and merged, because a server may implement either, both, or neither — and a server implementing neither still serves readable skills. A client that reads only the index silently misses those.
 - **Precedence needs an explicit decision.** Local skills win name collisions here, so a connected server cannot shadow a skill the user has on disk. The SEP does not speak to cross-source precedence; hosts merging MCP skills into an existing local skill namespace each have to pick.
+- **URI-based vs. metadata-based identification ([#54](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/54)):** skills are identified purely by the `skill://` scheme prefix plus the `/SKILL.md` suffix, with no custom `_meta` keys read. Scheme-based identification needed zero extra fields and made the client's filter a two-line string check, but it carries no structured metadata — tags, versioning, or provenance would each require layering `_meta` on top anyway. Since the final path segment must equal the frontmatter `name`, the skill's name is recoverable from the URI alone, which is what let discovery populate a picker without fetching every `SKILL.md` first.
+- **Doc inconsistency spotted in passing:** [sep-draft-skills-extension.md](sep-draft-skills-extension.md) states the index `digest` field is omitted, while [PR #96](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/96) is titled "reinstate `digest` field in `skill://index.json`". The two disagree; this implementation follows the checked-in doc and ignores `digest`.
 
 **Verification:** full `tsc --noEmit` over VS Code's `src/` passes with 0 errors; 7 new unit tests pass (including a `skill://` → `mcp-resource://` round trip through real `McpResourceURI` code); 112 existing promptSyntax tests still pass.
 
@@ -26,25 +28,6 @@ Implemented `skill://` discovery in VS Code proper, the client [issue #66](https
 - Resource templates (`type: "mcp-resource-template"` index entries) are parsed but not materialized — they need the completion API to resolve.
 - No `resources/subscribe` handling, so skill updates mid-session are not picked up.
 - MCP skills are deliberately excluded from the AI Customization management editor, whose open/edit affordances assume a writable local file.
-
-## Prototype: skill Resource Discovery and Loading (Issue #66)
-
-**Repo:** [`prototypes/issue-66-skill-resource-loading/`](../prototypes/issue-66-skill-resource-loading/) (this repo, personal fork exploration — not submitted upstream)
-
-Built a standalone Node.js MCP server + client pair to exercise [issue #66](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/66) against the merged [SEP-2640 draft](sep-draft-skills-extension.md), rather than the older custom-methods design #66 originally cited. Considered wiring this into an existing production MCP server first (a Shop-Africa/"SASE" search server) but that server had already tried and deliberately reverted protocol-level skill wiring in favor of plain filesystem-only Agent Skill content — reviving that felt like the wrong foundation for a clean test, so this is a from-scratch fixture instead.
-
-**Findings:**
-
-- The four-way scheme convergence the URI-scheme survey describes ([skill-uri-scheme.md](skill-uri-scheme.md)) holds up in practice: implementing `skill://<skill-path>/SKILL.md` end-to-end (server registration → `resources/list` → `resources/read`) required no protocol changes beyond what a stock `@modelcontextprotocol/sdk` `Server` already supports — no SDK-level skill helpers exist yet, so the mapping (frontmatter parsing, path-to-name validation, index generation) had to be hand-rolled.
-- The "enumeration is optional" design point ([sep-draft-skills-extension.md §Why Is Enumeration Optional?](sep-draft-skills-extension.md#why-is-enumeration-optional)) is real and testable: a skill (`hidden-skill`) excluded from both `resources/list` and `skill://index.json` was still successfully read via a bare `resources/read` call. This required using the low-level `Server` API directly — the SDK's higher-level `McpServer.registerResource()` helper auto-lists anything registered through it, so it can't produce an unlisted-but-readable resource; that's a real ergonomic gap for servers wanting the "hidden skill" pattern.
-- Enforcing "final `<skill-path>` segment MUST equal frontmatter `name`" at load time (throwing otherwise) was cheap to add and caught what would otherwise be a silent spec violation — worth SDK helpers validating this by default.
-- Skill resources were identified purely by the `skill://` scheme prefix plus the well-known index — no custom `_meta` keys were needed. The trade-off against metadata-based identification ([#54](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/54)): scheme-based needs zero extra fields and works immediately for any client recognizing the prefix, but carries no structured metadata (tags, versioning, provenance) without layering `_meta` on anyway.
-- Noticed a discrepancy in this repo's own docs: `sep-draft-skills-extension.md` states the index `digest` field is omitted, but [PR #96](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/96) is titled "reinstate `digest` field in `skill://index.json`" — the two are inconsistent and unresolved as of this writing.
-
-**Remaining concerns:**
-
-- This does not satisfy #66's actual acceptance criteria (integration in a *major* open-source client like VS Code) — it's a local test bed, not a client integration. Left open which client, if any, this should feed into next.
-- No evaluation was done of `resources/subscribe`/`resources/updated` for live skill updates — the fixture skills are static for the lifetime of the server process.
 
 ## McpGraph: Skills in MCP Server Repo
 
