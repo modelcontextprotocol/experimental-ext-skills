@@ -4,6 +4,29 @@
 
 > **Contributing findings?** See [#50](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/50) for the contribution template proposal.
 
+## VS Code: MCP-served skills as agent skills (Issue #66)
+
+**Branch:** local `feature/sep2640-mcp-skill-discovery` on [microsoft/vscode](https://github.com/microsoft/vscode) (personal exploration, not submitted upstream)
+
+Implemented `skill://` discovery in VS Code proper, the client [issue #66](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/66) names. Adds `mcpSkillDiscovery.ts` to the MCP contrib and merges its results into the chat prompt service under a new `PromptsStorage.mcp`.
+
+**Findings:**
+
+- **VS Code already implements the whole progressive-disclosure loop — it just had no MCP source.** `computeAutomaticInstructions.ts` calls `promptsService.findAgentSkills()`, injects only each skill's `name`/`description` into a `<skills>` context block, and points the model at a `skill` tool to load full content on demand. That is the same shape as [skillsdotnet](https://github.com/PederHP/skillsdotnet)'s `SkillCatalog` (`GetSkillContexts()` + `load_skill`), already shipping in a major client. The gap was purely that `IAgentSkill` could only originate from disk, extensions, or plugins.
+- **The loading half of SEP-2640 needs no client code in VS Code.** Because `McpResourceFilesystem` registers `mcp-resource://` with `IFileService`, mapping a discovered `skill://…/SKILL.md` to an `mcp-resource://` URI is sufficient — the existing skill tool reads it through the ordinary file path and each read becomes an MCP `resources/read`. This is the concrete payoff of the FS-provider pattern noted in [client-mcp-support.md](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/92); only *discovery* had to be written, and the SEP's "treat filesystem and MCP skills identically" recommendation falls out for free rather than needing to be engineered.
+- **Adding a skill source has a wider blast radius than expected.** `PromptsStorage` is shadowed by a parallel `AICustomizationSource` string union and an exhaustive switch in the extension-host protocol layer; a new variant breaks both. Worth noting for other hosts: "where can a skill come from" is often encoded in more than one place.
+- **Enumeration being optional is easy to get wrong by construction.** Both discovery mechanisms (`skill://index.json` and `resources/list`) are attempted and merged, because a server may implement either, both, or neither — and a server implementing neither still serves readable skills. A client that reads only the index silently misses those.
+- **Precedence needs an explicit decision.** Local skills win name collisions here, so a connected server cannot shadow a skill the user has on disk. The SEP does not speak to cross-source precedence; hosts merging MCP skills into an existing local skill namespace each have to pick.
+
+**Verification:** full `tsc --noEmit` over VS Code's `src/` passes with 0 errors; 7 new unit tests pass (including a `skill://` → `mcp-resource://` round trip through real `McpResourceURI` code); 112 existing promptSyntax tests still pass.
+
+**Remaining concerns:**
+
+- **Not verified end-to-end against a running server.** VS Code's `npm install` fails on `foundry-local-sdk`, which downloads a native library from a Microsoft-internal Azure feed (HTTP 401 without credentials). Dependencies were installed with `--ignore-scripts` to get type-checking and unit tests, but that leaves the app unable to actually launch, so the flow was never exercised against a live MCP server. Everything above is static and unit-level verification only.
+- Resource templates (`type: "mcp-resource-template"` index entries) are parsed but not materialized — they need the completion API to resolve.
+- No `resources/subscribe` handling, so skill updates mid-session are not picked up.
+- MCP skills are deliberately excluded from the AI Customization management editor, whose open/edit affordances assume a writable local file.
+
 ## Prototype: skill Resource Discovery and Loading (Issue #66)
 
 **Repo:** [`prototypes/issue-66-skill-resource-loading/`](../prototypes/issue-66-skill-resource-loading/) (this repo, personal fork exploration — not submitted upstream)
