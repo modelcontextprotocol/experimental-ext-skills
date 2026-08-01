@@ -6,7 +6,7 @@
 
 ## VS Code: MCP-served skills as agent skills (Issue #66)
 
-**Branch:** `feature/sep2640-mcp-skill-discovery` on a [microsoft/vscode](https://github.com/microsoft/vscode) fork (personal exploration, not submitted upstream)
+**Implementation:** [tobi-oye/vscode#1](https://github.com/tobi-oye/vscode/pull/1) — on a [microsoft/vscode](https://github.com/microsoft/vscode) fork (personal exploration, not submitted upstream)
 
 Added `skill://` discovery to VS Code and verified it against the [Hugging Face MCP server](https://github.com/huggingface/hf-mcp-server) (`https://huggingface.co/mcp`). VS Code discovered 8 skills and offered them to the model with no manual attachment.
 
