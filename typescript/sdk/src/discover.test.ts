@@ -24,6 +24,37 @@ describe("discoverSkills frontmatter parsing", () => {
     fs.writeFileSync(path.join(dir, "SKILL.md"), skillMd);
   }
 
+  it("rejects a frontmatter name that only matches the path segment after trimming", () => {
+    // The SEP requires the final path segment to equal the name *as
+    // declared*. A quoted YAML name with surrounding whitespace must be
+    // rejected, not silently trimmed into conformance.
+    const dir = path.join(tmpDir, "padded");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, "SKILL.md"),
+      '---\nname: " padded"\ndescription: Padded name\n---\n# X\n',
+    );
+
+    const map = discoverSkills(tmpDir);
+    expect(map.has("padded")).toBe(false);
+  });
+
+  it("captures a content snapshot, per-file digests/bytes, and subdirectories (including empty)", () => {
+    const dir = path.join(tmpDir, "snap");
+    fs.mkdirSync(path.join(dir, "refs"), { recursive: true });
+    fs.mkdirSync(path.join(dir, "empty-dir"), { recursive: true });
+    const skillMd = "---\nname: snap\ndescription: Snapshot test\n---\n# Snap\n";
+    fs.writeFileSync(path.join(dir, "SKILL.md"), skillMd);
+    fs.writeFileSync(path.join(dir, "refs", "GUIDE.md"), "# Guide\n");
+
+    const skill = discoverSkills(tmpDir).get("snap")!;
+    expect(skill.content).toBe(skillMd);
+    expect(skill.directories?.sort()).toEqual(["empty-dir", "refs"]);
+    const guide = skill.documents.find((d) => d.path === "refs/GUIDE.md")!;
+    expect(guide.bytes?.toString("utf-8")).toBe("# Guide\n");
+    expect(guide.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+  });
+
   it("does not let a '---' inside the frontmatter terminate it early", () => {
     // A literal block scalar whose indented content includes a `---` line.
     // A naive content.split('---') truncates `description` at that line and

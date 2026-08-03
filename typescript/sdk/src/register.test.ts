@@ -252,7 +252,7 @@ describe("registerSkillResources — skills methods", () => {
     expect(refDir.mimeType).toBe("inode/directory");
   });
 
-  it("serves skill entries from skills/list with the caching attributes", async () => {
+  it("serves skill entries from skills/list with the caching attributes on 2026-07-28+", async () => {
     const server = makeStubServer();
     const skillMap = mapOf(
       skill({
@@ -270,7 +270,12 @@ describe("registerSkillResources — skills methods", () => {
       cacheScope: "public",
     });
 
-    const result = await handlerFor(server, SKILLS_LIST_METHOD)!({});
+    const modernCtx = {
+      mcpReq: {
+        envelope: { "io.modelcontextprotocol/protocolVersion": "2026-07-28" },
+      },
+    };
+    const result = await handlerFor(server, SKILLS_LIST_METHOD)!({}, modernCtx);
     expect(result.ttlMs).toBe(60_000);
     expect(result.cacheScope).toBe("public");
     expect(result.skills).toHaveLength(1);
@@ -282,6 +287,39 @@ describe("registerSkillResources — skills methods", () => {
         { uri: "skill://code-review/references/GUIDE.md", digest: DIGEST_B },
       ],
     });
+  });
+
+  it("omits ttlMs/cacheScope for pre-2026-07-28 requests (no envelope)", async () => {
+    const server = makeStubServer();
+    registerSkillResources(server, mapOf(skill({ name: "a", skillPath: "a" })), "/skills", {
+      template: false,
+      ttlMs: 60_000,
+      cacheScope: "public",
+    });
+
+    const result = await handlerFor(server, SKILLS_LIST_METHOD)!({});
+    expect(result.ttlMs).toBeUndefined();
+    expect(result.cacheScope).toBeUndefined();
+    expect(result.skills).toHaveLength(1);
+  });
+
+  it("filters listed: false skills from skills/list but still answers skills/get", async () => {
+    const server = makeStubServer();
+    const skillMap = mapOf(
+      skill({ name: "public-skill", skillPath: "public-skill" }),
+      skill({ name: "hidden-skill", skillPath: "hidden-skill", listed: false }),
+    );
+    registerSkillResources(server, skillMap, "/skills", { template: false });
+
+    const listing = await handlerFor(server, SKILLS_LIST_METHOD)!({});
+    expect(listing.skills.map((s: { uri: string }) => s.uri)).toEqual([
+      "skill://public-skill/SKILL.md",
+    ]);
+
+    const got = await handlerFor(server, SKILLS_GET_METHOD)!({
+      uri: "skill://hidden-skill/SKILL.md",
+    });
+    expect(got.skill.uri).toBe("skill://hidden-skill/SKILL.md");
   });
 
   it("serves a single entry from skills/get and errors -32602 for unknown URIs", async () => {
@@ -347,9 +385,16 @@ describe("makeSkillsListHandler pagination", () => {
     expect(page2.nextCursor).toBeUndefined();
   });
 
-  it("defaults to ttlMs 0 and cacheScope private", async () => {
+  it("defaults to ttlMs 0 and cacheScope private on 2026-07-28+ requests", async () => {
     const handler = makeSkillsListHandler(map);
-    const result = await handler({});
+    const result = await handler(
+      {},
+      {
+        mcpReq: {
+          envelope: { "io.modelcontextprotocol/protocolVersion": "2026-07-28" },
+        },
+      },
+    );
     expect(result.ttlMs).toBe(0);
     expect(result.cacheScope).toBe("private");
   });

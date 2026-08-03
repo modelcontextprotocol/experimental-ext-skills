@@ -109,6 +109,26 @@ describe("buildDirectoryTree", () => {
     expect(tree.has("skill://")).toBe(false);
   });
 
+  it("materializes empty directories as listable keys and parent children", () => {
+    const tree = buildDirectoryTree(
+      skillMap([
+        skill({
+          name: "code-review",
+          skillPath: "code-review",
+          directories: ["assets", "assets/img"],
+        }),
+      ]),
+    );
+
+    // Empty directories exist in the tree (→ empty listing, not -32602)…
+    expect(tree.get("skill://code-review/assets/img")).toEqual([]);
+    // …and appear as children of their parents.
+    const root = tree.get("skill://code-review")!;
+    expect(root.find((c) => c.name === "assets")!.mimeType).toBe(INODE_DIRECTORY_MIME);
+    const assets = tree.get("skill://code-review/assets")!;
+    expect(assets.map((c) => c.name)).toEqual(["img"]);
+  });
+
   it("handles nested skills as ordinary paths (enclosing + nested map entries agree)", () => {
     // A nested skill's files appear both via the enclosing skill's documents
     // and via its own map entry; the tree must dedupe into one namespace.

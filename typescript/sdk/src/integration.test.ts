@@ -23,6 +23,7 @@ import {
   readDirectory,
   discoverSkills,
 } from "./_client.js";
+import { SKILLS_LIST_METHOD, SkillsListResultSchema } from "./skills-methods.js";
 import { SKILLS_EXTENSION_ID } from "./resource-extensions.js";
 
 const SKILL_MD = `---
@@ -45,6 +46,7 @@ beforeAll(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ext-skills-e2e-"));
   const skillDir = path.join(tmpDir, "acme", "billing", "refunds");
   fs.mkdirSync(path.join(skillDir, "templates"), { recursive: true });
+  fs.mkdirSync(path.join(skillDir, "assets"), { recursive: true }); // stays empty
   fs.writeFileSync(path.join(skillDir, "SKILL.md"), SKILL_MD);
   fs.writeFileSync(
     path.join(skillDir, "templates", "refund-email.md"),
@@ -146,10 +148,60 @@ describe("e2e over the v2 SDK", () => {
     );
     expect(resources.map((r) => r.name).sort()).toEqual([
       "SKILL.md",
+      "assets",
       "templates",
     ]);
     const templates = resources.find((r) => r.name === "templates");
     expect(templates?.mimeType).toBe("inode/directory");
+  });
+
+  it("lists an empty directory as an empty result, not an error", async () => {
+    const { resources } = await readDirectory(
+      client,
+      "skill://acme/billing/refunds/assets",
+    );
+    expect(resources).toEqual([]);
+  });
+
+  it("serves the discovery-time snapshot even if the file changes on disk", async () => {
+    // The SEP binds the entry (digest + frontmatter) to the served content;
+    // snapshot serving keeps them consistent regardless of on-disk drift.
+    const skillMdPath = path.join(
+      tmpDir,
+      "acme",
+      "billing",
+      "refunds",
+      "SKILL.md",
+    );
+    const original = fs.readFileSync(skillMdPath, "utf-8");
+    try {
+      fs.writeFileSync(
+        skillMdPath,
+        original.replace("# Refunds", "# Refunds (edited on disk)"),
+      );
+      const entry = await getSkill(
+        client,
+        "skill://acme/billing/refunds/SKILL.md",
+      );
+      // Digest verification and the frontmatter identity check still pass:
+      // entry and served content both come from the discovery snapshot.
+      const text = await readSkill(client, entry);
+      expect(text).toBe(SKILL_MD);
+    } finally {
+      fs.writeFileSync(skillMdPath, original);
+    }
+  });
+
+  it("omits ttlMs/cacheScope on this pre-2026-07-28 connection", async () => {
+    // InMemoryTransport pairs negotiate a 2025-era protocol version, whose
+    // requests carry no _meta envelope — so per SEP-2640 the list-caching
+    // attributes must be absent from the result.
+    const result = (await client.request(
+      { method: SKILLS_LIST_METHOD, params: {} },
+      SkillsListResultSchema,
+    )) as { ttlMs?: number; cacheScope?: string };
+    expect(result.ttlMs).toBeUndefined();
+    expect(result.cacheScope).toBeUndefined();
   });
 
   it("errors -32602 for directory read of a non-directory", async () => {

@@ -160,6 +160,30 @@ export function buildDirectoryTree(
     }
   };
 
+  /**
+   * Record a directory at `<segments...>`, creating ancestors, registering
+   * it as a child of its parent, and materializing it as a tree key even
+   * when it holds no files — so an empty directory lists as an empty
+   * result rather than reading as nonexistent (SEP-2640: "An empty
+   * directory yields an empty `resources` array").
+   */
+  const addDir = (segments: string[]) => {
+    for (let i = 0; i < segments.length; i++) {
+      const parentPath = segments.slice(0, i).join("/");
+      const childPath = segments.slice(0, i + 1).join("/");
+      const dir = ensureDir(parentPath);
+      // Don't clobber a file that happens to share the name.
+      if (!dir.has(segments[i])) {
+        dir.set(segments[i], {
+          uri: `${SKILL_URI_SCHEME}${childPath}`,
+          name: segments[i],
+          mimeType: INODE_DIRECTORY_MIME,
+        });
+      }
+      ensureDir(childPath);
+    }
+  };
+
   for (const [skillPath, skill] of skillMap) {
     const base = skillPath.split("/");
     // SKILL.md at the skill root.
@@ -167,6 +191,10 @@ export function buildDirectoryTree(
     // Supporting documents, addressed relative to the skill root.
     for (const doc of skill.documents) {
       addFile([...base, ...doc.path.split("/")], doc.size);
+    }
+    // Every subdirectory, including empty ones.
+    for (const dir of skill.directories ?? []) {
+      addDir([...base, ...dir.split("/")]);
     }
   }
 

@@ -12,11 +12,15 @@ export {
   loadSkillContent,
   loadDocument,
   scanDocuments,
+  scanSkillDirectory,
   isPathWithinBase,
   sha256Digest,
   DEFAULT_SKILLS_LIST_PAGE_SIZE,
 } from "../_server.js";
-export type { SkillsListHandlerOptions } from "../_server.js";
+export type {
+  SkillsListHandlerOptions,
+  SkillsHandlerContext,
+} from "../_server.js";
 
 export {
   declareSkillsExtension,

@@ -16,11 +16,15 @@ The main principle is to **make simple things easy and complex things possible.*
 
 The extension defines two required methods and one optional method; there is no index resource and no archive distribution (both removed during core-maintainer review — the index in favor of `skills/list`, archives into the SEP's "Appendix: Deferred Features").
 
-- `skills/list` (`skills-methods.ts`) — paginated entry enumeration. Entries are `{uri, frontmatter, resources}`: verbatim frontmatter as JSON, and a **complete** per-file `resources` manifest of `{uri, digest}` pairs including `SKILL.md` itself. Entries are atomic across pages. Results carry the SEP-2549 `ttlMs`/`cacheScope` attributes (server options, defaults `0`/`"private"`). The listing MAY be empty or partial; never proof of absence.
+- `skills/list` (`skills-methods.ts`) — paginated entry enumeration. Entries are `{uri, frontmatter, resources}`: verbatim frontmatter as JSON, and a **complete** per-file `resources` manifest of `{uri, digest}` pairs including `SKILL.md` itself. Entries are atomic across pages. Results carry the SEP-2549 `ttlMs`/`cacheScope` attributes (server options, defaults `0`/`"private"`) **only on 2026-07-28+ requests** — the handler reads the request's `_meta` envelope protocol version (`SkillsHandlerContext`), which exists only under that revision, and omits the attributes on older connections per the SEP's "in protocol versions 2026-07-28 and later" scoping. The listing MAY be empty or partial; never proof of absence — and `SkillMetadata.listed: false` expresses a served-but-unlisted skill (filtered from `skills/list`, still answered by `skills/get`).
 - `skills/get` (`skills-methods.ts`) — one entry by `SKILL.md` URI, listed or not; `-32602` for non-skill URIs. Doubles as the skill-identity confirmation for explicitly referenced URIs (schemes are non-privileged — never infer skill-ness from `skill://`).
 - `resources/directory/read` (`directory.ts` schemas/tree; handler in `_server.ts`) — optional, gated behind the `directoryRead` capability setting; metadata-only, non-recursive, paginated; directories are `mimeType: "inode/directory"`; `-32602` for non-directories.
 
 `resources` MAY be omitted only for dynamically generated skills; such skills are unverifiable and the client read path throws unless `allowUnverified` is passed.
+
+## Snapshot serving (server)
+
+`discoverSkills()` captures each file's bytes at discovery (`SkillMetadata.content` for SKILL.md, `SkillDocument.bytes` for supporting files) and registration serves those snapshots, never re-reading disk. This is load-bearing for conformance: the entry's digests and `frontmatter` MUST describe the served bytes, and live disk reads would let them drift apart (a permanent verification failure that `skills/get` couldn't cure, since it too would serve the stale entry). On-disk changes require rediscovery + re-registration (restart). Oversized (>1MB) files are skipped **with a logged warning** and excluded from both the manifest and serving, keeping the manifest complete w.r.t. the served set. `scanSkillDirectory()` also records every subdirectory — including empty ones — into `SkillMetadata.directories`, which `buildDirectoryTree` materializes so `resources/directory/read` on an empty directory returns an empty listing (SEP requirement), not `-32602`. The final-segment-equals-name check compares the frontmatter `name` **verbatim** (no trimming): the entry carries frontmatter verbatim, so a name that only matches after trimming would violate the identity requirement.
 
 ## v2 MCP SDK
 
@@ -74,7 +78,10 @@ Behaviors normatively prescribed by SEP-2640 are on by default. Host-narrative b
 | Final-segment-equals-name validation | SEP-2640 | always enforced |
 | Skill name `^[a-z0-9-]+$` validation | SEP-2640 + agentskills.io | always enforced |
 | Nested skill discovery | SEP-2640 | always on (no-nesting rule removed) |
-| `ttlMs` / `cacheScope` on `skills/list` | SEP-2549 via SEP-2640 | emitted; defaults `0` / `"private"` |
+| Snapshot serving (content pinned to entry digests) | SEP-2640 identity MUSTs | always on when discovered via `discoverSkills` (disk fallback for hand-built maps) |
+| Empty-directory listing via `directories` | SEP-2640 | always on when discovered via `discoverSkills` |
+| `ttlMs` / `cacheScope` on `skills/list` | SEP-2549 via SEP-2640 | emitted on 2026-07-28+ requests only; defaults `0` / `"private"` |
+| `listed: false` (served but unlisted skill) | SEP-2640 partial-listing allowance | opt-in per skill |
 | `resources/directory/read` handler | SEP-2640 optional | opt-in (`directoryRead: true`) |
 | `instructions` mining (with `skills/get` confirmation) | SEP-2640 pointer | opt-in (`instructions: true`) |
 | Custom URI extractor | SDK | opt-in (`extractor`) |

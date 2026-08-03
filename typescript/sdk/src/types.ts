@@ -87,6 +87,15 @@ export interface SkillDocument {
    * Emitted in the skill's entry `resources` manifest (SEP-2640).
    */
   digest: string;
+  /**
+   * Raw bytes captured at discovery time. When present, registered
+   * resources serve these bytes rather than re-reading the file, so served
+   * content can never drift from the advertised digest (the SEP's
+   * frontmatter-identity and digest requirements bind the entry to the
+   * content). `discoverSkills()` always fills this; hand-built maps may
+   * omit it, in which case reads fall back to the filesystem.
+   */
+  bytes?: Buffer;
 }
 
 /**
@@ -123,6 +132,30 @@ export interface SkillMetadata {
   absolutePath: string;
   /** Absolute filesystem path to the skill's directory */
   skillDir: string;
+  /**
+   * SKILL.md text captured at discovery time. When present, the registered
+   * resource serves this snapshot rather than re-reading the file, keeping
+   * the served content identical to what the entry's digest and
+   * `frontmatter` describe even if the file changes on disk. Re-run
+   * `discoverSkills()` (and re-register before connect) to pick up changes.
+   */
+  content?: string;
+  /**
+   * Every subdirectory of the skill directory (relative paths from the
+   * skill root, `/`-separated), including empty ones. Lets
+   * `resources/directory/read` list an empty directory as an empty result
+   * rather than treating it as nonexistent, per SEP-2640.
+   */
+  directories?: string[];
+  /**
+   * Whether this skill appears in `skills/list` results. Default `true`.
+   * Set `false` for skills the server serves but does not enumerate —
+   * `skills/get` still answers for them, and their resources remain
+   * readable, per the SEP's partial-listing allowance. (The SKILL.md
+   * resource is still registered, so it remains visible to a plain
+   * `resources/list`; only the skills listing is filtered.)
+   */
+  listed?: boolean;
   /**
    * Custom MCP resource `_meta` for this skill's `SKILL.md` resource.
    *

@@ -95,9 +95,10 @@ registerSkillResources(server, skillMap, skillsDir, {
   // Implement resources/directory/read so hosts can enumerate skill dirs;
   // this also flips directoryRead: true in the capability declaration.
   directoryRead: true,
-  // SEP-2549 list-caching attributes on skills/list results: this catalog is
-  // static filesystem content with nothing user-specific, so it may be
-  // cached for a minute and shared across authorization contexts.
+  // SEP-2549 list-caching attributes on skills/list results (emitted on
+  // 2026-07-28+ connections only): this catalog is static filesystem
+  // content with nothing user-specific, so it may be cached for a minute
+  // and shared across authorization contexts.
   ttlMs: 60_000,
   cacheScope: "public",
 });

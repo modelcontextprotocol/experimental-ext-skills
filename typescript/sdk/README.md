@@ -65,6 +65,9 @@ registerSkillResources(server, skillMap, "./skills", {
   directoryRead: true,   // implement resources/directory/read + declare the setting
   ttlMs: 60_000,         // SEP-2549 freshness hint on skills/list results
   cacheScope: "public",  // safe only when the catalog has no user-specific data
+  // ttlMs/cacheScope are emitted only on 2026-07-28+ connections — the SEP
+  // scopes the list-caching attributes to those protocol versions, and the
+  // handler detects the version from each request's _meta envelope.
   // audience defaults to ["assistant"] — skills consumed only by the model;
   // use ["user", "assistant"] for skills also shown in a skill browser UI
 });
@@ -111,6 +114,20 @@ Per the SEP, the final segment of the skill path MUST equal the frontmatter `nam
 - A `resources/directory/read` handler when `directoryRead: true`
 
 The entry served for each skill is built by `buildSkillEntry(skill)` — exported for servers that assemble their own handlers (`makeSkillsListHandler` / `makeSkillsGetHandler` / `makeDirectoryReadHandler` are exported too).
+
+### Snapshot serving
+
+`discoverSkills()` captures every file's bytes (and digest) once, and registered resources serve that snapshot rather than re-reading disk. This is what keeps the server conformant with the SEP's identity requirements: the entry's digests and `frontmatter` always describe exactly the bytes `resources/read` returns, even if a file changes on disk while the server runs. On-disk edits take effect by re-running `discoverSkills()` and re-registering (before `connect()`) — typically a server restart. Files larger than 1MB are skipped with a logged warning: they appear neither in the `resources` manifest nor as readable resources, so the manifest stays complete with respect to what is actually served. Empty subdirectories are tracked too, so `resources/directory/read` lists them as empty rather than erroring.
+
+### Partial listings
+
+Per the SEP, a listing MAY be partial: a server can serve skills it does not enumerate. Mark a skill `listed: false` to omit it from `skills/list` while `skills/get` continues to answer for it and its resources remain readable:
+
+```typescript
+const skillMap = discoverSkills("./skills");
+skillMap.get("internal/experimental-skill")!.listed = false;
+registerSkillResources(server, skillMap, "./skills");
+```
 
 ### Resource annotations
 

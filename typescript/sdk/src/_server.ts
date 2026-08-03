@@ -123,8 +123,10 @@ export function isPathWithinBase(
 }
 
 /**
- * Stat and digest one file, returning a SkillDocument, or null when the file
- * is oversized or unreadable.
+ * Stat, read, and digest one file, returning a SkillDocument (bytes
+ * retained for snapshot serving), or null when the file is oversized or
+ * unreadable. Oversized skips are logged: the file exists on disk but will
+ * be neither listed in the entry's `resources` manifest nor served.
  */
 function describeFile(
   fullPath: string,
@@ -132,7 +134,12 @@ function describeFile(
 ): SkillDocument | null {
   try {
     const stat = fs.statSync(fullPath);
-    if (stat.size > MAX_FILE_SIZE) return null;
+    if (stat.size > MAX_FILE_SIZE) {
+      console.error(
+        `[skills] Skipping ${fullPath}: file size ${(stat.size / 1024 / 1024).toFixed(2)}MB exceeds the ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB limit — it will not appear in the skill's resources manifest and will not be served`,
+      );
+      return null;
+    }
     const bytes = fs.readFileSync(fullPath);
     const relativePath = path
       .relative(relativeTo, fullPath)
@@ -142,6 +149,7 @@ function describeFile(
       mimeType: getMimeType(path.basename(fullPath)),
       size: stat.size,
       digest: sha256Digest(bytes),
+      bytes,
     };
   } catch {
     return null;
@@ -149,24 +157,24 @@ function describeFile(
 }
 
 /**
- * Recursively scan a directory for files, returning SkillDocument entries
- * (each carrying a SHA-256 digest of its raw bytes).
+ * Recursively scan a directory, collecting files into `documents` and every
+ * subdirectory's relative path (including empty ones) into `directories`.
  * Security: applies path traversal checks and file size limits.
  */
-function scanDir(
+function scanDirInto(
   dirPath: string,
   relativeTo: string,
   baseDir: string,
-): SkillDocument[] {
-  const documents: SkillDocument[] = [];
-
-  if (!fs.existsSync(dirPath)) return documents;
+  documents: SkillDocument[],
+  directories: string[],
+): void {
+  if (!fs.existsSync(dirPath)) return;
 
   let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(dirPath, { withFileTypes: true });
   } catch {
-    return documents;
+    return;
   }
 
   for (const entry of entries) {
@@ -179,34 +187,41 @@ function scanDir(
       const doc = describeFile(fullPath, relativeTo);
       if (doc) documents.push(doc);
     } else if (entry.isDirectory()) {
-      documents.push(...scanDir(fullPath, relativeTo, baseDir));
+      directories.push(
+        path.relative(relativeTo, fullPath).replace(/\\/g, "/"),
+      );
+      scanDirInto(fullPath, relativeTo, baseDir, documents, directories);
     }
   }
-
-  return documents;
 }
 
 /**
- * Scan a skill directory for all supplementary files.
- * Finds all files in the skill directory (including root-level files
- * and subdirectories), excluding the skill's own SKILL.md / skill.md.
+ * Scan a skill directory for all supplementary files and subdirectories.
+ *
+ * `documents` holds every file in the skill directory (root-level files and
+ * files in subdirectories at any depth), excluding the skill's own
+ * SKILL.md / skill.md, each with its bytes and SHA-256 digest.
+ * `directories` holds every subdirectory's relative path — including empty
+ * directories, so `resources/directory/read` can list them as empty rather
+ * than treating them as nonexistent (SEP-2640).
  *
  * Files of nested skills — including their SKILL.md — are included: per
  * SEP-2640, from the enclosing skill's perspective a nested skill's files
  * are ordinary supporting files, and the entry's `resources` completeness
  * extends to them.
  */
-export function scanDocuments(
+export function scanSkillDirectory(
   skillDir: string,
   baseDir: string,
-): SkillDocument[] {
+): { documents: SkillDocument[]; directories: string[] } {
   const documents: SkillDocument[] = [];
+  const directories: string[] = [];
 
   let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(skillDir, { withFileTypes: true });
   } catch {
-    return documents;
+    return { documents, directories };
   }
 
   const skipFiles = new Set(["SKILL.md", "skill.md"]);
@@ -215,7 +230,9 @@ export function scanDocuments(
     const fullPath = path.join(skillDir, entry.name);
 
     if (entry.isDirectory()) {
-      documents.push(...scanDir(fullPath, skillDir, baseDir));
+      if (!isPathWithinBase(fullPath, baseDir)) continue;
+      directories.push(entry.name);
+      scanDirInto(fullPath, skillDir, baseDir, documents, directories);
     } else if (entry.isFile() && !skipFiles.has(entry.name)) {
       if (!isPathWithinBase(fullPath, baseDir)) continue;
       const doc = describeFile(fullPath, skillDir);
@@ -223,7 +240,18 @@ export function scanDocuments(
     }
   }
 
-  return documents;
+  return { documents, directories };
+}
+
+/**
+ * Scan a skill directory for all supplementary files. Convenience wrapper
+ * over {@link scanSkillDirectory} for callers that only need the files.
+ */
+export function scanDocuments(
+  skillDir: string,
+  baseDir: string,
+): SkillDocument[] {
+  return scanSkillDirectory(skillDir, baseDir).documents;
 }
 
 /**
@@ -353,22 +381,23 @@ export function discoverSkills(
         continue;
       }
 
-      // SEP constraint: final segment of skillPath MUST equal frontmatter name
+      // SEP constraint: final segment of skillPath MUST equal the frontmatter
+      // name *as declared* — compared verbatim, no trimming, since the entry
+      // carries the frontmatter verbatim and the two must agree exactly.
       const finalSegment = skillPath.split("/").pop()!;
-      const trimmedName = name.trim();
-      if (finalSegment !== trimmedName) {
+      if (finalSegment !== name) {
         console.error(
-          `Skill at ${skillDir}: frontmatter name "${trimmedName}" does not match final path segment "${finalSegment}". ` +
-            `Per the SEP, the final segment of the skill path must equal the frontmatter name.`,
+          `Skill at ${skillDir}: frontmatter name "${name}" does not match final path segment "${finalSegment}". ` +
+            `Per the SEP, the final segment of the skill path must equal the frontmatter name as declared.`,
         );
         continue;
       }
 
       // SEP constraint: the final segment (= frontmatter name) MUST satisfy
       // the Agent Skills naming rule (lowercase letters, digits, hyphens).
-      if (!isValidSkillName(trimmedName)) {
+      if (!isValidSkillName(name)) {
         console.error(
-          `Skill at ${skillDir}: name "${trimmedName}" violates the Agent Skills naming rule. ` +
+          `Skill at ${skillDir}: name "${name}" violates the Agent Skills naming rule. ` +
             `Names must contain only lowercase letters, digits, and hyphens.`,
         );
         continue;
@@ -381,17 +410,23 @@ export function discoverSkills(
         continue;
       }
 
-      // Scan for supplementary documents (per-file digests included)
-      const documents = scanDocuments(skillDir, resolvedDir);
+      // Scan for supplementary documents (per-file digests and bytes) and
+      // subdirectories (including empty ones, for directory listing).
+      const { documents, directories } = scanSkillDirectory(
+        skillDir,
+        resolvedDir,
+      );
 
       skillMap.set(skillPath, {
-        name: name.trim(),
+        name,
         skillPath,
         description: description.trim(),
         frontmatter,
         digest,
         absolutePath: skillMdPath,
         skillDir,
+        content,
+        directories,
         documents,
         size: stat.size,
         lastModified: stat.mtime.toISOString(),
@@ -499,6 +534,37 @@ export function buildSkillEntry(skill: SkillMetadata): SkillEntry {
   };
 }
 
+/**
+ * The reserved `_meta` envelope key carrying the request's protocol version
+ * (protocol revision 2026-07-28; the envelope does not exist on earlier
+ * revisions).
+ */
+const PROTOCOL_VERSION_META_KEY = "io.modelcontextprotocol/protocolVersion";
+
+/** First protocol version whose list results carry `ttlMs`/`cacheScope` (SEP-2549). */
+const LIST_CACHING_MIN_PROTOCOL = "2026-07-28";
+
+/**
+ * Structural slice of the v2 SDK's request handler context: the per-request
+ * `_meta` envelope, present only on 2026-07-28+ requests.
+ */
+export interface SkillsHandlerContext {
+  mcpReq?: { envelope?: Record<string, unknown> };
+}
+
+/**
+ * Whether the request was made under a protocol version that defines the
+ * SEP-2549 list-caching attributes. Per SEP-2640, `skills/list` results
+ * carry `ttlMs`/`cacheScope` "in protocol versions 2026-07-28 and later" —
+ * on earlier versions the attributes are omitted. Detected from the
+ * request's `_meta` envelope, which exists only on 2026-07-28+ requests
+ * (protocol versions are dates, so string comparison orders them).
+ */
+function supportsListCaching(ctx?: SkillsHandlerContext): boolean {
+  const version = ctx?.mcpReq?.envelope?.[PROTOCOL_VERSION_META_KEY];
+  return typeof version === "string" && version >= LIST_CACHING_MIN_PROTOCOL;
+}
+
 /** Options for the `skills/list` handler. */
 export interface SkillsListHandlerOptions {
   /** Entries per page. Default {@link DEFAULT_SKILLS_LIST_PAGE_SIZE}. */
@@ -512,25 +578,32 @@ export interface SkillsListHandlerOptions {
 /**
  * Build a `skills/list` handler backed by an in-memory skill map. Paginates
  * with the standard `cursor`/`nextCursor` contract; entries are atomic (a
- * skill's `resources` set is never split across pages). The result carries
- * the SEP-2549 list-caching attributes (`ttlMs`, `cacheScope`).
+ * skill's `resources` set is never split across pages). Skills marked
+ * `listed: false` are omitted (the SEP's partial-listing allowance) —
+ * `skills/get` still answers for them. On protocol 2026-07-28+ requests the
+ * result carries the SEP-2549 list-caching attributes (`ttlMs`,
+ * `cacheScope`); on earlier versions they are omitted.
  */
 export function makeSkillsListHandler(
   skillMap: Map<string, SkillMetadata>,
   options?: SkillsListHandlerOptions,
-): (params: { cursor?: string }) => Promise<SkillsListResult> {
-  const entries = Array.from(skillMap.values()).map(buildSkillEntry);
+): (
+  params: { cursor?: string },
+  ctx?: SkillsHandlerContext,
+) => Promise<SkillsListResult> {
+  const entries = Array.from(skillMap.values())
+    .filter((skill) => skill.listed !== false)
+    .map(buildSkillEntry);
   const pageSize = options?.pageSize ?? DEFAULT_SKILLS_LIST_PAGE_SIZE;
   const ttlMs = options?.ttlMs ?? 0;
   const cacheScope = options?.cacheScope ?? "private";
 
-  return async (params) => {
+  return async (params, ctx) => {
     const { page, nextCursor } = paginate(entries, params.cursor, pageSize);
     return {
       skills: page,
       ...(nextCursor !== undefined ? { nextCursor } : {}),
-      ttlMs,
-      cacheScope,
+      ...(supportsListCaching(ctx) ? { ttlMs, cacheScope } : {}),
     };
   };
 }
@@ -684,7 +757,12 @@ export function registerSkillResources(
       },
       async (uri: URL) => {
         try {
-          const content = loadSkillContent(skill.absolutePath, skillsDir);
+          // Serve the discovery-time snapshot when available, so content
+          // can never drift from the entry's digest and frontmatter (the
+          // SEP binds them together). Falls back to disk for hand-built
+          // maps without a snapshot.
+          const content =
+            skill.content ?? loadSkillContent(skill.absolutePath, skillsDir);
           return {
             contents: [{ uri: uri.href, text: content }],
           };
@@ -806,12 +884,13 @@ export function registerSkillResources(
 
         try {
           const isText = isTextMimeType(doc.mimeType);
-          const content = loadDocument(
-            matchedSkill,
-            filePath,
-            skillsDir,
-            isText,
-          );
+          // Serve the discovery-time snapshot when available (see the
+          // SKILL.md callback above); fall back to disk otherwise.
+          const content = doc.bytes
+            ? isText
+              ? { text: doc.bytes.toString("utf-8") }
+              : { blob: doc.bytes.toString("base64") }
+            : loadDocument(matchedSkill, filePath, skillsDir, isText);
           return {
             contents: [
               {
