@@ -1,0 +1,14 @@
+{
+  "name": "skills-over-mcp-wg",
+  "description": "Plugins for the Skills Over MCP Working Group",
+  "owner": {
+    "name": "Skills Over MCP Working Group"
+  },
+  "plugins": [
+    {
+      "name": "skills-over-mcp-wg",
+      "source": "./plugins/skills-over-mcp-wg",
+      "description": "Search and brief on Skills Over MCP Working Group activity — decision log, meeting notes, SEP threads, and Discord"
+    }
+  ]
+}
