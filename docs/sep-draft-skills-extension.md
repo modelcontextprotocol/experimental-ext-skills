@@ -8,9 +8,11 @@
 - **Extension Identifier**: `io.modelcontextprotocol/skills`
 - **PR**: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640
 
-> ℹ️ **This is the v1 baseline. Changes beyond v1 are proposed in the [decision log](decisions.md).**
+> # 📄 Source of truth: [modelcontextprotocol#2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640)
 >
-> The text below is a verbatim copy of the canonical SEP at commit [`d7490ec`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/d7490ecd1a250f7bc8c3ebb0d65450dfec274bad/seps/2640-skills-extension.md) (2026-07-15) on the [`sep/skills-extension`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/sep/skills-extension/seps/2640-skills-extension.md) branch. **Review of v1 belongs on [PR #2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640)**, not on this copy. For what v1 comprises and why, see the 2026-07-16 v1 scope entry in the [decision log](decisions.md).
+> **The v1 spec text lives on that PR. Review and comments belong there, not on this copy.**
+>
+> This file is the v1 baseline: a verbatim copy of the canonical SEP at commit [`d7490ec`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/d7490ecd1a250f7bc8c3ebb0d65450dfec274bad/seps/2640-skills-extension.md) (2026-07-15) on the [`sep/skills-extension`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/sep/skills-extension/seps/2640-skills-extension.md) branch, kept here so Working Group discussion and decision records can quote and link stable text. It is only as current as that pinned commit. For what v1 comprises and why, see the 2026-07-16 v1 scope entry in the [decision log](decisions.md).
 >
 > **To propose a change beyond v1**, add a dated entry to [`decisions.md`](decisions.md) with **Status: Proposed**, in the ADR-lite format used throughout that file — the PR carrying that entry is the proposal. Once a proposal is accepted, the resulting spec text is applied to this document and its section marked with a pointer to the record:
 >

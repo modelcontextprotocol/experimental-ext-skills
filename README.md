@@ -2,6 +2,7 @@
 
 > ⚠️ **Experimental** — This repository is an incubation space for the Skills Over MCP Working Group. Contents are exploratory and do not represent official MCP specifications or recommendations.
 
+**📄 SEP-2640 (Skills Extension):** [modelcontextprotocol#2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) — **the source of truth for the v1 spec text.** Review and comments belong on the PR. The copy in this repo is a synced baseline for discussion; see [`docs/sep-draft-skills-extension.md`](docs/sep-draft-skills-extension.md).
 **Charter:** [modelcontextprotocol.io/community/skills-over-mcp/charter](https://modelcontextprotocol.io/community/skills-over-mcp/charter) — mission, scope, membership, active work items, and success criteria.
 **Project board:** [Skills Over MCP WG](https://github.com/orgs/modelcontextprotocol/projects/38/views/1)
 **Meeting notes:** [Skills Over MCP WG discussions](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg)
