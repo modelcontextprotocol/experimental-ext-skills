@@ -2,7 +2,7 @@
 name: search-wg-sources
 description: Search Skills Over MCP WG sources — decision log, meeting notes, active SEP threads, Discord, issues & PRs
 license: Apache-2.0
-compatibility: Run from a local clone of the experimental-ext-skills repo (reads docs/decisions.md). Needs network access and the guildbridge, github, and mcp-docs MCP servers, or the gh CLI as a fallback.
+compatibility: Run from a local clone of the experimental-ext-skills repo (reads docs/decisions.md and docs/threat-model.md). Needs network access and the guildbridge, github, and mcp-docs MCP servers, or the gh CLI as a fallback.
 user_invocable: true
 arguments:
   - name: topic
@@ -18,12 +18,18 @@ This skill answers "what does the WG think / what has been decided / what's in f
 
 Work top-down. The first three sources are where live coordination happens; weight them most heavily.
 
-1. **Decision log (in-repo, authoritative for settled questions)** — `docs/decisions.md`, relative to this repo. ADR-lite entries, each with a `Status` field (`Accepted` / `Proposed` / `Rejected` / `Superseded`). Grep here first to separate what's *decided* from what's still open. You may also check `docs/related-work.md` for member implementations and external prior art.
+1. **Decision log (in-repo, authoritative for settled questions)** — `docs/decisions.md`, relative to this repo. ADR-lite entries, each with a `Status` field (`Accepted` / `Proposed` / `Rejected` / `Superseded`). Grep here first to separate what's *decided* from what's still open.
 
-   These ship in the same repo as this skill, so read them locally (Grep/Read). Don't lean on the other `docs/*.md` files (e.g. `open-questions.md`, `approaches.md`, `sep-draft-skills-extension.md`) — they are not actively maintained; the live design discussion is on the SEP threads and Discord below. Everything below is external — link by URL.
+   **Always read the `Status` line before quoting an entry.** The SEP was scoped down to a v1 in July 2026, and several earlier entries are now `Superseded` — a `Superseded` status names the entry that replaced it, so follow that pointer. Grepping for a term will happily surface detailed, confident-sounding prose describing a shape that no longer exists (`skill://index.json`, a single per-skill `digest`, archive distribution). Read the newest matching entry last-to-first and report the current shape, noting the superseded one only as history.
+
+   Also in-repo and worth reading directly:
+   - `docs/threat-model.md` — threat model for skills served over MCP (adversary model, threat catalog T1–T9, delivery-model recommendations, deferred-archive appendix). A WG reference, not normative SEP text; where it recommends behavior beyond what the SEP mandates it says so. Read this first for anything touching security, trust boundaries, verification, digests, injection, or consent.
+   - `docs/related-work.md` — member implementations and external prior art.
+
+   These ship in the same repo as this skill, so read them locally (Grep/Read). Don't lean on the other `docs/*.md` files (e.g. `open-questions.md`, `approaches.md`, `experimental-findings.md`, `sep-draft-skills-extension.md`) — they carry ℹ️ banners marking them as unmaintained snapshots; the live design discussion is on the SEP threads and Discord below. Trust the banner over the content. Everything below is external — link by URL.
 
 2. **Active SEP threads** — the live design debate lives on GitHub PRs in `modelcontextprotocol/modelcontextprotocol`:
-   - **SEP-2640 — Skills Extension** (primary): https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640 — serve skills over MCP via the Resources primitive.
+   - **SEP-2640 — Skills Extension** (primary): https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640 — skills served as MCP resources, discovered through a `skills/list` / `skills/get` method pair, with optional `resources/directory/read` behind a capability flag. The PR branch (`sep/skills-extension`) is canonical; the repo-local `docs/sep-draft-skills-extension.md` copy predates the v1 rework and is explicitly stale — read the PR, not the local file.
    - **PR #2527** — recommend clients expose `resources/read` to models (prerequisite).
    - Historical/closed, useful for *why direction changed*: **SEP-2076** (skills as a first-class primitive, closed) and **SEP-2093** (resource contents metadata, rejected upstream).
 
@@ -43,6 +49,8 @@ Work top-down. The first three sources are where live coordination happens; weig
    - Guild (server): `1358869848138059966`
    - Channel: `1464745826629976084`
    - Web link: https://discord.com/channels/1358869848138059966/1464745826629976084
+
+   Focused design debates sometimes spin off into their own threads rather than staying in the main channel, and those threads are where the detail lives. The decision log's **References** sections link them by URL — when an entry you're citing links a Discord thread, read that thread rather than assuming the main channel search covered it.
 
 5. **Issues & PRs** — `modelcontextprotocol/experimental-ext-skills` (the WG repo), open **and** closed/merged for historical context. Use the `github` MCP server's search tools (`search_issues`, `search_pull_requests`) or `gh search prs` / `gh search issues`.
 
@@ -78,9 +86,11 @@ Every comment includes an `author_association` (REST) / `authorAssociation` (Gra
 ### Decisions (from the decision log)
 
 ```markdown
-- **<Title>** (**Accepted/Proposed/Rejected** <date>)
+- **<Title>** (**Accepted/Proposed/Rejected/Superseded** <date>)
   One-line summary of the decision and its rationale.
 ```
+
+Never present a `Superseded` entry as current. Either omit it, or list it under the entry that replaced it as history — "…superseded 2026-07-16 by the v1 scope-down, which replaced X with Y."
 
 ### PRs / Issues
 
@@ -127,7 +137,7 @@ Collect all sources as footnotes at the end. Every quote and claim should have a
 ## General strategy
 
 1. Generate search terms and variants (camelCase, space-separated).
-2. Grep the in-repo decision log (`docs/decisions.md`) first — separate settled from open.
+2. Grep the in-repo decision log (`docs/decisions.md`) first — separate settled from open, and check every hit's `Status` for `Superseded`. If the topic touches security or trust, grep `docs/threat-model.md` too.
 3. Pull the active SEP threads (SEP-2640, #2527; closed SEP-2076/2093 for history) and deep-dive the relevant ones.
 4. Search meeting-notes discussions — both the `meeting-notes-skills-over-mcp-wg` and `meeting-notes-core-maintainers` categories (GraphQL) — and the `#skills-over-mcp-wg` Discord (guildbridge).
 5. Search `experimental-ext-skills` issues/PRs (open and closed).

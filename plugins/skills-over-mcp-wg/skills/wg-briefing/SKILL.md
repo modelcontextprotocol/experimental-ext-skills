@@ -2,7 +2,7 @@
 name: wg-briefing
 description: Produce a short briefing of recent Skills Over MCP WG activity (daily by default, or any window — past week, past 2 weeks, etc.) across the decision log, SEP threads, meeting notes, Discord, and issues/PRs
 license: Apache-2.0
-compatibility: Run from a local clone of the experimental-ext-skills repo (uses git log on docs/decisions.md). Needs git, network access, and the guildbridge, github, and mcp-docs MCP servers, or the gh CLI as a fallback.
+compatibility: Run from a local clone of the experimental-ext-skills repo (uses git log on docs/decisions.md and docs/threat-model.md). Needs git, network access, and the guildbridge, github, and mcp-docs MCP servers, or the gh CLI as a fallback.
 user_invocable: true
 arguments:
   - name: since
@@ -19,7 +19,7 @@ A quick "what's happened lately" read across the WG's surfaces. Defaults to a da
 1. **Set the window.** Use the `since` argument if given, otherwise default to the last ~24 hours. The same `<window>` value flows into every source below: pass it straight to `git log --since`, and convert it to an ISO cutoff date for the GitHub/Discord filters (e.g. "2 weeks" → the date 14 days ago). Absolute dates work too.
 
 2. **Gather only what's new or changed in the window**, in this order:
-   - **Decision log** — `git log -p --since="<window>" -- docs/decisions.md` (run from this repo). Note any added or changed entries and their `Status`.
+   - **In-repo docs** — `git log -p --since="<window>" -- docs/decisions.md docs/threat-model.md` (run from this repo). For `decisions.md`, note any added or changed entries and their `Status` — a status *changing* to `Superseded` is as newsworthy as a new entry, since it means an earlier decision was overturned; say what replaced it. For `threat-model.md`, note new or revised threats (T-numbers), changed recommendations, and new corpus fixtures.
    - **Active SEP threads** — new activity on SEP-2640 (https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) and PR #2527, using the `github` MCP server (`pull_request_read`) or `gh`. A PR has **three separate comment surfaces** and you MUST check all of them — the conversation tab alone misses the substantive engineering and security discussion, which usually lives in inline review threads:
      - `method: get_comments` — top-level conversation comments.
      - `method: get_reviews` — review submissions; note any `CHANGES_REQUESTED` / `APPROVED` and **who** (maintainer reviews like `localden`, `dsp-ant`, `pja-ant` are high-signal — a maintainer requesting changes is often the single most important item in the window).
@@ -39,8 +39,8 @@ A quick "what's happened lately" read across the WG's surfaces. Defaults to a da
 ## TL;DR
 - 3–5 bullets, most important first.
 
-## Decision log
-- What changed (or "No changes.") with links.
+## Decision log & threat model
+- New/changed decision entries and any status flips to `Superseded` (with what replaced them); threat-model revisions. Or "No changes." Links throughout.
 
 ## SEP threads
 - New conversation comments, review submissions (incl. `CHANGES_REQUESTED` by maintainers), and inline review threads on SEP-2640, #2527 — flag unresolved maintainer threads (or "No activity.").

@@ -35,6 +35,7 @@ Search across the WG's surfaces and return one attributed answer — leading wit
 **Sources searched:**
 
 - Decision log (`docs/decisions.md`, in-repo) — authoritative for settled questions
+- Threat model (`docs/threat-model.md`, in-repo) — for security, trust-boundary, verification, and consent questions
 - [SEP-2640: Skills Extension](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) and related/historical SEP threads
 - [WG meeting notes](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg) and [core maintainer meeting notes](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-core-maintainers)
 - [`#skills-over-mcp-wg` Discord](https://discord.com/channels/1358869848138059966/1464745826629976084)
