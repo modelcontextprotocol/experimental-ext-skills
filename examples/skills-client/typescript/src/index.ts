@@ -39,6 +39,8 @@ import {
   extractSkillUrisFromInstructions,
   skillSummariesFromEntries,
   buildSkillsSummary,
+  SKILLS_LIST_METHOD,
+  SkillsListResultSchema,
 } from "@modelcontextprotocol/experimental-ext-skills/client";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -75,13 +77,23 @@ async function main(): Promise<void> {
     args: [serverPath],
   });
 
-  const client = new Client({
-    name: "skills-sep-example-client",
-    version: "0.2.0",
-  });
+  // versionNegotiation 'auto' probes with server/discover and lands on the
+  // newest protocol revision the server offers — 2026-07-28 against the
+  // bundled serveStdio server. (On stdio the probe rides a short-lived
+  // sibling process; the session process is spawned once, after.)
+  const client = new Client(
+    {
+      name: "skills-sep-example-client",
+      version: "0.2.0",
+    },
+    { versionNegotiation: { mode: "auto" } },
+  );
 
   await client.connect(transport);
-  console.log("Connected!\n");
+  console.log("Connected!");
+  console.log(
+    `Protocol era: ${client.getProtocolEra()} (version ${client.getNegotiatedProtocolVersion()})\n`,
+  );
 
   try {
     // -----------------------------------------------------------------------
@@ -137,6 +149,18 @@ async function main(): Promise<void> {
       "file. The manifest is what a host verifies reads against and what a",
     );
     console.log("user's approval content-binds to.");
+
+    subheader("SEP-2549 list-caching attributes (protocol 2026-07-28+)");
+    const rawListing = (await client.request(
+      { method: SKILLS_LIST_METHOD, params: {} },
+      SkillsListResultSchema,
+    )) as { ttlMs?: number; cacheScope?: string };
+    console.log(
+      `ttlMs: ${rawListing.ttlMs ?? "(absent — pre-2026-07-28 connection)"}`,
+    );
+    console.log(
+      `cacheScope: ${rawListing.cacheScope ?? "(absent — pre-2026-07-28 connection)"}`,
+    );
 
     subheader("buildSkillsSummary() — plain-text catalog for context injection");
     console.log(buildSkillsSummary(skillSummariesFromEntries(skills)));

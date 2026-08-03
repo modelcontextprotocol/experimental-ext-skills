@@ -35,7 +35,8 @@ Built against the v2 TypeScript SDK (`@modelcontextprotocol/server` ^2 peer dep;
 - Resources register via `server.registerResource(name, uriOrTemplate, config, cb)` — the config argument is mandatory in v2.
 - Capabilities declare via `registerCapabilities({ extensions: { "io.modelcontextprotocol/skills": {...} } })`, which merges (so it composes with caller-declared capabilities) and throws after connect.
 - Client-side custom requests are `client.request({ method, params }, resultSchema)` — the result schema is **required** for non-spec methods in v2; the wrappers always pass it.
-- `integration.test.ts` exercises the real wiring: `McpServer` + `Client` over `InMemoryTransport.createLinkedPair()` (both halves imported from `@modelcontextprotocol/client`; the server half is cast — the pair must come from one package because each bundles private state).
+- `integration.test.ts` exercises the real wiring on the legacy era: `McpServer` + `Client` over `InMemoryTransport.createLinkedPair()` (both halves imported from `@modelcontextprotocol/client`; the server half is cast — the pair must come from one package because each bundles private state). In-memory pairs negotiate a 2025-era connection, which is also why that file asserts `ttlMs`/`cacheScope` are absent.
+- `integration-modern.test.ts` covers the 2026-07-28 ("modern") era: `createMcpHandler(factory)` served in-process by shimming `StreamableHTTPClientTransport`'s `fetch` to `handler.fetch`, client negotiating via `versionNegotiation: { mode: 'auto' }`. This is where the extension capability arriving via `server/discover` and the envelope-gated `ttlMs`/`cacheScope` emission are proven.
 
 ## Capability declaration
 

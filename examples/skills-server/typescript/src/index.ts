@@ -31,7 +31,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { McpServer } from "@modelcontextprotocol/server";
-import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import {
   discoverSkills,
   registerSkillResources,
@@ -66,7 +66,7 @@ for (const [skillPath, skill] of skillMap) {
 }
 
 // ---------------------------------------------------------------------------
-// Create MCP server (SEP-2640 v1)
+// Serve via stdio, both protocol eras (SEP-2640 v1 on MCP 2026-07-28)
 // ---------------------------------------------------------------------------
 
 // Server `instructions` may name specific skill URIs — a host confirms each
@@ -78,29 +78,33 @@ const serverInstructions = [
   "When reviewing a commit, read skill://git-commit-review/SKILL.md first.",
 ].join("\n");
 
-const server = new McpServer(
-  { name: "skills-sep-example", version: "0.2.0" },
-  { capabilities: { resources: {} }, instructions: serverInstructions },
-);
+// serveStdio owns the era decision: a client probing with `server/discover`
+// gets the 2026-07-28 ("modern") era; a client opening with `initialize`
+// gets a 2025-era connection from the same factory. The factory builds one
+// server per connection, and registerSkillResources runs before the
+// connection serves anything — capabilities reach the client via
+// `server/discover` (modern) or the `initialize` result (legacy).
+serveStdio(({ era }) => {
+  const server = new McpServer(
+    { name: "skills-sep-example", version: "0.2.0" },
+    { capabilities: { resources: {} }, instructions: serverInstructions },
+  );
 
-// ---------------------------------------------------------------------------
-// Register resources, the skills/list + skills/get handlers, the optional
-// resources/directory/read handler, and the capability declaration — all in
-// one call, which must run BEFORE connect() (capabilities ship in the
-// initialize handshake).
-// ---------------------------------------------------------------------------
+  registerSkillResources(server, skillMap, skillsDir, {
+    template: true,
+    // Implement resources/directory/read so hosts can enumerate skill dirs;
+    // this also flips directoryRead: true in the capability declaration.
+    directoryRead: true,
+    // SEP-2549 list-caching attributes on skills/list results (emitted on
+    // 2026-07-28+ connections only, per the SEP): this catalog is static
+    // filesystem content with nothing user-specific, so it may be cached
+    // for a minute and shared across authorization contexts.
+    ttlMs: 60_000,
+    cacheScope: "public",
+  });
 
-registerSkillResources(server, skillMap, skillsDir, {
-  template: true,
-  // Implement resources/directory/read so hosts can enumerate skill dirs;
-  // this also flips directoryRead: true in the capability declaration.
-  directoryRead: true,
-  // SEP-2549 list-caching attributes on skills/list results (emitted on
-  // 2026-07-28+ connections only): this catalog is static filesystem
-  // content with nothing user-specific, so it may be cached for a minute
-  // and shared across authorization contexts.
-  ttlMs: 60_000,
-  cacheScope: "public",
+  console.error(`[skills-server] Serving a ${era}-era connection`);
+  return server;
 });
 
 console.error(
@@ -111,11 +115,4 @@ console.error(
     skillMap.size === 1 ? "y" : "ies"
   }; skills/get answers for each by URI`,
 );
-
-// ---------------------------------------------------------------------------
-// Connect via stdio
-// ---------------------------------------------------------------------------
-
-const transport = new StdioServerTransport();
-await server.connect(transport);
-console.error("[skills-server] Connected via stdio");
+console.error("[skills-server] Listening on stdio (2026-07-28 + legacy)");

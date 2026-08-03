@@ -1,6 +1,6 @@
 # Skills Extension SEP — Reference Examples
 
-End-to-end TypeScript reference for [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) v1 (Skills Extension), exercising every normative surface in the SEP against the bundled SDK, built on the v2 MCP TypeScript SDK (`@modelcontextprotocol/server` / `@modelcontextprotocol/client`).
+End-to-end TypeScript reference for [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) v1 (Skills Extension), exercising every normative surface in the SEP against the bundled SDK, built on the v2 MCP TypeScript SDK (`@modelcontextprotocol/server` / `@modelcontextprotocol/client`) and running on protocol version **2026-07-28**: the server serves both eras from one `serveStdio` factory, and the client negotiates the modern era via `server/discover` (`versionNegotiation: { mode: 'auto' }`), so the SEP-2549 `ttlMs`/`cacheScope` attributes on `skills/list` are visible live in the demo output.
 
 ## Layout
 
