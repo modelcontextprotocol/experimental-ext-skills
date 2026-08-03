@@ -4,11 +4,9 @@ import {
   resolveSkillFileUri,
   buildSkillUri,
   isSkillContentUri,
-  isIndexJsonUri,
   isValidSkillName,
   extractSkillPathFromUri,
   SKILL_URI_SCHEME,
-  INDEX_JSON_URI,
 } from "./uri.js";
 
 // ---------------------------------------------------------------------------
@@ -39,10 +37,6 @@ describe("parseSkillUri", () => {
     expect(parseSkillUri("https://example.com/foo")).toBeNull();
     expect(parseSkillUri("file:///tmp/SKILL.md")).toBeNull();
     expect(parseSkillUri("")).toBeNull();
-  });
-
-  it("returns null for the well-known index URI", () => {
-    expect(parseSkillUri(INDEX_JSON_URI)).toBeNull();
   });
 
   it("returns null for bare scheme with no path", () => {
@@ -145,13 +139,6 @@ describe("URI type checks", () => {
     expect(isSkillContentUri("skill://acme/billing/refunds/SKILL.md")).toBe(true);
     expect(isSkillContentUri("skill://x/skill.md")).toBe(true);
     expect(isSkillContentUri("skill://code-review/references/foo.md")).toBe(false);
-    expect(isSkillContentUri(INDEX_JSON_URI)).toBe(false);
-  });
-
-  it("isIndexJsonUri identifies index.json", () => {
-    expect(isIndexJsonUri(INDEX_JSON_URI)).toBe(true);
-    expect(isIndexJsonUri("skill://index.json/SKILL.md")).toBe(false);
-    expect(isIndexJsonUri("skill://foo/index.json")).toBe(false);
   });
 });
 
@@ -183,7 +170,7 @@ describe("isValidSkillName", () => {
     expect(isValidSkillName("")).toBe(false);
   });
 
-  it("rejects index.json (justifies the SEP reservation)", () => {
+  it("rejects dotted names like index.json", () => {
     expect(isValidSkillName("index.json")).toBe(false);
   });
 });

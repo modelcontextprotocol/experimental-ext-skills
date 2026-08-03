@@ -1,63 +1,78 @@
 # @modelcontextprotocol/experimental-ext-skills
 
-TypeScript SDK for the [Skills Extension SEP](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69) — serves agent skills as `skill://` resources over MCP.
+TypeScript SDK for [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) v1 (Skills Extension) — serves agent skills as `skill://` resources over MCP, with `skills/list` / `skills/get` entry retrieval, per-file digest verification, and optional directory enumeration. Built on the v2 MCP TypeScript SDK (`@modelcontextprotocol/server` / `@modelcontextprotocol/client`).
 
-> **Experimental.** Published as [`@modelcontextprotocol/experimental-ext-skills`](https://www.npmjs.com/package/@modelcontextprotocol/experimental-ext-skills) for testing while the spec is in draft.
+> **Experimental.** Tracks the draft SEP while it is in review; the protocol surface may change with the SEP.
 
 ## Install
 
 ```bash
-npm install @modelcontextprotocol/experimental-ext-skills @modelcontextprotocol/sdk
+# Server-side
+npm install @modelcontextprotocol/experimental-ext-skills @modelcontextprotocol/server
+
+# Client-side
+npm install @modelcontextprotocol/experimental-ext-skills @modelcontextprotocol/client
 ```
 
 ## Subpath exports
 
 | Import path | Purpose |
 |---|---|
-| `@modelcontextprotocol/experimental-ext-skills` | Shared types, URI utilities, constants |
-| `@modelcontextprotocol/experimental-ext-skills/server` | Server-side: discover skills, register MCP resources |
-| `@modelcontextprotocol/experimental-ext-skills/client` | Client-side: list skills, read content, build summaries |
+| `@modelcontextprotocol/experimental-ext-skills` | Shared types, protocol method schemas, URI utilities, constants |
+| `@modelcontextprotocol/experimental-ext-skills/server` | Server-side: discover skills, register resources + `skills/list` / `skills/get` handlers |
+| `@modelcontextprotocol/experimental-ext-skills/client` | Client-side: list/get entries, verified reads, catalogs, directory enumeration |
+
+## Protocol surface (SEP-2640 v1)
+
+Every server declaring the `io.modelcontextprotocol/skills` extension implements two methods:
+
+- **`skills/list`** — paginated enumeration of *skill entries*. Each entry carries the skill's `uri`, its **verbatim** `SKILL.md` frontmatter as JSON, and a complete `resources` manifest: `{uri, digest}` for `SKILL.md` and every supporting file. The listing MAY be empty or partial (large/generated/unenumerable catalogs); hosts MUST NOT treat that as proof a server has no skills. In protocol 2026-07-28+ the result also carries the SEP-2549 list-caching attributes (`ttlMs`, `cacheScope`).
+- **`skills/get`** — returns the entry for one skill by the URI of its `SKILL.md`, whether or not it appears in the listing; errors `-32602` for URIs the server does not serve as skills. This is both how unlisted skills get verified and how a host confirms an explicitly referenced URI is a skill (never by inspecting the URI scheme).
+
+One optional method, gated behind the `directoryRead` capability setting:
+
+- **`resources/directory/read`** — `ls`-style, metadata-only, paginated listing of a directory resource's direct children; directories carry `mimeType: "inode/directory"`.
+
+A skill is always retrieved as individually addressable resources via `resources/read` — the SEP defines no packed or bundled retrieval form (archive distribution was removed during core-maintainer review; see the SEP's "Appendix: Deferred Features").
 
 ## Server usage
 
-Discover skills from a directory of `SKILL.md` files and serve them as MCP resources:
+Discover skills from a directory of `SKILL.md` files and serve them:
 
 ```typescript
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { McpServer } from "@modelcontextprotocol/server";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import {
   discoverSkills,
   registerSkillResources,
-  declareSkillsExtension,
 } from "@modelcontextprotocol/experimental-ext-skills/server";
 
-// Recursively scan a directory for SKILL.md files
+// Recursively scan a directory for SKILL.md files (per-file SHA-256 digests
+// are computed here, once).
 const skillMap = discoverSkills("./skills");
 
-// Create server and declare the skills extension (SEP-2640).
-// Pass { directoryRead: true } to advertise resources/directory/read.
 const server = new McpServer(
   { name: "my-server", version: "1.0.0" },
   { capabilities: { resources: {} } },
 );
-declareSkillsExtension(server.server, { directoryRead: true });
 
-// Register all skill resources (SKILL.md, index, supporting-file template,
-// and the resources/directory/read handler).
+// Registers the skill resources, the skills/list + skills/get handlers, the
+// optional resources/directory/read handler, and declares
+// capabilities.extensions["io.modelcontextprotocol/skills"] — all before
+// connect(), because capabilities ship in the initialize handshake.
 registerSkillResources(server, skillMap, "./skills", {
-  template: true,        // enable resource template for supporting files
-  directoryRead: true,   // implement resources/directory/read (pairs with the declaration above)
-  // audience defaults to ["assistant"] — skills consumed only by the model
+  template: true,        // catch-all resource template for supporting files
+  directoryRead: true,   // implement resources/directory/read + declare the setting
+  ttlMs: 60_000,         // SEP-2549 freshness hint on skills/list results
+  cacheScope: "public",  // safe only when the catalog has no user-specific data
+  // audience defaults to ["assistant"] — skills consumed only by the model;
   // use ["user", "assistant"] for skills also shown in a skill browser UI
 });
 
 await server.connect(new StdioServerTransport());
 ```
 
-> **Directory enumeration is opt-in.** Declaring `directoryRead: true` and
-> passing `{ directoryRead: true }` to `registerSkillResources` are a pair:
-> the first advertises the capability in the initialize handshake (so it must
-> run before `connect()`), the second installs the handler.
+`registerSkillResources` declares the extension capability itself (pass `declareCapability: false` and call `declareSkillsExtension(server.server, …)` yourself if you need manual control). Declaring the extension commits the server to `skills/list` and `skills/get`; clients MUST NOT call `resources/directory/read` unless `directoryRead: true` was declared.
 
 ### Skill directory structure
 
@@ -86,62 +101,29 @@ description: Review code changes for quality and correctness
 Instructions for the agent...
 ```
 
-### Registered resources
+Per the SEP, the final segment of the skill path MUST equal the frontmatter `name` (the SDK validates this and skips violators), and skills MAY nest: a `SKILL.md` in a descendant directory of another skill is discovered as a skill in its own right, while its files remain ordinary supporting content of the enclosing skill (the enclosing entry's `resources` lists them too).
 
-The server registers, per the SEP:
+### What gets registered
 
-- `skill://{skillPath}/SKILL.md` — one per discovered skill
-- `skill://index.json` — discovery index (file skills + archive distributions)
-- `skill://{+skillFilePath}` — catch-all resource template for supporting
-  files (optional, on by default)
-- A `resources/directory/read` handler when `directoryRead: true` (see
-  *Directory enumeration* below)
+- `skill://{skillPath}/SKILL.md` — one listed resource per discovered skill
+- `skill://{+skillFilePath}` — catch-all resource template for supporting files (optional, on by default)
+- `skills/list` and `skills/get` request handlers (always)
+- A `resources/directory/read` handler when `directoryRead: true`
+
+The entry served for each skill is built by `buildSkillEntry(skill)` — exported for servers that assemble their own handlers (`makeSkillsListHandler` / `makeSkillsGetHandler` / `makeDirectoryReadHandler` are exported too).
 
 ### Resource annotations
 
 All resources include `annotations` with `audience`, `priority`, and `lastModified` (see [`skill-meta-keys.md`](../../docs/skill-meta-keys.md)):
 
-- **`audience`** defaults to `["assistant"]`. Override globally via options, or per-skill via `SkillMetadata.audience`:
-
-```typescript
-// Global default for all skills
-registerSkillResources(server, skillMap, "./skills", {
-  audience: ["user", "assistant"],
-});
-
-// Per-skill override (e.g., set from frontmatter or config)
-const skillMap = discoverSkills("./skills");
-for (const skill of skillMap.values()) {
-  skill.audience = ["user", "assistant"];
-}
-```
-
-- **`priority`** is set per resource type: 1.0 (SKILL.md), 0.9 (archive), 0.8 (index), 0.2 (supporting-file catch-all)
-- **`lastModified`** uses per-skill mtime for SKILL.md, archive mtime for archives, and the most recent mtime across all skills for the index
+- **`audience`** defaults to `["assistant"]`. Override globally via options, or per-skill via `SkillMetadata.audience`.
+- **`priority`** is set per resource type: 1.0 (SKILL.md), 0.2 (supporting-file catch-all)
+- **`lastModified`** uses per-skill mtime for SKILL.md and the most recent mtime across all skills for the catch-all template
 - **`size`** is set on all resources except the catch-all template (which varies per request)
-
-### Directory enumeration
-
-When `directoryRead: true`, the server implements the SEP-2640
-`resources/directory/read` method so hosts can enumerate the files under a
-skill directory without knowing every URI up front — an `ls`-style,
-metadata-only, paginated, non-recursive listing. Directories are identified
-by `mimeType: "inode/directory"`.
-
-```typescript
-declareSkillsExtension(server.server, { directoryRead: true }); // before connect()
-registerSkillResources(server, skillMap, "./skills", { directoryRead: true });
-```
-
-The handler is backed by the in-memory skill map (skill paths + scanned
-supporting documents), so it covers skills served as individual files.
-Archive-distributed skills are opaque to the server and are not walked. On the
-client, gate calls with `serverSupportsDirectoryRead(client)` and use
-`readDirectory()` / `walkDirectory()` (see *Client usage*).
 
 ### Custom `_meta` per skill
 
-Per [`skill-meta-keys.md`](../../docs/skill-meta-keys.md), most skills do **not** need `_meta` — name, description, version, allowed-tools, and other skill-level semantics belong in frontmatter (the resource body), not duplicated on the resource. The SDK reflects this: it never auto-projects frontmatter into `_meta`. When you need transport-layer metadata that has no frontmatter equivalent (provenance the host needs without reading content, content-integrity hashes, etc.), set it on the discovered `SkillMetadata.meta`:
+Per [`skill-meta-keys.md`](../../docs/skill-meta-keys.md), most skills do **not** need `_meta` — name, description, version, allowed-tools, and other skill-level semantics belong in frontmatter (the resource body), not duplicated on the resource. The SDK reflects this: it never auto-projects frontmatter into `_meta`. When you need transport-layer metadata that has no frontmatter equivalent, set it on the discovered `SkillMetadata.meta`:
 
 ```typescript
 const skillMap = discoverSkills("./skills");
@@ -153,28 +135,6 @@ if (refunds) {
 }
 registerSkillResources(server, skillMap, "./skills");
 ```
-
-The SDK passes `meta` through to the SKILL.md resource's `_meta` field; keys SHOULD use the `io.modelcontextprotocol.skills/` reverse-domain prefix.
-
-### Archive distribution
-
-Per SEP-2640, a skill MAY also be distributed as a single packed resource (`.tar.gz` or `.zip`). Pass declarations to `registerSkillResources()`; the SDK reads each archive at startup, registers it as an MCP resource at `skill://<skillPath>.<format>`, and adds an index entry whose `archives` array carries the archive's `url`, `mimeType`, and a SHA-256 `digest`:
-
-```typescript
-registerSkillResources(server, skillMap, "./skills", {
-  archives: [
-    {
-      name: "pdf-processing",
-      description: "Extract and assemble PDFs",
-      skillPath: "pdf-processing",
-      archivePath: "./archives/pdf-processing.tar.gz",
-      // format inferred from extension; pass "tar.gz" | "zip" to override
-    },
-  ],
-});
-```
-
-The SEP requires that the final segment of `skillPath` equals the skill's frontmatter `name`; the SDK validates this and throws on mismatch.
 
 ## Client usage
 
@@ -190,160 +150,113 @@ const { skills, catalog } = await discoverAndBuildCatalog(client, {
 });
 
 console.log(`Discovered ${skills.length} skill(s)`);
-// Inject `catalog` into your agent's system prompt
+// `skills` are SkillEntry objects — keep them; they are what reads verify against.
+// Inject `catalog` into your agent's system prompt.
 ```
 
-`discoverAndBuildCatalog()` handles the recommended discovery strategy (try `skill://index.json` first, fall back to `resources/list`) and builds an XML catalog with behavioral instructions for the model. All options are optional:
+All options are optional:
 
 - Pass `serverName` when your reader tool takes a `server` parameter (e.g., the bundled `READ_RESOURCE_TOOL`); omit it for host-scoped readers that take only `uri`. The catalog drops the `with server …` clause when omitted.
-- Pass `serverInEntries: true` to also inject `<server>` inside every `<skill>` entry. Off by default because per-entry placement is host-implementation guidance from the host SKILL.md, not in SEP-2640. Empirically lifts first-call activation ~33% → ~90% for `(server, uri)` reader tools.
-- Pass `instructions: true` to enable the SEP's third discovery path (mining server `instructions` for skill URIs). Off by default.
+- Pass `serverInEntries: true` to also inject `<server>` inside every `<skill>` entry. Off by default because per-entry placement is host-implementation guidance, not in SEP-2640. Empirically lifts first-call activation ~33% → ~90% for `(server, uri)` reader tools.
+- Pass `instructions: true` to mine the server's `instructions` for skill URIs; each is confirmed via `skills/get` and merged with the listing (deduplicated by URI). Off by default.
 
 ### Step by step
 
-For more control, use the lower-level functions directly:
-
 ```typescript
 import {
-  discoverSkills,
-  listSkillsFromIndex,
-  readSkill,
-  readSkillUri,
-  readSkillContent,
-  readSkillArchive,
-  readSkillDocument,
-  buildSkillsCatalog,
-  buildSkillsSummary,
+  serverSupportsSkills,
   serverSupportsDirectoryRead,
+  listSkills,
+  getSkill,
+  readSkill,
+  readSkillResource,
+  readSkillUri,
   readDirectory,
   walkDirectory,
+  skillSummariesFromEntries,
+  buildSkillsCatalog,
+  buildSkillsSummary,
   verifyDigest,
   READ_RESOURCE_TOOL,
 } from "@modelcontextprotocol/experimental-ext-skills/client";
 
-// Discover skills (index-first with fallback, always returns an array)
-// Includes both type: "skill-md" and type: "archive" entries.
-const skills = await discoverSkills(client);
+// Gate on the extension declaration (clients only issue skills/* calls
+// after seeing it).
+if (serverSupportsSkills(client)) {
+  // Enumerate entries (paginates to exhaustion; MAY be empty or partial).
+  const skills = await listSkills(client);
 
-// Or read skill://index.json directly (returns null if unavailable). Each
-// summary carries name/description (from the entry's verbatim frontmatter),
-// uri, and the index `digest`.
-const indexSkills = await listSkillsFromIndex(client);
+  // Retrieve one skill's entry by URI — listed or not. This is how a URI
+  // from server instructions, another skill, or the user becomes a
+  // verifiable entry. Errors -32602 for non-skill URIs.
+  const entry = await getSkill(client, "skill://acme/billing/refunds/SKILL.md");
 
-// Enumerate a skill directory (only if the server declared the capability).
-if (serverSupportsDirectoryRead(client)) {
-  const { resources } = await readDirectory(client, "skill://acme/billing/refunds");
-  const allFiles = await walkDirectory(client, "skill://acme/billing/refunds");
+  // Verified SKILL.md read: checks the fetched bytes against the manifest
+  // digest AND compares the parsed frontmatter field-by-field with the
+  // entry's frontmatter (both host-side MUSTs). Throws on any mismatch.
+  const content = await readSkill(client, entry);
+
+  // Verified supporting-file read: the URI must be listed in the entry's
+  // `resources` (an unlisted read is a verification failure), and the
+  // content is checked against its digest.
+  const doc = await readSkillResource(
+    client,
+    entry,
+    "skill://acme/billing/refunds/templates/refund-email-template.md",
+  );
+
+  // Directory enumeration (only if the server declared the setting).
+  if (serverSupportsDirectoryRead(client)) {
+    const { resources } = await readDirectory(client, "skill://acme/billing/refunds");
+    const allFiles = await walkDirectory(client, "skill://acme/billing/refunds");
+  }
+
+  // Catalog / summary for context injection.
+  const summaries = skillSummariesFromEntries(skills);
+  const catalog = buildSkillsCatalog(summaries, { toolName: "read_resource", serverName: "my-server" });
+  const summary = buildSkillsSummary(summaries);
 }
 
-// Read a discovered skill, verified against the index digest by default
-// (SEP-2640: hosts MUST verify retrieved content). Works for both
-// type: "skill-md" (returns SKILL.md text) and type: "archive" (returns the
-// unpacked files). Throws on a digest mismatch, or if the entry has no digest.
-const content = await readSkill(client, skill); // skill: SkillSummary
+// Baseline: a URI alone is always enough to *read* a skill via
+// resources/read, listed or not — pass a digest to verify when you hold one.
+const raw = await readSkillUri(client, "skill://acme/billing/refunds/SKILL.md");
 
-// Lower-level: read by URI (any scheme). Pass the index digest to verify;
-// omit it only when no digest is available (e.g. resources/list discovery).
-const raw = await readSkillUri(client, skill.uri, skill.digest);
-
-// Or by skill path (convenience, skill:// scheme only — no digest to verify)
-const md = await readSkillContent(client, "acme/billing/refunds");
-
-// Fetch + unpack an archive-distributed skill, verifying its bytes first
-const archive = await readSkillArchive(client, "skill://pdf-processing.tar.gz", {
-  expectedDigest: skill.digest,
-});
-const archiveSkillMd = archive.files.get("SKILL.md")!.toString("utf-8");
-
-// Read a supporting file
-const doc = await readSkillDocument(client, "acme/billing/refunds", "templates/refund-email-template.md");
-
-// Build catalog or summary for context injection
-const catalog = buildSkillsCatalog(skills, { toolName: "read_resource", serverName: "my-server" });
-const summary = buildSkillsSummary(skills);
-
-// READ_RESOURCE_TOOL — tool schema for model-driven skill loading
-// Hosts expose this so the model can call read_resource(server, uri)
+// READ_RESOURCE_TOOL — tool schema for model-driven skill loading.
 console.log(READ_RESOURCE_TOOL);
 ```
 
-### Reading archive-distributed skills
+### Digests: verification and caching
 
-`listSkillsFromIndex()` returns archive entries with `type: "archive"`. Use `readSkillArchive()` to fetch and unpack:
+Each entry's `resources` manifest carries a `sha256:{hex}` digest per file, and it serves two distinct purposes:
 
-```typescript
-import { readSkillArchive } from "@modelcontextprotocol/experimental-ext-skills/client";
+**1. Verification** — SEP-2640 makes this a **MUST**: when a host retrieves a file listed in a skill's `resources`, it must verify the content against that entry's digest, treat reads of unlisted files within the skill as verification failures, and (for `SKILL.md`) check the parsed frontmatter is identical to the entry's `frontmatter`. `readSkill()` and `readSkillResource()` do all of this by default. A mismatch means the content is not what the entry promised — corrupted, tampered, or stale because the skill changed; recover by calling `getSkill()` for a fresh entry (which, being different, revokes any content-bound approval) and retrying.
 
-const skills = await listSkillsFromIndex(client) ?? [];
-for (const summary of skills) {
-  if (summary.type === "archive") {
-    // Pass the index digest so the archive bytes are verified before unpacking
-    // (or use readSkill(client, summary), which does this for you).
-    const archive = await readSkillArchive(client, summary.uri, {
-      expectedDigest: summary.digest,
-    });
-    const skillMd = archive.files.get("SKILL.md")!.toString("utf-8");
-    // Other files in archive.files keyed by relative path —
-    // identical namespace to skill://<skillPath>/<file-path>
-  }
-}
-```
+Digests are unsigned and come from the same server as the content: a match proves consistency, not trustworthiness. Hosts MUST NOT treat a digest match as a security boundary.
 
-The host MUST support both `.tar.gz` (`application/gzip`) and `.zip` (`application/zip`); the SDK dispatches on `mimeType` (with URL-suffix fallback). Archive safety is enforced: path traversal, absolute paths, and out-of-tree symlinks are rejected, with bounded total size, per-file size, and entry count to defend against decompression bombs.
-
-### Digest: integrity and caching
-
-Each index entry carries a `sha256:{hex}` `digest` (over the SKILL.md raw bytes; archives carry their own under `archives[].digest`). It serves **two distinct purposes**, and they are different operations:
-
-**1. Integrity / tamper-detection** — SEP-2640 makes this a **MUST**: hosts must verify retrieved content against the advertised digest. The SDK verifies by default in its read path, so the simplest correct call is `readSkill()` with a discovered summary — it checks the content (skill-md) or raw archive bytes against `summary.digest` and throws on mismatch (or if the entry carries no digest):
-
-```typescript
-import { readSkill, readSkillUri, verifyDigest } from "@modelcontextprotocol/experimental-ext-skills/client";
-
-// Default-verified read (recommended). skill-md → SKILL.md text; archive → unpacked files.
-const content = await readSkill(client, summary);
-
-// Reading by URI verifies when you pass the index digest:
-const verified = await readSkillUri(client, summary.uri, summary.digest);
-
-// Or check content you already hold:
-if (summary.digest && !verifyDigest(content, summary.digest)) {
-  // content was altered in transit or drifted from what the index advertised
-}
-```
-
-`readSkill()` throws when `summary.digest` is absent, since a conforming index always carries one; pass `{ allowUnverified: true }` to read from a non-conforming server anyway.
-
-`SKILL.md` is UTF-8, so hashing the received `text` (as UTF-8) matches the server's raw-byte hash exactly — a UTF-8 decode→encode round-trip is byte-identical (CRLF, BOM, multibyte all preserved). Only genuinely non-UTF-8 content (disallowed for `SKILL.md`) would differ.
-
-**2. Caching** — this is the digest's headline purpose, and it does **not** hash content. Store each skill's digest from a prior index read; on a later poll, refetch only the (small) index and compare the new digest against the stored one. Equal ⇒ the skill content is unchanged, skip refetching it (skill payloads can be large):
+**2. Caching** — compare a fresh entry's digests against stored ones to decide whether cached content is still current, without re-reading files; or fetch, verify, and cache the entire set at approval time and serve every subsequent read from the verified copy:
 
 ```typescript
 // `cache` is your own Map<uri, digest> from a previous run.
-const fresh = await listSkillsFromIndex(client) ?? [];
-for (const s of fresh) {
-  if (s.digest && cache.get(s.uri) === s.digest) continue; // unchanged — skip refetch
-  const content = await readSkillContent(client, s.skillPath);
-  cache.set(s.uri, s.digest!);
+const entry = await getSkill(client, skillUri);
+for (const ref of entry.resources ?? []) {
+  if (cache.get(ref.uri) === ref.digest) continue; // unchanged — skip refetch
+  const doc = await readSkillResource(client, entry, ref.uri);
+  cache.set(ref.uri, ref.digest);
   // ... (re)load content
 }
 ```
 
-The SDK exposes `SkillSummary.digest` for this comparison but doesn't manage a cache store — that belongs to the host. The same compare also surfaces drift (e.g. an agent edited a skill locally) for a `/skills list`-style view.
+**Dynamically generated skills** omit `resources` and are unverifiable by construction. `readSkill()` / `readSkillResource()` throw for them by default; pass `{ allowUnverified: true }` to read anyway. Hosts MAY simply decline such skills.
 
-### Scheme-agnostic discovery
+`SKILL.md` is UTF-8, so hashing the received `text` (as UTF-8) matches the server's raw-byte hash exactly. Binary supporting files arrive as base64 `blob`s and are verified over the decoded bytes.
 
-Per the SEP, `skill://` is SHOULD, not MUST. Servers may serve skills under any URI scheme (e.g., `repo://`, `github://`) provided they are listed in `skill://index.json`. The discovery functions (`discoverSkills`, `listSkillsFromIndex`) handle any scheme in index entries, and `readSkillUri()` reads any URI regardless of scheme.
+### Scheme-agnostic skill identity
 
-### Server `instructions` as a discovery path
+No URI scheme is privileged. A host learns that a resource is a skill from a `skills/list` entry or a `skills/get` answer — never from the URI scheme, `skill://` included. Servers MAY serve skills under any scheme (`github://`, `repo://`, …); the structural constraints (path ends in the skill name, explicit `SKILL.md`) apply regardless, and all the client functions here are scheme-agnostic.
 
-The SEP lists three discovery paths feeding the host's catalog: `skill://index.json`, server `instructions`, and direct `resources/read`. `discoverSkills()` and `discoverAndBuildCatalog()` accept `{ instructions: true }` to opt into mining `client.getInstructions()` for `<scheme>://...SKILL.md` URIs and merging them with index hits (deduplicated by URI). This is **off by default** — most servers don't name skill URIs in their instructions, and turning it on costs one `resources/read` round-trip per URI mentioned. Turn it on for documentation-server / gateway / template-only servers that don't enumerate via `index.json`.
+### Server `instructions` as a pointer
 
-```typescript
-const skills = await discoverSkills(client, { instructions: true });
-```
-
-Pass `extractor` to override the built-in regex when the server uses a non-standard URI convention in its instructions text (URIs inside code fences with custom syntax, JSON-encoded URI lists, etc.):
+A server MAY name specific skill URIs in its `instructions`. `discoverSkills()` / `discoverAndBuildCatalog()` accept `{ instructions: true }` to mine `client.getInstructions()` for `<scheme>://…SKILL.md` URIs; each is confirmed via `skills/get` (the server answers for skills it serves and errors otherwise) and merged with the listing. Off by default — it costs one `skills/get` round-trip per URI mentioned. Pass `extractor` to override the built-in regex when the server uses a non-standard URI convention in prose:
 
 ```typescript
 const skills = await discoverSkills(client, {
@@ -352,36 +265,13 @@ const skills = await discoverSkills(client, {
 });
 ```
 
-Lower-level helpers are also exported:
-
-```typescript
-import {
-  extractSkillUrisFromInstructions,
-  listSkillsFromInstructions,
-} from "@modelcontextprotocol/experimental-ext-skills/client";
-
-const uris = extractSkillUrisFromInstructions(client.getInstructions());
-const fromInstructions = await listSkillsFromInstructions(
-  client,
-  client.getInstructions() ?? "",
-  { extractor: myExtractor }, // optional
-);
-```
-
-### Per-entry `<server>` in the system-prompt catalog
-
-`buildSkillsCatalog(skills, { toolName, serverName, serverInEntries: true })` injects `<server>{name}</server>` into every `<skill>` entry. This puts the server name visibly next to each URI the model might pass to a `(server, uri)` reader tool. The host SKILL.md flags this as the way to keep first-call activation reliability ~90% (vs ~33% without).
-
-`serverInEntries` defaults to **false** because per-entry placement isn't in SEP-2640 — only the empirical activation guidance from the host SKILL.md. Hosts that use `(server, uri)` reader tools (like the bundled `READ_RESOURCE_TOOL`) should opt in; hosts whose readers are already scoped to one server can leave it off. The wrapper-level mention of `serverName` in the prose instructions remains independent of this flag.
-
 ## URI scheme
 
 ```
 skill://code-review/SKILL.md                     # single-segment path
 skill://acme/billing/refunds/SKILL.md            # multi-segment path
 skill://acme/billing/refunds/templates/email.md  # supporting file
-skill://pdf-processing.tar.gz                     # archive distribution
-skill://index.json                                # discovery index
+skill://acme/billing/refunds                     # directory resource (inode/directory)
 ```
 
 URI utilities are available from the main import:
@@ -392,8 +282,8 @@ import { parseSkillUri, buildSkillUri, isSkillContentUri } from "@modelcontextpr
 
 ## Related
 
-- [Skills Extension SEP (PR #69)](https://github.com/modelcontextprotocol/experimental-ext-skills/pull/69) -- the spec this implements
-- [Skills Over MCP Interest Group](https://github.com/modelcontextprotocol/experimental-ext-skills) -- parent repository
+- [SEP-2640 — Skills Extension](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) -- the spec this implements
+- [Skills Over MCP Working Group](https://github.com/modelcontextprotocol/experimental-ext-skills) -- parent repository
 - [Agent Skills specification](https://agentskills.io/specification) -- the skill format (frontmatter, directory layout) this transports
 - [Server example](../../examples/skills-server/typescript/) -- reference MCP server
 - [Client example](../../examples/skills-client/typescript/) -- reference MCP client

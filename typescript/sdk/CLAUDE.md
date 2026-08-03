@@ -4,115 +4,94 @@
 
 This SDK implements three layers:
 
-1. **Protocol layer** — Types, URI scheme, index format, constants. Maps directly to the SEP spec. Lives in `types.ts`, `uri.ts`, `mime.ts`.
+1. **Protocol layer** — Types, method schemas, URI scheme, constants. Maps directly to SEP-2640 v1. Lives in `types.ts`, `skills-methods.ts`, `directory.ts`, `uri.ts`, `mime.ts`.
 
-2. **API layer** — Direct wrappers around single protocol operations. Each function maps to one spec concept: `listSkillsFromIndex()` reads `skill://index.json`, `readSkillUri()` calls `resources/read`, `registerSkillResources()` registers MCP resources. Lives in `_client.ts`, `_server.ts`, `resource-extensions.ts`.
+2. **API layer** — Direct wrappers around single protocol operations. Each function maps to one spec concept: `listSkills()` calls `skills/list` (paginating), `getSkill()` calls `skills/get`, `readSkillUri()` calls `resources/read`, `registerSkillResources()` registers resources and installs the method handlers. Lives in `_client.ts`, `_server.ts`, `resource-extensions.ts`.
 
-3. **Ergonomic layer** — Chains API-layer calls with opinionated defaults and fallback logic. `discoverSkills()` tries index then falls back to `resources/list`. `discoverAndBuildCatalog()` chains discovery into catalog building with a sensible `toolName` default.
+3. **Ergonomic layer** — Chains API-layer calls with opinionated defaults. `readSkill()` / `readSkillResource()` bundle the SEP's host-side verification MUSTs; `discoverSkills()` merges the listing with instructions-confirmed entries; `discoverAndBuildCatalog()` chains discovery into catalog building.
 
 The main principle is to **make simple things easy and complex things possible.** The ergonomic layer handles the 80% case; the API layer remains available for full control.
 
-## Scheme agnosticism
+## Protocol surface (SEP-2640 v1)
 
-Index entries may use any URI scheme. Functions that accept URIs from the index (`readSkillUri`, `discoverSkills`, `buildSkillsCatalog`) are scheme-agnostic. Functions that construct URIs from skill paths (`readSkillContent`, `readSkillDocument`) always produce `skill://` and are documented accordingly.
+The extension defines two required methods and one optional method; there is no index resource and no archive distribution (both removed during core-maintainer review — the index in favor of `skills/list`, archives into the SEP's "Appendix: Deferred Features").
 
-Per SEP-2640, the structural constraints on `<skill-path>` apply *regardless of scheme*. `extractSkillPathFromUri()` extracts the path between `<scheme>://` and `/SKILL.md` for any URI; `listSkillsFromIndex()` and `listSkillsFromInstructions()` use it to populate `SkillSummary.skillPath`, falling back to the entry's `name` only when the URL doesn't match `<scheme>://<path>/SKILL.md`. The model-facing `skillPath` is therefore the SEP-defined locator across schemes.
+- `skills/list` (`skills-methods.ts`) — paginated entry enumeration. Entries are `{uri, frontmatter, resources}`: verbatim frontmatter as JSON, and a **complete** per-file `resources` manifest of `{uri, digest}` pairs including `SKILL.md` itself. Entries are atomic across pages. Results carry the SEP-2549 `ttlMs`/`cacheScope` attributes (server options, defaults `0`/`"private"`). The listing MAY be empty or partial; never proof of absence.
+- `skills/get` (`skills-methods.ts`) — one entry by `SKILL.md` URI, listed or not; `-32602` for non-skill URIs. Doubles as the skill-identity confirmation for explicitly referenced URIs (schemes are non-privileged — never infer skill-ness from `skill://`).
+- `resources/directory/read` (`directory.ts` schemas/tree; handler in `_server.ts`) — optional, gated behind the `directoryRead` capability setting; metadata-only, non-recursive, paginated; directories are `mimeType: "inode/directory"`; `-32602` for non-directories.
 
-## Index format (SEP-2640)
+`resources` MAY be omitted only for dynamically generated skills; such skills are unverifiable and the client read path throws unless `allowUnverified` is passed.
 
-The `skill://index.json` schema is the WG's own (decoupled from the
-agentskills.io `.well-known` discovery format) and carries **no** `$schema` /
-version marker. Each entry is **type-less**:
+## v2 MCP SDK
 
-- `frontmatter` — the skill's SKILL.md frontmatter copied **verbatim** as JSON.
-  Name and description live here, not as top-level entry fields. The server
-  captures the full block in `discoverSkills` (`SkillMetadata.frontmatter`);
-  the client reads `frontmatter.name` / `frontmatter.description`.
-- `url` + `digest` — present when the skill is served as individual files;
-  `digest` is `sha256:{hex}` over the SKILL.md raw bytes (computed once in
-  `discoverSkills` from the bytes it already reads).
-- `archives` — an array of `{ url, mimeType, digest }`, one per packed form.
+Built against the v2 TypeScript SDK (`@modelcontextprotocol/server` ^2 peer dep; `@modelcontextprotocol/client` used in tests only — client code stays structural). Key idioms:
 
-Every entry MUST have a `url`, a non-empty `archives`, or both;
-`listSkillsFromIndex` skips entries with neither and derives
-`SkillSummary.type` from the entry shape. There is no `mcp-resource-template`
-entry type and no parameterized-template serving feature — both were removed
-when the index schema decoupled from `.well-known`. The catch-all
-`skill://{+skillFilePath}` template (for supporting files) is unrelated and
-stays.
+- Custom methods register via `lowLevel.setRequestHandler(method, { params, result }, handler)` where params/result are Standard Schemas (zod v4 here) and the handler receives **parsed params**, not the request envelope.
+- Errors thrown from handlers use `ProtocolError(ProtocolErrorCode.InvalidParams, msg, data)` (replaces v1 `McpError`).
+- Resources register via `server.registerResource(name, uriOrTemplate, config, cb)` — the config argument is mandatory in v2.
+- Capabilities declare via `registerCapabilities({ extensions: { "io.modelcontextprotocol/skills": {...} } })`, which merges (so it composes with caller-declared capabilities) and throws after connect.
+- Client-side custom requests are `client.request({ method, params }, resultSchema)` — the result schema is **required** for non-spec methods in v2; the wrappers always pass it.
+- `integration.test.ts` exercises the real wiring: `McpServer` + `Client` over `InMemoryTransport.createLinkedPair()` (both halves imported from `@modelcontextprotocol/client`; the server half is cast — the pair must come from one package because each bundles private state).
 
-## Directory enumeration (`resources/directory/read`)
+## Capability declaration
 
-`directory.ts` owns the SEP-2640 method. `buildDirectoryTree(skillMap)` derives
-every directory implied by skill paths + scanned documents and its direct
-children (files with their mime; subdirectories with `inode/directory`);
-`makeDirectoryReadHandler` serves a paginated, metadata-only, non-recursive
-listing and throws `McpError(InvalidParams)` (`-32602`) on a non-directory or
-unknown URI. It is registered on the **low-level** `Server` via
-`server.server.setRequestHandler(DirectoryReadRequestSchema, …)` because it is
-an extension method with no high-level `McpServer` wrapper.
+`registerSkillResources()` declares `capabilities.extensions["io.modelcontextprotocol/skills"]` itself by default (`declareCapability: true`), with `{directoryRead: true}` when the handler is enabled — one call, before `connect()`. `declareSkillsExtension()` remains exported for manual control (`declareCapability: false`). Declaring the extension commits the server to `skills/list` + `skills/get`; `directoryRead` additionally gates `resources/directory/read`, which clients check via `serverSupportsDirectoryRead()`. Client wrappers gate the skills methods on `serverSupportsSkills()` when the structural client exposes `getServerCapabilities` (unreadable capabilities → permissive, absent extension → throw / empty discovery).
 
-The capability is opt-in and must be declared in **two** places that the SDK
-deliberately keeps separate: `declareSkillsExtension(server, { directoryRead:
-true })` advertises it in the initialize handshake (so it must run before
-`connect()`), and `registerSkillResources(…, { directoryRead: true })` installs
-the handler. The client gates calls with `serverSupportsDirectoryRead()` (reads
-the declared capability) before issuing `readDirectory()` / `walkDirectory()`.
+## Verification model (client)
+
+The entry is the verification unit and what user approval content-binds to:
+
+- `readSkill(client, entry)` — digest-verifies the fetched `SKILL.md` against the manifest ref matching `entry.uri`, then enforces the **frontmatter identity check**: parsed YAML frontmatter must deep-equal `entry.frontmatter` (JSON round-tripped before comparison). Any discrepancy is a verification failure.
+- `readSkillResource(client, entry, uri)` — enforces the **unlisted-file rule** (a read of a URI not in `resources` is a verification failure equivalent to a digest mismatch) and verifies text (UTF-8 hash) or blob (decoded-bytes hash) content.
+- `readSkillUri()` is the unverified baseline (URI alone is always readable); optional digest arg.
+- Digests are unsigned server-supplied consistency checks, not a security boundary — mirror the SEP's framing in any docs.
+
+## Nested skills
+
+Nesting is allowed (v1 change): `discoverSkills()` (server, `_server.ts`) collects every `SKILL.md` at any depth as its own skill, and an enclosing skill's `documents` (and therefore its entry `resources`) include nested skills' files — completeness extends to nested content per the SEP. There is no no-nesting enforcement anymore.
+
+## Discovery paths (client)
+
+1. `skills/list` — always (when the extension is declared).
+2. Server `instructions` — opt-in (`{ instructions: true }`); mined URIs are confirmed via `skills/get` and merged, deduplicated by URI. Failures are dropped silently (instructions are advisory).
+
+There is no `resources/list` fallback: scanning for `skill://` URIs would infer skill-ness from the scheme, which the SEP forbids.
 
 ## `_meta` policy
 
-The SDK never auto-projects frontmatter into resource `_meta`. Per `docs/skill-meta-keys.md`, skill-level semantics (version, allowed-tools, invocation, etc.) belong in frontmatter — the resource content — not duplicated on the resource. `SkillMetadata.meta` is the opt-in surface for transport-layer concerns that have no frontmatter equivalent (provenance, content-integrity hashes). The SDK only sets `_meta` when the caller fills this field.
-
-## Discovery paths
-
-`discoverSkills()` covers the SEP's three discovery paths, but mines `instructions` only on opt-in:
-
-1. `skill://index.json` (authoritative, scheme-agnostic) — primary, always tried
-2. Server `instructions` (URIs the server names) — opt in with `{ instructions: true }`; read via `client.getInstructions()` when the structural `SkillsClient` exposes it; merged with index entries deduplicated by URI. Pass `{ extractor }` to override the built-in regex.
-3. `resources/list` (skill:// scheme only) — fallback when both above are empty
-
-The default is **opt-out** for `instructions` mining because most servers don't name skill URIs there, and the per-URI read round-trips would be wasted. Hosts that want the third path enable it explicitly per the SEP narrative.
-
-Index hits don't suppress instructions mining when opted in; the two are merged. This handles servers that publish a base catalog *and* call out specific URIs in their instructions.
-
-## Per-entry `<server>` in catalog
-
-`generateSkillsXMLFromSummaries(skills, { serverName, serverInEntries: true })` injects `<server>` inside each `<skill>`. **Off by default**: per-entry placement is host-narrative from the host SKILL.md, not SEP-2640, so we don't impose it on every consumer. Hosts using `(server, uri)` reader tools opt in for the activation-reliability lift; hosts whose readers are server-scoped leave it off.
-
-The wrapper-level mention of `serverName` in `buildSkillsCatalog`'s prose is a separate concern, controlled by `serverName` presence alone.
+The SDK never auto-projects frontmatter into resource `_meta`. Per `docs/skill-meta-keys.md`, skill-level semantics belong in frontmatter — the resource content — not duplicated on the resource. `SkillMetadata.meta` is the opt-in surface for transport-layer concerns; the SDK only sets `_meta` when the caller fills this field.
 
 ## Defaults policy
 
-Behaviors normatively prescribed by SEP-2640 are on by default. Behaviors that come from the WIP host/server SKILL.md narrative or related WG docs (`skill-meta-keys.md`) but aren't in SEP-2640 are opt-in:
+Behaviors normatively prescribed by SEP-2640 are on by default. Host-narrative behaviors are opt-in:
 
 | Behavior | Source | Default |
 |---|---|---|
-| `skill://index.json` discovery (client) | SEP-2640 | always on |
-| `skill://index.json` registration (server) | SEP-2640 SHOULD | on; opt-out via `index: false` for unenumerable catalogs |
-| `resources/list` fallback | SEP-2640 | always on |
+| `skills/list` + `skills/get` handlers (server) | SEP-2640 MUST | always registered |
+| Capability declaration in `registerSkillResources` | SEP-2640 | on; opt-out via `declareCapability: false` |
+| Per-file digests in entry `resources` | SEP-2640 | always emitted |
+| Digest verification + frontmatter identity + unlisted-file rule (client) | SEP-2640 MUST | default-on in `readSkill` / `readSkillResource`; `allowUnverified` for manifest-less skills |
 | Final-segment-equals-name validation | SEP-2640 | always enforced |
 | Skill name `^[a-z0-9-]+$` validation | SEP-2640 + agentskills.io | always enforced |
-| Archive safety | SEP-2640 | always enforced |
-| Per-entry `digest` in index (`sha256:`) | SEP-2640 | always emitted |
-| Digest verification on read | SEP-2640 MUST | default-on in the read path: `readSkill()` verifies against the summary digest; `readSkillUri(uri, digest)` / `readSkillArchive(uri, { expectedDigest })` verify when given the index digest; `verifyDigest` / `readSkillUriVerified` remain for manual checks |
-| `resources/directory/read` handler | SEP-2640 | opt-in (`directoryRead: true` + `declareSkillsExtension`) |
-| `instructions` discovery path | host SKILL.md | opt-in (`instructions: true`) |
+| Nested skill discovery | SEP-2640 | always on (no-nesting rule removed) |
+| `ttlMs` / `cacheScope` on `skills/list` | SEP-2549 via SEP-2640 | emitted; defaults `0` / `"private"` |
+| `resources/directory/read` handler | SEP-2640 optional | opt-in (`directoryRead: true`) |
+| `instructions` mining (with `skills/get` confirmation) | SEP-2640 pointer | opt-in (`instructions: true`) |
 | Custom URI extractor | SDK | opt-in (`extractor`) |
 | Per-entry `<server>` in catalog XML | host SKILL.md | opt-in (`serverInEntries: true`) |
 | Custom `_meta` per skill | `skill-meta-keys.md` | opt-in (caller fills `meta`) |
 | `serverName` in catalog prose wrapper | host SKILL.md | optional (set `serverName`) |
-| No-nesting constraint | PR #70 | always enforced (correctness) |
 | Catch-all supporting-files template | SDK mechanism | on (delivers SEP-prescribed function) |
 | `audience: ["assistant"]` annotation | `skill-meta-keys.md` | default (overridable) |
 
 ## Structural typing
 
-`SkillsClient` and `SkillsServer` are structural interfaces, not re-exports of the MCP SDK's concrete classes. This avoids type incompatibilities when consumers have a different version of `@modelcontextprotocol/sdk` installed.
+`SkillsClient` and `SkillsServer` are structural interfaces, not re-exports of the MCP SDK's concrete classes. This avoids type incompatibilities when consumers have a different version of the MCP SDK installed. The only hard imports from the peer are server-side (`ResourceTemplate`, `ProtocolError`), which is why `@modelcontextprotocol/server` is the sole peer dependency; `directory.ts` and `skills-methods.ts` stay dependency-free so the client subpath needs no MCP package at all.
 
 ## Subpath exports
 
-- `experimental-ext-skills` — shared types, URI utilities
-- `experimental-ext-skills/client` — client-side discovery, reading, catalog building
-- `experimental-ext-skills/server` — server-side discovery, resource registration
+- `experimental-ext-skills` — shared types, method schemas, URI utilities
+- `experimental-ext-skills/client` — client-side discovery, verified reading, catalog building
+- `experimental-ext-skills/server` — server-side discovery, registration, handler factories
 
 Client and server exports are intentionally separate. Types used by exported functions should be re-exported from the same subpath so users don't need multiple imports.

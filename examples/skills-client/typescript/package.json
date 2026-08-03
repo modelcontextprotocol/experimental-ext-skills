@@ -1,7 +1,7 @@
 {
   "name": "@modelcontextprotocol/skills-sep-example-client",
   "version": "0.1.0",
-  "description": "Reference MCP client demonstrating SEP-2640 (Skills Extension): index discovery, skill-md reads, archive fetch+unpack, and template enumeration",
+  "description": "Reference MCP client demonstrating SEP-2640 v1 (Skills Extension): skills/list, skills/get, verified reads, and directory enumeration",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/experimental-ext-skills": "file:../../../typescript/sdk",
-    "@modelcontextprotocol/sdk": "^1.29.0"
+    "@modelcontextprotocol/client": "^2.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -5,14 +5,18 @@
 export {
   discoverSkills,
   registerSkillResources,
-  generateSkillIndex,
+  buildSkillEntry,
+  makeSkillsListHandler,
+  makeSkillsGetHandler,
+  makeDirectoryReadHandler,
   loadSkillContent,
   loadDocument,
   scanDocuments,
   isPathWithinBase,
   sha256Digest,
+  DEFAULT_SKILLS_LIST_PAGE_SIZE,
 } from "../_server.js";
-export type { GenerateSkillIndexOptions } from "../_server.js";
+export type { SkillsListHandlerOptions } from "../_server.js";
 
 export {
   declareSkillsExtension,
@@ -25,14 +29,33 @@ export type {
 } from "../resource-extensions.js";
 
 export {
+  SKILLS_LIST_METHOD,
+  SKILLS_GET_METHOD,
+  SkillsListParamsSchema,
+  SkillsListResultSchema,
+  SkillsGetParamsSchema,
+  SkillsGetResultSchema,
+} from "../skills-methods.js";
+
+export {
   DIRECTORY_READ_METHOD,
   INODE_DIRECTORY_MIME,
-  DirectoryReadRequestSchema,
+  DirectoryReadParamsSchema,
+  DirectoryReadResultSchema,
   buildDirectoryTree,
-  makeDirectoryReadHandler,
 } from "../directory.js";
 export type {
   DirectoryChild,
   DirectoryReadResult,
   DirectoryReadHandlerOptions,
 } from "../directory.js";
+
+export type {
+  SkillResourceRef,
+  SkillEntry,
+  SkillsListResult,
+  SkillsGetResult,
+  SkillDocument,
+  SkillMetadata,
+  RegisterSkillResourcesOptions,
+} from "../types.js";

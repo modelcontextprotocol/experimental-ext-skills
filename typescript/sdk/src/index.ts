@@ -1,24 +1,20 @@
 /**
  * Skills Extension SDK — Main barrel exports.
  *
- * Exports shared types, URI utilities, and MIME utilities.
+ * Exports shared types, protocol schemas, URI utilities, and MIME utilities.
  * Server-specific and client-specific exports are available via
  * subpath imports: "@modelcontextprotocol/experimental-ext-skills/server"
  * and "@modelcontextprotocol/experimental-ext-skills/client".
  */
 
 export type {
+  SkillResourceRef,
+  SkillEntry,
+  SkillsListResult,
+  SkillsGetResult,
   SkillDocument,
   SkillMetadata,
   SkillSummary,
-  SkillArchiveRef,
-  SkillIndexEntry,
-  SkillIndex,
-  SkillArchiveDeclaration,
-  ArchiveFormat,
-  UnpackedSkillArchive,
-  ExtractArchiveOptions,
-  ReadSkillArchiveOptions,
   ReadSkillOptions,
   SkillsCatalogOptions,
   DiscoverSkillsOptions,
@@ -29,21 +25,23 @@ export type {
 } from "./types.js";
 
 export {
-  detectArchiveFormat,
-  stripArchiveSuffix,
-  archiveMimeType,
-  archiveSuffix,
-  extractSkillArchive,
-} from "./archive.js";
+  SKILLS_LIST_METHOD,
+  SKILLS_GET_METHOD,
+  SkillResourceRefSchema,
+  SkillEntrySchema,
+  SkillsListParamsSchema,
+  SkillsListResultSchema,
+  SkillsGetParamsSchema,
+  SkillsGetResultSchema,
+} from "./skills-methods.js";
 
 export {
   DIRECTORY_READ_METHOD,
   INODE_DIRECTORY_MIME,
   DEFAULT_DIRECTORY_PAGE_SIZE,
-  DirectoryReadRequestSchema,
+  DirectoryReadParamsSchema,
   DirectoryReadResultSchema,
   buildDirectoryTree,
-  makeDirectoryReadHandler,
 } from "./directory.js";
 export type {
   DirectoryChild,
@@ -57,12 +55,10 @@ export type { SkillsExtensionCapability } from "./resource-extensions.js";
 export {
   SKILL_URI_SCHEME,
   SKILL_FILENAME,
-  INDEX_JSON_URI,
   parseSkillUri,
   resolveSkillFileUri,
   buildSkillUri,
   isSkillContentUri,
-  isIndexJsonUri,
   isValidSkillName,
   extractSkillPathFromUri,
 } from "./uri.js";

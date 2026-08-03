@@ -1,58 +1,62 @@
 /**
- * Client-side utilities for discovering, reading, and summarizing skills
- * exposed as MCP resources by a skills server.
+ * Client-side utilities for discovering, verifying, and reading skills
+ * exposed by an MCP server that declares the SEP-2640 v1 skills extension.
  *
  * Each MCP Client instance is inherently server-scoped — it represents a
  * connection to a single MCP server. This is the architectural basis for
  * excluding server names from skill:// URIs: disambiguation happens at
  * the call site, not in the URI.
  *
- * Per the SEP, skill:// is SHOULD, not MUST. Servers MAY serve skills
- * under any scheme (e.g., github://, repo://) provided each skill is
- * listed in skill://index.json. The index is the authoritative record
- * of which resources are skills; outside the index, hosts recognize
- * skills by the skill:// scheme prefix.
+ * Per SEP-2640, no URI scheme is privileged: a host learns that a resource
+ * is a skill from a `skills/list` entry or a `skills/get` answer, never
+ * from the URI scheme. The `resources` manifest on an entry — `{uri,
+ * digest}` for every file of the skill — is the unit of content a host
+ * verifies and that a user's approval binds to.
  *
- * Key evolution from previous version:
- *   - Multi-segment skill paths: skillPath may have a prefix before name
- *     (per the SEP, the final segment of skillPath equals frontmatter name)
- *   - SDK wrappers per the SEP: listSkills(), listSkillsFromIndex(), readSkillUri()
+ * Reading model:
+ *   - `listSkills()` / `getSkill()` fetch entries (`skills/list` / `skills/get`)
+ *   - `readSkill(entry)` reads and verifies a SKILL.md (digest + frontmatter
+ *     identity check)
+ *   - `readSkillResource(entry, uri)` reads and verifies a supporting file;
+ *     reads of files not listed in the entry's `resources` are verification
+ *     failures per the SEP
+ *   - `readSkillUri()` is the unverified baseline: a URI alone is always
+ *     enough to read a skill via `resources/read`
  */
 
 import { createHash } from "node:crypto";
 import { parse as parseYaml } from "yaml";
 import type {
+  SkillEntry,
+  SkillResourceRef,
+  SkillsListResult,
+  SkillsGetResult,
   SkillSummary,
-  SkillIndex,
   SkillsCatalogOptions,
   DiscoverSkillsOptions,
   DiscoverCatalogOptions,
   DiscoverCatalogResult,
   InstructionsUriExtractor,
-  UnpackedSkillArchive,
-  ExtractArchiveOptions,
-  ReadSkillArchiveOptions,
   ReadSkillOptions,
 } from "./types.js";
 import { generateSkillsXMLFromSummaries } from "./xml.js";
 import {
   buildSkillUri,
-  INDEX_JSON_URI,
-  parseSkillUri,
   SKILL_FILENAME,
   extractSkillPathFromUri,
 } from "./uri.js";
-import {
-  extractSkillArchive,
-  stripArchiveSuffix,
-  detectArchiveFormat,
-} from "./archive.js";
 import {
   DIRECTORY_READ_METHOD,
   DirectoryReadResultSchema,
   type DirectoryChild,
   type DirectoryReadResult,
 } from "./directory.js";
+import {
+  SKILLS_LIST_METHOD,
+  SKILLS_GET_METHOD,
+  SkillsListResultSchema,
+  SkillsGetResultSchema,
+} from "./skills-methods.js";
 import { SKILLS_EXTENSION_ID } from "./resource-extensions.js";
 
 /**
@@ -61,17 +65,6 @@ import { SKILLS_EXTENSION_ID } from "./resource-extensions.js";
  * causing private-property type incompatibilities.
  */
 export interface SkillsClient {
-  listResources(
-    params?: { cursor?: string },
-  ): Promise<{
-    resources: Array<{
-      uri: string;
-      name?: string;
-      description?: string;
-      mimeType?: string;
-    }>;
-    nextCursor?: string;
-  }>;
   readResource(params: {
     uri: string;
   }): Promise<{
@@ -83,30 +76,31 @@ export interface SkillsClient {
     }>;
   }>;
   /**
+   * Low-level JSON-RPC request, used for the extension methods
+   * (`skills/list`, `skills/get`, `resources/directory/read`). Mirrors the
+   * MCP SDK Client's `request(request, resultSchema, options?)` — for
+   * non-spec methods the v2 SDK requires the result schema, which the
+   * wrappers here always pass. The result is annotated `unknown` and
+   * narrowed at the call site.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  request?(request: { method: string; params?: unknown }, resultSchema: any): Promise<unknown>;
+  /**
    * Optional. Returns the connected server's `instructions` string from the
    * `initialize` response, when the underlying client exposes it. Used by
-   * `discoverSkills()` to mine instructions for skill URIs per the SEP's
-   * third discovery path.
+   * `discoverSkills()` to mine instructions for skill URIs, which are then
+   * confirmed via `skills/get`.
    */
   getInstructions?(): string | undefined;
   /**
    * Optional. The connected server's advertised capabilities (the MCP SDK
-   * Client exposes this). Used to gate `resources/directory/read` on the
-   * server having declared `extensions["io.modelcontextprotocol/skills"]
-   * .directoryRead`.
+   * Client exposes this). Used to gate the extension methods on the server
+   * having declared `extensions["io.modelcontextprotocol/skills"]` (and
+   * `resources/directory/read` on its `directoryRead` setting).
    */
   getServerCapabilities?(): {
     extensions?: Record<string, { directoryRead?: boolean } | undefined>;
   } | undefined;
-  /**
-   * Optional. Low-level JSON-RPC request, used for extension methods that
-   * have no high-level wrapper (e.g. `resources/directory/read`). Mirrors the
-   * MCP SDK Client's `request(request, resultSchema, options?)`. The result
-   * schema is passed through to the underlying client; we annotate the return
-   * as `unknown` and narrow at the call site.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  request?(request: { method: string; params?: unknown }, resultSchema: any): Promise<unknown>;
 }
 
 /**
@@ -190,47 +184,88 @@ export const READ_SKILL_TOOL: ToolDefinition = {
   },
 };
 
-/**
- * List all skills available from an MCP client via resources/list.
- *
- * Calls resources/list, filters for skill://{skillPath}/SKILL.md URIs,
- * and returns SkillSummary objects with both name and skillPath.
- * Handles pagination automatically.
- *
- * This function only finds skills using the skill:// scheme. Per the SEP,
- * "outside the index, hosts recognize skills by the skill:// scheme prefix."
- * For servers that use other schemes, use listSkillsFromIndex() instead —
- * the index is the authoritative record of which resources are skills.
- *
- * Per PR #69: this is the SDK wrapper for client.list_skills().
- */
-export async function listSkills(client: SkillsClient): Promise<SkillSummary[]> {
-  const skills: SkillSummary[] = [];
-  let cursor: string | undefined;
-
-  do {
-    const result = await client.listResources(
-      cursor ? { cursor } : undefined,
+/** Get the low-level request method or throw a descriptive error. */
+function requireRequest(
+  client: SkillsClient,
+  method: string,
+): NonNullable<SkillsClient["request"]> {
+  if (!client.request) {
+    throw new Error(
+      `Client does not expose a low-level request() method for ${method}.`,
     );
+  }
+  return client.request.bind(client);
+}
 
-    for (const resource of result.resources) {
-      const parsed = parseSkillUri(resource.uri);
-      if (!parsed) continue;
-      if (
-        parsed.filePath !== SKILL_FILENAME &&
-        parsed.filePath.toLowerCase() !== "skill.md"
-      )
-        continue;
+/**
+ * Whether the connected server has declared the SEP-2640 skills extension
+ * (`extensions["io.modelcontextprotocol/skills"]`). Declaring the extension
+ * commits the server to `skills/list` and `skills/get`. Returns `undefined`
+ * when the structural client cannot read server capabilities.
+ */
+export function serverSupportsSkills(
+  client: SkillsClient,
+): boolean | undefined {
+  const caps = client.getServerCapabilities?.();
+  if (caps === undefined) return undefined;
+  return caps.extensions?.[SKILLS_EXTENSION_ID] !== undefined;
+}
 
-      skills.push({
-        name: resource.name ?? parsed.skillPath,
-        skillPath: parsed.skillPath,
-        uri: resource.uri,
-        description: resource.description,
-        mimeType: resource.mimeType,
-      });
+/**
+ * Whether the connected server has declared the SEP-2640 `directoryRead`
+ * capability setting under `extensions["io.modelcontextprotocol/skills"]`.
+ * Clients MUST NOT call `resources/directory/read` unless this is true.
+ */
+export function serverSupportsDirectoryRead(client: SkillsClient): boolean {
+  const ext = client.getServerCapabilities?.()?.extensions?.[SKILLS_EXTENSION_ID];
+  return !!ext && ext.directoryRead === true;
+}
+
+/** Guard shared by the skills methods: throw when the server declaredly lacks the extension. */
+function assertSkillsDeclared(client: SkillsClient, method: string): void {
+  if (serverSupportsSkills(client) === false) {
+    throw new Error(
+      `Server has not declared the "${SKILLS_EXTENSION_ID}" extension; ${method} is not available.`,
+    );
+  }
+}
+
+/**
+ * List the skills a server serves via the `skills/list` method, following
+ * `nextCursor` pagination to exhaustion.
+ *
+ * The result MAY be empty or partial by design — servers whose skill
+ * catalogs are large, generated, or otherwise unenumerable return what they
+ * can. Hosts MUST NOT treat an empty or partial listing as proof that a
+ * server has no skills; a skill URI handed to the host by other means is
+ * still readable (and retrievable via {@link getSkill}).
+ *
+ * Throws when the server's capabilities are readable and the skills
+ * extension is not declared (clients only issue extension calls after
+ * seeing the declaration).
+ */
+export async function listSkills(client: SkillsClient): Promise<SkillEntry[]> {
+  assertSkillsDeclared(client, SKILLS_LIST_METHOD);
+  const request = requireRequest(client, SKILLS_LIST_METHOD);
+
+  const skills: SkillEntry[] = [];
+  let cursor: string | undefined;
+  const seenCursors = new Set<string>();
+  do {
+    const result = (await request(
+      {
+        method: SKILLS_LIST_METHOD,
+        params: cursor ? { cursor } : {},
+      },
+      SkillsListResultSchema,
+    )) as SkillsListResult;
+    skills.push(...result.skills);
+    if (result.nextCursor !== undefined && seenCursors.has(result.nextCursor)) {
+      throw new Error(
+        `skills/list pagination did not advance: server returned a repeated cursor`,
+      );
     }
-
+    if (result.nextCursor !== undefined) seenCursors.add(result.nextCursor);
     cursor = result.nextCursor;
   } while (cursor);
 
@@ -238,171 +273,51 @@ export async function listSkills(client: SkillsClient): Promise<SkillSummary[]> 
 }
 
 /**
- * Fetch and parse skill://index.json from an MCP server.
- * Returns the parsed SkillIndex or null if unavailable.
+ * Retrieve a single skill's entry by the URI of its `SKILL.md` via the
+ * `skills/get` method. Works for skills absent from the listing — this is
+ * how an unlisted skill (named in server instructions, by another skill, or
+ * by the user) gets verified and content-bound on the same terms as a
+ * listed one. The server answers with error `-32602` for URIs it does not
+ * serve as skills; that error propagates to the caller.
+ *
+ * The result is a point-in-time snapshot; re-calling is how a host
+ * refreshes one skill's digests without re-enumerating the catalog.
  */
-async function fetchAndParseIndex(
-  client: SkillsClient,
-): Promise<SkillIndex | null> {
-  try {
-    const result = await client.readResource({ uri: INDEX_JSON_URI });
-    const content = result.contents[0];
-    if (!content || !("text" in content) || !content.text) return null;
-
-    const index = JSON.parse(content.text) as SkillIndex;
-
-    // Per SEP-2640 the index carries no `$schema`/version marker — the format
-    // is versioned by the extension itself, so there is nothing to validate
-    // beyond the presence of a `skills` array.
-    if (!index.skills || !Array.isArray(index.skills)) return null;
-
-    return index;
-  } catch {
-    return null;
-  }
-}
-
-/** Pull a string field from a frontmatter object, or undefined. */
-function frontmatterString(
-  frontmatter: Record<string, unknown> | undefined,
-  key: string,
-): string | undefined {
-  const v = frontmatter?.[key];
-  return typeof v === "string" ? v : undefined;
-}
-
-/**
- * List skills by reading the well-known skill://index.json resource.
- *
- * This is the SEP's primary enumeration mechanism, following the Agent Skills
- * well-known URI discovery index format. Returns null if the server does not
- * expose skill://index.json (enumeration is optional per the SEP).
- *
- * Scheme-agnostic: index entries may use any URI scheme (skill://, github://,
- * repo://, etc.) per the SEP. For skill:// URIs, skillPath is extracted from
- * the URI structure. For other schemes, skillPath falls back to entry.name
- * (the skill's frontmatter name). The uri field always carries the raw URL
- * from the index, regardless of scheme.
- *
- * Hosts MUST NOT treat an absent or empty index as proof that a server has
- * no skills — a skill:// URI is always directly readable via resources/read.
- *
- * Per SEP-2640 each entry is type-less: a `url` (with `digest`) means the
- * skill is served as individual files; a non-empty `archives` array means it
- * is available packed. Name and description come from the entry's verbatim
- * `frontmatter`. An entry with neither `url` nor `archives` is malformed and
- * is skipped.
- */
-export async function listSkillsFromIndex(
-  client: SkillsClient,
-): Promise<SkillSummary[] | null> {
-  const index = await fetchAndParseIndex(client);
-  if (!index) return null;
-
-  const summaries: SkillSummary[] = [];
-  for (const entry of index.skills) {
-    const name = frontmatterString(entry.frontmatter, "name");
-    const description = frontmatterString(entry.frontmatter, "description");
-
-    if (entry.url) {
-      // Per SEP-2640, `<skill-path>` structural constraints apply regardless
-      // of scheme. Extract the path between `<scheme>://` and `/SKILL.md`;
-      // fall back to the frontmatter name only when the URL lacks that form.
-      const skillPath = extractSkillPathFromUri(entry.url) ?? name ?? entry.url;
-      summaries.push({
-        name: name ?? skillPath,
-        skillPath,
-        uri: entry.url,
-        type: "skill-md",
-        description,
-        mimeType: "text/markdown",
-        digest: entry.digest,
-        archives: entry.archives,
-      });
-    } else if (entry.archives && entry.archives.length > 0) {
-      // Archive-only skill. Expose the first archive's URL on `uri` so callers
-      // know how to fetch; the post-unpack `skillPath` is derived from it by
-      // stripping the archive suffix (skill://pdf-processing.tar.gz unpacks to
-      // skill://pdf-processing/).
-      const primary = entry.archives[0];
-      const stripped = stripArchiveSuffix(primary.url);
-      const skillPath =
-        extractSkillPathFromUri(stripped + "/SKILL.md") ?? name ?? primary.url;
-      summaries.push({
-        name: name ?? skillPath,
-        skillPath,
-        uri: primary.url,
-        type: "archive",
-        description,
-        mimeType:
-          primary.mimeType ??
-          (detectArchiveFormat(undefined, primary.url) === "zip"
-            ? "application/zip"
-            : "application/gzip"),
-        digest: primary.digest,
-        archives: entry.archives,
-      });
-    }
-    // Entries with neither `url` nor `archives` violate SEP-2640 — skip.
-  }
-  return summaries;
-}
-
-/**
- * Read a resource by its full URI from an MCP server.
- *
- * Scheme-agnostic: works with any URI scheme (skill://, github://, repo://, etc.).
- * This is the primary read function for skills discovered via listSkillsFromIndex(),
- * which may return URIs in any scheme. Pass the SkillSummary.uri value directly.
- *
- * When `expectedDigest` (a `sha256:{hex}` from the index entry) is supplied,
- * the returned content is verified against it and a mismatch throws — the
- * tamper check SEP-2640 makes a MUST. Omit it only when no index digest is
- * available (e.g. URIs found via `resources/list` or instructions mining).
- *
- * Per PR #69: this is the SDK wrapper for client.read_skill_uri().
- */
-export async function readSkillUri(
+export async function getSkill(
   client: SkillsClient,
   uri: string,
-  expectedDigest?: string,
-): Promise<string> {
-  const result = await client.readResource({ uri });
-  const content = result.contents[0];
-  if (!content || !("text" in content) || typeof content.text !== "string") {
-    throw new Error(`Expected text content for ${uri}`);
-  }
-  if (expectedDigest !== undefined && !verifyDigest(content.text, expectedDigest)) {
-    throw new Error(
-      `Digest mismatch for ${uri}: content does not match index digest ${expectedDigest}`,
-    );
-  }
-  return content.text;
+): Promise<SkillEntry> {
+  assertSkillsDeclared(client, SKILLS_GET_METHOD);
+  const request = requireRequest(client, SKILLS_GET_METHOD);
+  const result = (await request(
+    { method: SKILLS_GET_METHOD, params: { uri } },
+    SkillsGetResultSchema,
+  )) as SkillsGetResult;
+  return result.skill;
 }
 
 /**
- * Verify that `data` matches an expected `sha256:{hex}` digest from a
- * `skill://index.json` entry — the integrity/tamper check SEP-2640 asks hosts
- * to perform on retrieved content.
+ * Verify that `data` matches an expected `sha256:{hex}` digest from a skill
+ * entry's `resources` manifest — the integrity check SEP-2640 makes a MUST
+ * when a host retrieves a file listed in `resources`.
  *
- * Index digests are over the SKILL.md file's **raw bytes**. When `data` is a
- * string (the usual case — `resources/read` returns `text`), it is hashed as
- * UTF-8. This is exact for `SKILL.md`, which the Agent Skills spec requires to
- * be UTF-8: a UTF-8 decode→encode round-trip is byte-identical (CRLF, BOM, and
+ * Digests are over the file's **raw bytes**. When `data` is a string (the
+ * usual case — `resources/read` returns `text`), it is hashed as UTF-8.
+ * This is exact for `SKILL.md`, which the Agent Skills spec requires to be
+ * UTF-8: a UTF-8 decode→encode round-trip is byte-identical (CRLF, BOM, and
  * multibyte content all preserved), so a faithfully-served file always
- * matches. Only genuinely non-UTF-8 bytes (disallowed for `SKILL.md`) would
- * differ — pass a `Buffer` of the exact bytes received in that case.
+ * matches. Only genuinely non-UTF-8 bytes would differ — pass a `Buffer` of
+ * the exact bytes received in that case.
  *
- * Note this is the *tamper-detection* use of the digest. The digest's other
- * purpose — caching — is a different operation: compare the new index
- * `digest` string against a previously-stored one (no content hashing). See
- * the README "Caching with the index digest" section.
+ * Note this is the *verification* use of the digest. The digest's other
+ * purpose — caching — is a different operation: compare a fresh entry's
+ * `digest` string against a previously-stored one (no content hashing).
  *
  * The comparison is case-insensitive on the hex.
  *
  * Throws if `expected` is not a well-formed `sha256:{64 hex}` digest, so a
  * caller can distinguish "content was tampered" (returns `false`) from "the
- * index handed me a digest I can't interpret" (throws) — the latter must not
+ * entry handed me a digest I can't interpret" (throws) — the latter must not
  * be silently treated as a mismatch when SEP-2640 makes verification a MUST.
  */
 export function verifyDigest(
@@ -419,12 +334,40 @@ export function verifyDigest(
 }
 
 /**
- * Read a skill resource and verify it against an expected `sha256:{hex}`
- * digest (e.g. `SkillSummary.digest`). Throws if the digest does not match.
- * Returns the text content on success.
+ * Read a resource by its full URI from an MCP server.
  *
- * Thin wrapper over {@link readSkillUri} with a required digest; prefer
- * {@link readSkill} when you hold the discovered `SkillSummary`.
+ * Scheme-agnostic: works with any URI scheme (skill://, github://, etc.).
+ * This is the SEP baseline — a skill URI is always a valid argument to
+ * `resources/read`, listed or not.
+ *
+ * When `expectedDigest` (a `sha256:{hex}` from the skill's entry) is
+ * supplied, the returned content is verified against it and a mismatch
+ * throws. Prefer {@link readSkill} / {@link readSkillResource} when you hold
+ * the skill's entry — they also enforce the manifest-membership and
+ * frontmatter-identity rules.
+ */
+export async function readSkillUri(
+  client: SkillsClient,
+  uri: string,
+  expectedDigest?: string,
+): Promise<string> {
+  const result = await client.readResource({ uri });
+  const content = result.contents[0];
+  if (!content || !("text" in content) || typeof content.text !== "string") {
+    throw new Error(`Expected text content for ${uri}`);
+  }
+  if (expectedDigest !== undefined && !verifyDigest(content.text, expectedDigest)) {
+    throw new Error(
+      `Digest mismatch for ${uri}: content does not match the entry digest ${expectedDigest}`,
+    );
+  }
+  return content.text;
+}
+
+/**
+ * Read a skill resource and verify it against an expected `sha256:{hex}`
+ * digest. Throws if the digest does not match. Returns the text content on
+ * success. Thin wrapper over {@link readSkillUri} with a required digest.
  */
 export async function readSkillUriVerified(
   client: SkillsClient,
@@ -434,14 +377,227 @@ export async function readSkillUriVerified(
   return readSkillUri(client, uri, expectedDigest);
 }
 
+/** Deep structural equality over JSON-shaped values. */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== typeof b) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+      return false;
+    }
+    return a.every((v, i) => deepEqual(v, b[i]));
+  }
+  if (typeof a === "object" && a !== null && b !== null && typeof b === "object") {
+    const ak = Object.keys(a as Record<string, unknown>);
+    const bk = Object.keys(b as Record<string, unknown>);
+    if (ak.length !== bk.length) return false;
+    return ak.every((k) =>
+      deepEqual(
+        (a as Record<string, unknown>)[k],
+        (b as Record<string, unknown>)[k],
+      ),
+    );
+  }
+  return false;
+}
+
 /**
- * Whether the connected server has declared the SEP-2640 `directoryRead`
- * capability under `extensions["io.modelcontextprotocol/skills"]`. Clients
- * MUST NOT call `resources/directory/read` unless this is true.
+ * Parse the full YAML frontmatter of a SKILL.md into a plain object.
+ * Returns null if the content lacks closed `---` frontmatter or the
+ * frontmatter is not a YAML mapping.
  */
-export function serverSupportsDirectoryRead(client: SkillsClient): boolean {
-  const ext = client.getServerCapabilities?.()?.extensions?.[SKILLS_EXTENSION_ID];
-  return !!ext && ext.directoryRead === true;
+export function parseSkillFrontmatterObject(
+  content: string,
+): Record<string, unknown> | null {
+  if (!content.startsWith("---")) return null;
+
+  // Match an opening `---` line followed by a closing `---` line. Using a
+  // line-anchored split keeps `---` inside the body (e.g., a horizontal
+  // rule) from terminating the frontmatter early.
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/);
+  if (!match) return null;
+
+  let frontmatter: unknown;
+  try {
+    frontmatter = parseYaml(match[1]);
+  } catch {
+    return null;
+  }
+
+  if (typeof frontmatter !== "object" || frontmatter === null) return null;
+  if (Array.isArray(frontmatter)) return null;
+  return frontmatter as Record<string, unknown>;
+}
+
+/**
+ * Parse name and description from SKILL.md YAML frontmatter content.
+ *
+ * Uses the `yaml` package so multi-line scalars, quoted strings, and other
+ * non-trivial YAML constructs are handled correctly. Returns null if the
+ * content lacks closed `---` frontmatter, the frontmatter is not a YAML
+ * mapping, or the `name` field is missing/non-string.
+ */
+export function parseSkillFrontmatter(
+  content: string,
+): { name: string; description: string } | null {
+  const fm = parseSkillFrontmatterObject(content);
+  if (!fm) return null;
+
+  if (typeof fm.name !== "string") return null;
+  const name = fm.name.trim();
+  if (!name) return null;
+
+  const description = typeof fm.description === "string"
+    ? fm.description.trim()
+    : "";
+
+  return { name, description };
+}
+
+/**
+ * Check the SEP-2640 frontmatter identity requirement: the fetched
+ * SKILL.md's parsed YAML frontmatter must be identical in content to the
+ * entry's `frontmatter` object. Any discrepancy is a verification failure
+ * equivalent to a digest mismatch — what a user approves from the listing
+ * must be what the model actually receives.
+ *
+ * The parsed YAML is JSON round-tripped before comparison so YAML-only
+ * value types normalize to their JSON rendering, mirroring how the server
+ * rendered the entry's `frontmatter`.
+ */
+export function frontmatterMatchesEntry(
+  content: string,
+  entry: SkillEntry,
+): boolean {
+  const parsed = parseSkillFrontmatterObject(content);
+  if (!parsed) return false;
+  const normalized = JSON.parse(JSON.stringify(parsed)) as unknown;
+  return deepEqual(normalized, entry.frontmatter);
+}
+
+/** Find the `resources` ref for `uri` in an entry, or undefined. */
+function findResourceRef(
+  entry: SkillEntry,
+  uri: string,
+): SkillResourceRef | undefined {
+  return entry.resources?.find((r) => r.uri === uri);
+}
+
+/**
+ * Read a skill's SKILL.md, verified against its entry — the recommended
+ * read path once you hold a {@link SkillEntry} from {@link listSkills} /
+ * {@link getSkill}.
+ *
+ * Performs the host-side MUSTs of SEP-2640:
+ *   1. Digest verification — the fetched text is checked against the
+ *      `resources` ref matching the entry's top-level `uri`.
+ *   2. Frontmatter identity — the fetched SKILL.md's parsed frontmatter is
+ *      compared field-by-field against `entry.frontmatter`; any discrepancy
+ *      is a verification failure.
+ *
+ * A verification failure means the content is not what the entry promised —
+ * corrupted, tampered with, or stale because the skill changed after the
+ * entry was fetched. To recover from staleness, call {@link getSkill} for a
+ * fresh entry (which, being different, revokes any content-bound approval)
+ * and retry.
+ *
+ * If the entry has no `resources` (a dynamically generated skill), the
+ * skill cannot be verified: this throws by default; pass
+ * `{ allowUnverified: true }` to read it anyway (the frontmatter identity
+ * check still applies).
+ */
+export async function readSkill(
+  client: SkillsClient,
+  entry: SkillEntry,
+  options?: ReadSkillOptions,
+): Promise<string> {
+  const selfRef = findResourceRef(entry, entry.uri);
+  if (entry.resources && !selfRef) {
+    throw new Error(
+      `Malformed entry for ${entry.uri}: resources does not include an entry matching the skill's top-level uri`,
+    );
+  }
+  if (!entry.resources && !options?.allowUnverified) {
+    throw new Error(
+      `Cannot verify skill ${entry.uri}: the entry carries no resources manifest ` +
+        `(dynamically generated skill). Pass { allowUnverified: true } to read it without verification.`,
+    );
+  }
+
+  const text = await readSkillUri(client, entry.uri, selfRef?.digest);
+
+  if (!frontmatterMatchesEntry(text, entry)) {
+    throw new Error(
+      `Frontmatter mismatch for ${entry.uri}: the fetched SKILL.md frontmatter does not match the entry's frontmatter. ` +
+        `Per SEP-2640 this is a verification failure equivalent to a digest mismatch.`,
+    );
+  }
+
+  return text;
+}
+
+/**
+ * Read a file of a skill, verified against the skill's entry.
+ *
+ * Enforces the SEP-2640 rule that, while acting on a skill for which the
+ * host holds an entry, reads of the skill's files resolve only to URIs
+ * listed in that entry's `resources` — a read of an unlisted file within
+ * the skill is a verification failure equivalent to a digest mismatch
+ * (because `resources` is complete, an unlisted file is a change to the
+ * skill). The fetched content (text or binary) is verified against the
+ * ref's digest.
+ *
+ * For entries without `resources` (dynamically generated skills) there is
+ * nothing to verify against; this throws unless `allowUnverified` is set.
+ */
+export async function readSkillResource(
+  client: SkillsClient,
+  entry: SkillEntry,
+  uri: string,
+  options?: ReadSkillOptions,
+): Promise<{ text?: string; blob?: string; mimeType?: string }> {
+  const ref = findResourceRef(entry, uri);
+  if (!ref) {
+    if (entry.resources) {
+      throw new Error(
+        `Verification failure: ${uri} is not listed in the resources manifest of ${entry.uri}. ` +
+          `Per SEP-2640, a read of an unlisted file within the skill is equivalent to a digest mismatch.`,
+      );
+    }
+    if (!options?.allowUnverified) {
+      throw new Error(
+        `Cannot verify ${uri}: the entry for ${entry.uri} carries no resources manifest. ` +
+          `Pass { allowUnverified: true } to read it without verification.`,
+      );
+    }
+  }
+
+  const result = await client.readResource({ uri });
+  const content = result.contents[0];
+  if (!content) throw new Error(`No content returned for ${uri}`);
+
+  if (ref) {
+    const data: Buffer | string | undefined =
+      typeof content.text === "string"
+        ? content.text
+        : typeof content.blob === "string"
+          ? Buffer.from(content.blob, "base64")
+          : undefined;
+    if (data === undefined) {
+      throw new Error(`Resource ${uri} returned neither text nor blob content`);
+    }
+    if (!verifyDigest(data, ref.digest)) {
+      throw new Error(
+        `Digest mismatch for ${uri}: content does not match the entry digest ${ref.digest}`,
+      );
+    }
+  }
+
+  return {
+    text: "text" in content ? content.text : undefined,
+    blob: "blob" in content ? content.blob : undefined,
+    mimeType: content.mimeType,
+  };
 }
 
 /**
@@ -451,8 +607,9 @@ export function serverSupportsDirectoryRead(client: SkillsClient): boolean {
  * an optional `nextCursor` for pagination. The listing is metadata-only and
  * non-recursive; descend by calling again on a child directory's URI.
  *
- * Throws if the server has not declared the `directoryRead` capability, or if
- * the structural client does not expose a low-level `request` method.
+ * Throws if the server has not declared the `directoryRead` capability
+ * setting, or if the structural client does not expose a low-level
+ * `request` method.
  */
 export async function readDirectory(
   client: SkillsClient,
@@ -464,12 +621,8 @@ export async function readDirectory(
       `Server did not declare the "directoryRead" capability; resources/directory/read is not available.`,
     );
   }
-  if (!client.request) {
-    throw new Error(
-      `Client does not expose a low-level request() method for resources/directory/read.`,
-    );
-  }
-  const result = (await client.request(
+  const request = requireRequest(client, DIRECTORY_READ_METHOD);
+  const result = (await request(
     {
       method: DIRECTORY_READ_METHOD,
       params: { uri, ...(options?.cursor ? { cursor: options.cursor } : {}) },
@@ -526,9 +679,9 @@ export async function walkDirectory(
 /**
  * Read a skill's SKILL.md content by skill path.
  *
- * Convenience method that builds a skill:// URI from the skill path.
- * Only works for skills using the skill:// scheme. For other schemes,
- * use readSkillUri() with the full URI from SkillSummary.uri.
+ * Convenience method that builds a skill:// URI from the skill path and
+ * reads it unverified (the SEP baseline). Only works for skills using the
+ * skill:// scheme. Prefer {@link readSkill} when you hold the skill's entry.
  */
 export async function readSkillContent(
   client: SkillsClient,
@@ -539,43 +692,179 @@ export async function readSkillContent(
 }
 
 /**
- * Parse name and description from SKILL.md YAML frontmatter content.
+ * Read a supporting file from a skill directory by relative path.
  *
- * Uses the `yaml` package so multi-line scalars, quoted strings, and other
- * non-trivial YAML constructs are handled correctly. Returns null if the
- * content lacks closed `---` frontmatter, the frontmatter is not a YAML
- * mapping, or the `name` field is missing/non-string.
+ * The documentPath is relative to the skill root (e.g., "references/REFERENCE.md").
+ * Constructs a skill:// URI — only works for skills using the skill://
+ * scheme — and reads it unverified. Prefer {@link readSkillResource} when
+ * you hold the skill's entry, which also enforces manifest membership.
  */
-export function parseSkillFrontmatter(
-  content: string,
-): { name: string; description: string } | null {
-  if (!content.startsWith("---")) return null;
+export async function readSkillDocument(
+  client: SkillsClient,
+  skillPath: string,
+  documentPath: string,
+): Promise<{ text?: string; blob?: string; mimeType?: string }> {
+  const uri = buildSkillUri(skillPath, documentPath);
+  const result = await client.readResource({ uri });
+  const content = result.contents[0];
+  if (!content) throw new Error(`No content returned for ${uri}`);
+  return {
+    text: "text" in content ? content.text : undefined,
+    blob: "blob" in content ? content.blob : undefined,
+    mimeType: content.mimeType,
+  };
+}
 
-  // Match an opening `---` line followed by a closing `---` line. Using a
-  // line-anchored split keeps `---` inside the body (e.g., a horizontal
-  // rule) from terminating the frontmatter early.
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/);
-  if (!match) return null;
-
-  let frontmatter: unknown;
-  try {
-    frontmatter = parseYaml(match[1]);
-  } catch {
-    return null;
+/**
+ * Extract skill URIs from a server's `instructions` string.
+ *
+ * Looks for any URI of the form `<scheme>://...` mentioned in the
+ * instructions text, where the URI's path ends with `SKILL.md` (case
+ * insensitive). Per SEP-2640, a server MAY direct the agent to specific
+ * skill URIs from its `instructions` field — and a URI found this way is
+ * confirmed as a skill by asking the server (`skills/get`), never by
+ * inspecting the URI scheme.
+ *
+ * Returns a deduplicated array of URI strings, in first-seen order.
+ */
+export function extractSkillUrisFromInstructions(
+  instructions: string | undefined,
+): string[] {
+  if (!instructions) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  // Match any <scheme>://<path> token where the path ends at SKILL.md.
+  // Stops at whitespace and common URI-terminating characters in prose.
+  const regex = /[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s`'"<>)\]]*?[Ss][Kk][Ii][Ll][Ll]\.[Mm][Dd]/g;
+  for (const match of instructions.matchAll(regex)) {
+    const uri = match[0];
+    if (!seen.has(uri)) {
+      seen.add(uri);
+      out.push(uri);
+    }
   }
+  return out;
+}
 
-  if (typeof frontmatter !== "object" || frontmatter === null) return null;
-  const fm = frontmatter as Record<string, unknown>;
+/**
+ * Confirm each URI mentioned in the server's instructions via `skills/get`
+ * and return the resulting entries.
+ *
+ * URIs the server does not serve as skills (the `skills/get` call errors)
+ * are silently dropped — instructions are advisory, and a misnamed URI
+ * shouldn't fail discovery for the rest. This is the SEP's skill-identity
+ * confirmation: the server answers for skills it serves and errors
+ * otherwise; the URI scheme proves nothing.
+ *
+ * Pass `options.extractor` to replace the built-in regex with a custom
+ * URI extractor (useful for servers with non-standard URI conventions
+ * in their instructions text).
+ */
+export async function listSkillsFromInstructions(
+  client: SkillsClient,
+  instructions: string,
+  options?: { extractor?: InstructionsUriExtractor },
+): Promise<SkillEntry[]> {
+  const extract = options?.extractor ?? extractSkillUrisFromInstructions;
+  const uris = extract(instructions);
+  if (uris.length === 0) return [];
 
-  if (typeof fm.name !== "string") return null;
-  const name = fm.name.trim();
-  if (!name) return null;
+  // The per-URI confirmations are independent, so issue them concurrently
+  // rather than serially round-tripping.
+  const results = await Promise.allSettled(
+    uris.map((uri) => getSkill(client, uri)),
+  );
 
-  const description = typeof fm.description === "string"
-    ? fm.description.trim()
-    : "";
+  return results
+    .filter(
+      (r): r is PromiseFulfilledResult<SkillEntry> => r.status === "fulfilled",
+    )
+    .map((r) => r.value);
+}
 
-  return { name, description };
+/**
+ * Merge two SkillEntry arrays, dropping the latter's entries whose URI
+ * already appears in the former. Preserves the first-array order.
+ */
+function mergeUniqueByUri(
+  primary: SkillEntry[],
+  extra: SkillEntry[],
+): SkillEntry[] {
+  if (extra.length === 0) return primary;
+  const seen = new Set(primary.map((s) => s.uri));
+  const merged = [...primary];
+  for (const s of extra) {
+    if (!seen.has(s.uri)) {
+      merged.push(s);
+      seen.add(s.uri);
+    }
+  }
+  return merged;
+}
+
+/**
+ * Discover the skills a server serves.
+ *
+ * By default this is `skills/list` enumeration. Pass `{ instructions: true }`
+ * to additionally mine the server's `instructions` string for skill URIs;
+ * each mined URI is confirmed via `skills/get` and the confirmed entries are
+ * merged with the listing (deduplicated by URI). This covers servers whose
+ * listings are empty or partial but whose instructions name specific skills.
+ *
+ * When the client can read server capabilities and the skills extension is
+ * not declared, returns an empty array — the server exposes no skills
+ * surface (its resources may still be readable, but nothing identifies them
+ * as skills).
+ *
+ * `instructions` are read via `client.getInstructions()` when the client
+ * exposes it (the MCP SDK Client does); structural clients without that
+ * method skip instructions mining silently.
+ */
+export async function discoverSkills(
+  client: SkillsClient,
+  options?: DiscoverSkillsOptions,
+): Promise<SkillEntry[]> {
+  if (serverSupportsSkills(client) === false) return [];
+
+  const listed = await listSkills(client);
+
+  if (!(options?.instructions ?? false)) return listed;
+
+  const instructions = client.getInstructions?.();
+  if (!instructions) return listed;
+
+  const fromInstructions = await listSkillsFromInstructions(
+    client,
+    instructions,
+    { extractor: options?.extractor },
+  );
+  return mergeUniqueByUri(listed, fromInstructions);
+}
+
+/**
+ * Derive a lightweight display summary from a skill entry. `name` and
+ * `description` come from the entry's verbatim frontmatter; `skillPath` is
+ * parsed from the URI (per SEP-2640 its final segment equals the name, so
+ * the identity is readable from the URI alone).
+ */
+export function skillSummaryFromEntry(entry: SkillEntry): SkillSummary {
+  const name =
+    typeof entry.frontmatter.name === "string"
+      ? entry.frontmatter.name
+      : (extractSkillPathFromUri(entry.uri)?.split("/").pop() ?? entry.uri);
+  const skillPath = extractSkillPathFromUri(entry.uri) ?? name;
+  const description =
+    typeof entry.frontmatter.description === "string"
+      ? entry.frontmatter.description
+      : undefined;
+  return { name, skillPath, uri: entry.uri, description };
+}
+
+/** Derive display summaries for an array of skill entries. */
+export function skillSummariesFromEntries(
+  entries: SkillEntry[],
+): SkillSummary[] {
+  return entries.map(skillSummaryFromEntry);
 }
 
 /**
@@ -654,301 +943,12 @@ export function buildSkillsCatalog(
 }
 
 /**
- * Fetch a skill archive from an MCP server and unpack it in memory.
- *
- * Per SEP-2640, archive entries in `skill://index.json` reference a single
- * resource that contains a packed skill directory (`.tar.gz` or `.zip`).
- * This fetches the archive via `resources/read`, dispatches on the
- * resource's `mimeType` (falling back to URL suffix), and unpacks with
- * archive safety: rejects path-traversal, absolute paths, symlinks
- * resolving outside the skill directory, and decompression bombs.
- *
- * When `options.expectedDigest` (the archive entry's `digest` from the
- * index) is supplied, the raw archive bytes are verified against it
- * *before* unpacking — both the SEP-2640 integrity MUST and a cheap guard
- * that rejects a tampered archive before any decompression work.
- *
- * The returned `files` map is keyed by paths relative to the skill root.
- * After unpacking, `files.get("SKILL.md")` is the skill's content, and
- * other entries correspond to `skill://<skillPath>/<file-path>` exactly
- * as if served as individual resources.
- *
- * @example
- * ```typescript
- * const summary = (await listSkillsFromIndex(client))!
- *   .find((s) => s.type === "archive")!;
- * const archive = await readSkillArchive(client, summary.uri, {
- *   expectedDigest: summary.digest,
- * });
- * const skillMd = archive.files.get("SKILL.md")!.toString("utf-8");
- * ```
- */
-export async function readSkillArchive(
-  client: SkillsClient,
-  archiveUri: string,
-  options?: ReadSkillArchiveOptions,
-): Promise<UnpackedSkillArchive> {
-  const result = await client.readResource({ uri: archiveUri });
-  const content = result.contents[0];
-  if (!content) {
-    throw new Error(`No content returned for archive ${archiveUri}`);
-  }
-
-  let bytes: Buffer;
-  if ("blob" in content && content.blob) {
-    bytes = Buffer.from(content.blob, "base64");
-  } else if ("text" in content && content.text !== undefined) {
-    // Fallback: some servers may serve archives as base64 text. The
-    // resources/read content shape is either text or blob; we don't
-    // expect text for archives but accept it as a courtesy.
-    bytes = Buffer.from(content.text, "base64");
-  } else {
-    throw new Error(
-      `Archive resource ${archiveUri} returned neither blob nor text content`,
-    );
-  }
-
-  // SEP-2640: verify the retrieved archive bytes against the index digest
-  // before unpacking, so tampered content is rejected up front.
-  if (
-    options?.expectedDigest !== undefined &&
-    !verifyDigest(bytes, options.expectedDigest)
-  ) {
-    throw new Error(
-      `Digest mismatch for ${archiveUri}: archive bytes do not match index digest ${options.expectedDigest}`,
-    );
-  }
-
-  return extractSkillArchive(
-    bytes,
-    { mimeType: content.mimeType, url: archiveUri },
-    options,
-  );
-}
-
-/**
- * Read a discovered skill, verifying it against the digest the index
- * provided — the recommended read path once you hold a {@link SkillSummary}
- * from {@link discoverSkills} / {@link listSkillsFromIndex}.
- *
- * SEP-2640 makes host-side integrity verification a MUST, so this verifies
- * by default:
- *   - `type: "skill-md"` → reads `summary.uri` and checks the text against
- *     `summary.digest`; returns the SKILL.md content.
- *   - `type: "archive"`  → fetches and unpacks `summary.uri`, checking the
- *     raw archive bytes against `summary.digest`; returns the unpacked files.
- *
- * If `summary.digest` is absent the skill cannot be verified. Since a
- * conforming index always carries a digest, this throws by default; pass
- * `{ allowUnverified: true }` to read anyway (non-conforming servers only).
- */
-export async function readSkill(
-  client: SkillsClient,
-  summary: SkillSummary & { type: "archive" },
-  options?: ReadSkillOptions,
-): Promise<UnpackedSkillArchive>;
-export async function readSkill(
-  client: SkillsClient,
-  summary: SkillSummary & { type?: "skill-md" },
-  options?: ReadSkillOptions,
-): Promise<string>;
-export async function readSkill(
-  client: SkillsClient,
-  summary: SkillSummary,
-  options?: ReadSkillOptions,
-): Promise<string | UnpackedSkillArchive>;
-export async function readSkill(
-  client: SkillsClient,
-  summary: SkillSummary,
-  options?: ReadSkillOptions,
-): Promise<string | UnpackedSkillArchive> {
-  const digest = summary.digest;
-  if (digest === undefined && !options?.allowUnverified) {
-    throw new Error(
-      `Cannot verify skill "${summary.name}" (${summary.uri}): the index entry carries no digest. ` +
-        `SEP-2640 requires a digest and makes verification mandatory. ` +
-        `Pass { allowUnverified: true } to read it without verification.`,
-    );
-  }
-
-  if (summary.type === "archive") {
-    return readSkillArchive(client, summary.uri, { expectedDigest: digest });
-  }
-  return readSkillUri(client, summary.uri, digest);
-}
-
-/**
- * Read a supporting file from a skill directory.
- *
- * The documentPath is relative to the skill root (e.g., "references/REFERENCE.md").
- * Constructs a skill:// URI — only works for skills using the skill:// scheme.
- */
-export async function readSkillDocument(
-  client: SkillsClient,
-  skillPath: string,
-  documentPath: string,
-): Promise<{ text?: string; blob?: string; mimeType?: string }> {
-  const uri = buildSkillUri(skillPath, documentPath);
-  const result = await client.readResource({ uri });
-  const content = result.contents[0];
-  if (!content) throw new Error(`No content returned for ${uri}`);
-  return {
-    text: "text" in content ? content.text : undefined,
-    blob: "blob" in content ? content.blob : undefined,
-    mimeType: content.mimeType,
-  };
-}
-
-/**
- * Extract skill URIs from a server's `instructions` string.
- *
- * Looks for any URI of the form `<scheme>://...` mentioned in the
- * instructions text, where the URI's path ends with `SKILL.md` (case
- * insensitive). The host SKILL.md treats server `instructions` as one of
- * the three SEP discovery paths: a server can name specific skill URIs
- * that become readable without any catalog round trip.
- *
- * Returns a deduplicated array of URI strings, in first-seen order.
- */
-export function extractSkillUrisFromInstructions(
-  instructions: string | undefined,
-): string[] {
-  if (!instructions) return [];
-  const seen = new Set<string>();
-  const out: string[] = [];
-  // Match any <scheme>://<path> token where the path ends at SKILL.md.
-  // Stops at whitespace and common URI-terminating characters in prose.
-  const regex = /[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s`'"<>)\]]*?[Ss][Kk][Ii][Ll][Ll]\.[Mm][Dd]/g;
-  for (const match of instructions.matchAll(regex)) {
-    const uri = match[0];
-    if (!seen.has(uri)) {
-      seen.add(uri);
-      out.push(uri);
-    }
-  }
-  return out;
-}
-
-/**
- * Read each URI mentioned in the server's instructions, parse the
- * resulting SKILL.md frontmatter, and produce SkillSummary entries.
- *
- * URIs whose `resources/read` fails or whose content lacks valid
- * frontmatter are silently dropped — instructions are advisory, and a
- * misnamed URI shouldn't fail discovery for the rest.
- *
- * Pass `options.extractor` to replace the built-in regex with a custom
- * URI extractor (useful for servers with non-standard URI conventions
- * in their instructions text).
- */
-export async function listSkillsFromInstructions(
-  client: SkillsClient,
-  instructions: string,
-  options?: { extractor?: InstructionsUriExtractor },
-): Promise<SkillSummary[]> {
-  const extract = options?.extractor ?? extractSkillUrisFromInstructions;
-  const uris = extract(instructions);
-  if (uris.length === 0) return [];
-
-  // The per-URI reads are independent, so issue them concurrently rather than
-  // serially round-tripping. URIs we can't read or parse are dropped — they're
-  // advisory and shouldn't fail discovery for the rest.
-  const results = await Promise.allSettled(
-    uris.map(async (uri): Promise<SkillSummary> => {
-      const text = await readSkillUri(client, uri);
-      const fm = parseSkillFrontmatter(text);
-      const skillPath = extractSkillPathFromUri(uri) ?? fm?.name ?? uri;
-      return {
-        name: fm?.name ?? skillPath,
-        skillPath,
-        uri,
-        type: "skill-md",
-        description: fm?.description,
-        mimeType: "text/markdown",
-      };
-    }),
-  );
-
-  return results
-    .filter(
-      (r): r is PromiseFulfilledResult<SkillSummary> =>
-        r.status === "fulfilled",
-    )
-    .map((r) => r.value);
-}
-
-/**
- * Merge two SkillSummary arrays, dropping the latter's entries whose URI
- * already appears in the former. Preserves the first-array order.
- */
-function mergeUniqueByUri(
-  primary: SkillSummary[],
-  extra: SkillSummary[],
-): SkillSummary[] {
-  if (extra.length === 0) return primary;
-  const seen = new Set(primary.map((s) => s.uri));
-  const merged = [...primary];
-  for (const s of extra) {
-    if (!seen.has(s.uri)) {
-      merged.push(s);
-      seen.add(s.uri);
-    }
-  }
-  return merged;
-}
-
-/**
- * Discover all available skills from an MCP server.
- *
- * By default, follows two of the SEP's three discovery paths:
- *   1. `skill://index.json` (authoritative, scheme-agnostic)
- *   2. `resources/list` fallback (skill:// scheme only)
- *
- * Pass `{ instructions: true }` to enable the SEP's third path — mining
- * the server's `instructions` string for skill URIs. When enabled, URIs
- * named in `instructions` are merged with index entries (deduplicated by
- * URI), so an enumerable server gets its full catalog plus any URIs the
- * instructions explicitly call out, and an unenumerable server (no
- * index) still surfaces what its instructions name. The fallback to
- * `resources/list` runs only when both prior paths are empty.
- *
- * `instructions` are read via `client.getInstructions()` when the client
- * exposes it (the MCP SDK Client does); structural clients without that
- * method skip the second path silently.
- *
- * Pass `{ extractor }` to override the built-in regex used to find URIs
- * inside the instructions text — useful for servers with non-standard
- * URI conventions in prose.
- */
-export async function discoverSkills(
-  client: SkillsClient,
-  options?: DiscoverSkillsOptions,
-): Promise<SkillSummary[]> {
-  const wantInstructions = options?.instructions ?? false;
-  const instructions = wantInstructions ? client.getInstructions?.() : undefined;
-  const fromInstructions = instructions
-    ? await listSkillsFromInstructions(client, instructions, {
-        extractor: options?.extractor,
-      })
-    : [];
-
-  // Primary: skill://index.json (authoritative, scheme-agnostic)
-  const indexSkills = await listSkillsFromIndex(client);
-  if (indexSkills !== null && indexSkills.length > 0) {
-    return mergeUniqueByUri(indexSkills, fromInstructions);
-  }
-
-  // No usable index — instructions next, then resources/list
-  if (fromInstructions.length > 0) return fromInstructions;
-  return listSkills(client);
-}
-
-/**
  * Discover skills and build a system prompt catalog in one call.
  *
  * Combines discoverSkills() and buildSkillsCatalog() — the most common
- * client-side workflow. Returns both the discovered skills (for logging,
- * filtering, or other use) and the ready-to-inject catalog text.
+ * client-side workflow. Returns both the discovered entries (the
+ * verification unit for subsequent reads) and the ready-to-inject catalog
+ * text.
  *
  * The catalog includes behavioral instructions that tell the model which
  * tool and server to use for loading skill content on demand. Including
@@ -970,11 +970,10 @@ export async function discoverAndBuildCatalog(
     instructions: options?.instructions,
     extractor: options?.extractor,
   });
-  const catalog = buildSkillsCatalog(skills, {
+  const catalog = buildSkillsCatalog(skillSummariesFromEntries(skills), {
     toolName: options?.toolName ?? READ_RESOURCE_TOOL.name,
     serverName: options?.serverName,
     serverInEntries: options?.serverInEntries,
   });
   return { skills, catalog };
 }
-

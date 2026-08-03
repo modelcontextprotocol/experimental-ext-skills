@@ -18,15 +18,10 @@ export const SKILL_URI_SCHEME = "skill://";
 /** Default skill content filename. */
 export const SKILL_FILENAME = "SKILL.md";
 
-/** Well-known URI for the skill index (SEP discovery mechanism). */
-export const INDEX_JSON_URI = "skill://index.json";
-
 /**
  * Agent Skills naming rule: skill names contain only lowercase letters,
  * digits, and hyphens. Per SEP-2640, the final segment of `<skill-path>` —
- * which equals the frontmatter `name` — MUST satisfy this rule. The rule
- * also underpins the SEP's reservation note that `index.json` cannot
- * collide with a skill name.
+ * which equals the frontmatter `name` — MUST satisfy this rule.
  */
 const SKILL_NAME_REGEX = /^[a-z0-9-]+$/;
 
@@ -64,8 +59,7 @@ export interface ParsedSkillUri {
  * a known sentinel. For supporting file URIs, the caller must use
  * resolveSkillFileUri() with known skill paths.
  *
- * Returns null if the URI doesn't match the skill:// scheme or is the
- * special index.json URI.
+ * Returns null if the URI doesn't match the skill:// scheme.
  *
  * Examples:
  *   "skill://code-review/SKILL.md"
@@ -77,7 +71,7 @@ export function parseSkillUri(uri: string): ParsedSkillUri | null {
   if (!uri.startsWith(SKILL_URI_SCHEME)) return null;
 
   const rest = uri.slice(SKILL_URI_SCHEME.length);
-  if (!rest || rest === "index.json") return null;
+  if (!rest) return null;
 
   const slashIndex = rest.lastIndexOf("/");
   if (slashIndex === -1) return null;
@@ -145,13 +139,6 @@ export function buildSkillUri(skillPath: string, filePath?: string): string {
 export function isSkillContentUri(uri: string): boolean {
   const parsed = parseSkillUri(uri);
   return parsed !== null && isSkillContentFilename(parsed.filePath);
-}
-
-/**
- * Check if a URI is the well-known skill index resource.
- */
-export function isIndexJsonUri(uri: string): boolean {
-  return uri === INDEX_JSON_URI;
 }
 
 /**

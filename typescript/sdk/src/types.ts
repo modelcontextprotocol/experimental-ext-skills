@@ -1,5 +1,5 @@
 /**
- * Type definitions for the Skills Extension SDK.
+ * Type definitions for the Skills Extension SDK (SEP-2640 v1).
  *
  * Key design point: SkillMetadata separates `skillPath` (the multi-segment
  * URI locator, e.g., "acme/billing/refunds") from `name` (the skill identity
@@ -7,6 +7,70 @@
  * skill map is keyed by `skillPath` since two skills could share a frontmatter
  * name across different directories.
  */
+
+/**
+ * One file of a skill within a skill entry's `resources` manifest —
+ * a `{uri, digest}` pair (SEP-2640).
+ */
+export interface SkillResourceRef {
+  /** Resource URI of the file. */
+  uri: string;
+  /** SHA-256 digest of the file's raw bytes, formatted `sha256:{hex}`. */
+  digest: string;
+}
+
+/**
+ * A skill entry, as returned by `skills/list` (one element of `skills`) and
+ * `skills/get` (the `skill` object). Identical shape and meaning in both.
+ *
+ * Entries carry no top-level `name`/`description` — those live inside the
+ * verbatim `frontmatter` (the Agent Skills spec requires both, so they are
+ * always present).
+ */
+export interface SkillEntry {
+  /** Resource URI of the skill's `SKILL.md`, readable via `resources/read`. */
+  uri: string;
+  /**
+   * Verbatim copy of the skill's `SKILL.md` YAML frontmatter, rendered as a
+   * JSON object. Always carries `name` and `description`; any other authored
+   * fields pass through unchanged.
+   */
+  frontmatter: Record<string, unknown>;
+  /**
+   * Complete enumeration of the skill's files as `{uri, digest}` pairs,
+   * including an entry matching the skill's top-level `uri` (the digest of
+   * `SKILL.md` itself). This is the unit of content a host verifies and that
+   * a user's approval binds to.
+   *
+   * MAY be omitted only for dynamically generated skills whose content
+   * cannot be pre-digested. A skill without `resources` offers no content
+   * integrity and cannot be content-bound; hosts MAY decline to load it.
+   */
+  resources?: SkillResourceRef[];
+}
+
+/**
+ * Result of the `skills/list` method. In protocol versions 2026-07-28 and
+ * later the result also carries the base protocol's list-caching attributes
+ * (`ttlMs`, `cacheScope` per SEP-2549) — a freshness hint for the listing,
+ * not an integrity property.
+ */
+export interface SkillsListResult {
+  /** Skill entries. MAY be empty or partial — never proof of absence. */
+  skills: SkillEntry[];
+  /** Opaque pagination token; pass back as `cursor` to fetch the next page. */
+  nextCursor?: string;
+  /** SEP-2549 freshness hint in milliseconds (0 = immediately stale). */
+  ttlMs?: number;
+  /** SEP-2549 cache scope: may the result be shared across auth contexts? */
+  cacheScope?: "public" | "private";
+}
+
+/** Result of the `skills/get` method: one entry, no pagination, no caching attributes. */
+export interface SkillsGetResult {
+  /** The skill's entry — same shape and rules as a `skills/list` entry. */
+  skill: SkillEntry;
+}
 
 /**
  * A supplementary document found in a skill's subdirectories.
@@ -18,6 +82,11 @@ export interface SkillDocument {
   mimeType: string;
   /** File size in bytes */
   size: number;
+  /**
+   * SHA-256 digest of the file's raw bytes, formatted `sha256:{hex}`.
+   * Emitted in the skill's entry `resources` manifest (SEP-2640).
+   */
+  digest: string;
 }
 
 /**
@@ -37,16 +106,17 @@ export interface SkillMetadata {
   description: string;
   /**
    * The skill's full SKILL.md YAML frontmatter, parsed to a plain object.
-   * Per SEP-2640 this block is copied verbatim into the skill's
-   * `skill://index.json` entry (`frontmatter`), so `name`/`description`
-   * are always present and any other authored fields (`license`,
-   * `metadata`, compatibility, …) pass through unchanged.
+   * Per SEP-2640 this block is copied verbatim into the skill's entry
+   * (`frontmatter`) in `skills/list` / `skills/get` results, so
+   * `name`/`description` are always present and any other authored fields
+   * (`license`, `metadata`, compatibility, …) pass through unchanged.
    */
   frontmatter: Record<string, unknown>;
   /**
    * SHA-256 digest of the SKILL.md file's raw bytes, formatted as
-   * `sha256:{hex}` (64 lowercase hex). Emitted as the entry `digest` in
-   * `skill://index.json` alongside `url`, per SEP-2640.
+   * `sha256:{hex}` (64 lowercase hex). Emitted in the entry's `resources`
+   * manifest as the digest of the entry matching the skill's top-level
+   * `uri`, per SEP-2640.
    */
   digest: string;
   /** Absolute filesystem path to the SKILL.md file */
@@ -60,8 +130,7 @@ export interface SkillMetadata {
    * description, version, allowed-tools, and other skill-level semantics
    * belong in frontmatter (the resource body), not duplicated here. Use
    * `_meta` only for transport-layer concerns that have no frontmatter
-   * equivalent (provenance the host needs without reading content,
-   * content-integrity hashes, etc.) and prefix custom keys with the
+   * equivalent and prefix custom keys with the
    * `io.modelcontextprotocol.skills/` reverse-domain namespace.
    *
    * The SDK never auto-projects frontmatter into `_meta`; it's set only
@@ -79,211 +148,67 @@ export interface SkillMetadata {
 }
 
 /**
- * Lightweight client-side summary of a discovered skill.
- * Built from resources/list results and URI parsing.
+ * Lightweight client-side summary of a skill, derived from a SkillEntry.
+ * Used for building model-facing catalogs; the entry itself remains the
+ * verification unit.
  */
 export interface SkillSummary {
-  /** Skill name (from resource description or frontmatter) */
+  /** Skill name (from the entry's frontmatter) */
   name: string;
-  /** Multi-segment skill path parsed from URI */
+  /** Multi-segment skill path parsed from the entry URI */
   skillPath: string;
-  /**
-   * URI to read this skill from.
-   *
-   * For `type: "skill-md"`: the SKILL.md resource URI — read directly via
-   * `resources/read` to get the markdown content.
-   *
-   * For `type: "archive"`: the archive resource URI (e.g.
-   * `skill://pdf-processing.tar.gz`) — fetch and unpack via
-   * `readSkillArchive()`. The post-unpack SKILL.md lives at
-   * `skill://<skillPath>/SKILL.md`.
-   */
+  /** Resource URI of the skill's SKILL.md — read via `resources/read`. */
   uri: string;
-  /**
-   * Distribution type, derived from the index entry shape (a `url` ⇒
-   * `"skill-md"`, archives-only ⇒ `"archive"`). When omitted (e.g. skills
-   * discovered via `resources/list` without an index), assume `"skill-md"`.
-   */
-  type?: "skill-md" | "archive";
-  /** Skill description (from frontmatter / resource metadata) */
+  /** Skill description (from the entry's frontmatter) */
   description?: string;
-  /** MIME type of the resource */
-  mimeType?: string;
-  /**
-   * SHA-256 digest of the resource named by `uri`, formatted `sha256:{hex}`,
-   * when the index entry carried one. For `type: "skill-md"` this is the
-   * SKILL.md digest; for `type: "archive"` it is the chosen archive's
-   * digest. Pass to {@link verifyDigest} to honor the SEP's integrity MUST.
-   */
-  digest?: string;
-  /**
-   * All archive representations advertised for this skill in the index
-   * (each with its own `url`, `mimeType`, and `digest`), when present.
-   */
-  archives?: SkillArchiveRef[];
 }
 
 /**
- * One archive representation of a skill within a `skill://index.json` entry.
- *
- * Per SEP-2640, a skill MAY advertise one or more archive forms of its
- * directory. Each archive is a single resource (mime type e.g.
- * `application/gzip` or `application/zip`) whose contents unpack into the
- * skill's URI namespace (`SKILL.md` at the archive root). Each carries its
- * own SHA-256 `digest` for caching/integrity.
- */
-export interface SkillArchiveRef {
-  /** Resource URI of the archive (e.g. `skill://pdf-processing.tar.gz`). */
-  url: string;
-  /** Archive media type (e.g. `application/gzip`, `application/zip`). */
-  mimeType: string;
-  /** SHA-256 digest of the archive bytes, formatted `sha256:{hex}`. */
-  digest: string;
-}
-
-/**
- * An entry in the `skill://index.json` MCP discovery index (SEP-2640).
- *
- * Entries are **type-less**: a skill is described by its verbatim
- * `frontmatter` plus how it can be retrieved. Every entry MUST include a
- * `url` (with `digest`), a non-empty `archives` array, or both. `name` and
- * `description` are NOT top-level fields — they live inside `frontmatter`
- * (the Agent Skills spec requires both, so they are always present).
- */
-export interface SkillIndexEntry {
-  /**
-   * Verbatim copy of the skill's `SKILL.md` YAML frontmatter, rendered as a
-   * JSON object. Always carries `name` and `description`; any other authored
-   * fields pass through unchanged.
-   */
-  frontmatter: Record<string, unknown>;
-  /**
-   * Resource URI of the skill's `SKILL.md`, when served as an individual
-   * file. REQUIRED when `digest` is present; absent for archive-only skills.
-   */
-  url?: string;
-  /**
-   * SHA-256 digest of the `SKILL.md` file, formatted `sha256:{hex}`.
-   * REQUIRED whenever `url` is present.
-   */
-  digest?: string;
-  /** Archive distributions of the skill. Non-empty when present. */
-  archives?: SkillArchiveRef[];
-}
-
-/**
- * Archive format. Per SEP-2640, hosts MUST support both. Format determines
- * the served `mimeType` (`application/gzip` or `application/zip`) and
- * the URL suffix (`.tar.gz` or `.zip`).
- */
-export type ArchiveFormat = "tar.gz" | "zip";
-
-/**
- * Server-side declaration for an archive-distributed skill.
- * Passed to registerSkillResources() to register the archive as an MCP
- * resource and include it in skill://index.json.
- *
- * The archive is served as a single resource at
- * `skill://<skillPath>.<format>`. After the host unpacks it, files are
- * addressable at `skill://<skillPath>/<file-path>` — identical namespace
- * to individual-file distribution.
- */
-export interface SkillArchiveDeclaration {
-  /**
-   * Skill name from frontmatter; MUST equal the final segment of `skillPath`
-   * per SEP-2640.
-   */
-  name: string;
-  /** Skill description from frontmatter */
-  description: string;
-  /**
-   * Full SKILL.md frontmatter for this archived skill, copied verbatim into
-   * the skill's `skill://index.json` entry (`frontmatter`). The archive is
-   * not unpacked at registration, so the SDK cannot read it from inside the
-   * archive — provide it here to preserve authored fields (`license`,
-   * `metadata`, …). When omitted, the index entry falls back to
-   * `{ name, description }`.
-   */
-  frontmatter?: Record<string, unknown>;
-  /**
-   * Multi-segment skill path that the archive unpacks to. The final segment
-   * MUST equal `name`.
-   */
-  skillPath: string;
-  /**
-   * Local filesystem path to the prebuilt archive. The SDK reads this once
-   * at registration and serves the bytes on `resources/read`.
-   */
-  archivePath: string;
-  /**
-   * Archive format. Defaults to inference from `archivePath` suffix
-   * (`.tar.gz`/`.tgz` → `tar.gz`, `.zip` → `zip`).
-   */
-  format?: ArchiveFormat;
-}
-
-/**
- * Result of unpacking a skill archive.
- * Maps file paths (relative to skill root, forward-slash separated) to
- * raw byte contents.
- */
-export interface UnpackedSkillArchive {
-  /** Files in the archive, keyed by relative path. */
-  files: Map<string, Buffer>;
-  /** Total uncompressed bytes across all entries. */
-  totalSize: number;
-}
-
-/** Options for archive extraction. */
-export interface ExtractArchiveOptions {
-  /** Maximum total uncompressed bytes. Default: 50MB. */
-  maxTotalSize?: number;
-  /** Maximum bytes per single file. Default: 10MB. */
-  maxFileSize?: number;
-  /** Maximum number of entries. Default: 1024. */
-  maxEntries?: number;
-}
-
-/**
- * Options for `readSkillArchive()`. Extends the extraction bounds with the
- * SEP-2640 integrity check: when `expectedDigest` is supplied (the archive
- * entry's `digest` from `skill://index.json`), the raw archive bytes are
- * verified against it *before* unpacking, and a mismatch throws.
- */
-export interface ReadSkillArchiveOptions extends ExtractArchiveOptions {
-  /**
-   * Expected `sha256:{hex}` digest of the archive bytes (from the index
-   * entry). When present, the bytes are verified before extraction and a
-   * mismatch throws. SEP-2640 makes this verification a MUST for hosts.
-   */
-  expectedDigest?: string;
-}
-
-/**
- * Options for `readSkill()`.
+ * Options for verified skill reads (`readSkill`).
  */
 export interface ReadSkillOptions {
   /**
-   * Permit reading when the discovered skill carries no `digest`. Default
-   * `false`: SEP-2640 makes host-side verification a MUST and requires the
-   * index to carry a digest, so a missing digest is treated as a conformance
-   * error rather than silently skipping verification. Set `true` only for
-   * non-conforming servers where you accept reading unverified content.
+   * Permit reading when the skill's entry carries no `resources` manifest
+   * (a dynamically generated skill). Default `false`: such a skill offers
+   * no content integrity and cannot be content-bound, and SEP-2640 lets
+   * hosts decline it. Set `true` to read it unverified anyway.
    */
   allowUnverified?: boolean;
 }
 
 /**
- * The `skill://index.json` resource content (SEP-2640).
- *
- * The WG owns this schema; it is intentionally decoupled from the
- * agentskills.io `.well-known` discovery format. The index carries no
- * `$schema` / version marker — the format is versioned by the extension
- * itself.
+ * Custom extractor for skill URIs in a server's `instructions` string.
+ * Receives the raw instructions text and returns a deduplicated array
+ * of URI strings. Replaces the SDK's built-in regex extractor entirely
+ * — useful when the server uses a non-standard URI convention in prose
+ * (e.g., URIs inside code fences, multi-line URIs, domain-specific
+ * schemes that look like prose tokens).
  */
-export interface SkillIndex {
-  /** Array of skill entries */
-  skills: SkillIndexEntry[];
+export type InstructionsUriExtractor = (instructions: string) => string[];
+
+/**
+ * Options for discoverSkills(). All fields are optional; the default is
+ * `skills/list` enumeration without mining server instructions.
+ */
+export interface DiscoverSkillsOptions {
+  /**
+   * Mine the server's `instructions` string for skill URIs, confirm each
+   * via `skills/get`, and merge the resulting entries with the `skills/list`
+   * result (deduplicated by URI). Off by default — most servers don't name
+   * skill URIs in their instructions, and enabling this costs one
+   * `skills/get` round-trip per URI mentioned. Per SEP-2640 an explicitly
+   * referenced URI is confirmed as a skill by asking the server, never by
+   * inspecting the URI scheme.
+   *
+   * @default false
+   */
+  instructions?: boolean;
+  /**
+   * Custom extractor used when `instructions: true`. When omitted, the
+   * SDK's built-in regex extractor (`extractSkillUrisFromInstructions`)
+   * is used.
+   */
+  extractor?: InstructionsUriExtractor;
 }
 
 /**
@@ -309,41 +234,6 @@ export interface SkillsCatalogOptions {
    * also set.
    */
   serverInEntries?: boolean;
-}
-
-/**
- * Custom extractor for skill URIs in a server's `instructions` string.
- * Receives the raw instructions text and returns a deduplicated array
- * of URI strings. Replaces the SDK's built-in regex extractor entirely
- * — useful when the server uses a non-standard URI convention in prose
- * (e.g., URIs inside code fences, multi-line URIs, domain-specific
- * schemes that look like prose tokens).
- */
-export type InstructionsUriExtractor = (instructions: string) => string[];
-
-/**
- * Options for discoverSkills(). All fields are optional; defaults match
- * the SEP's recommended index-first / list-fallback strategy without
- * mining server instructions.
- */
-export interface DiscoverSkillsOptions {
-  /**
-   * Mine the server's `instructions` string for skill URIs and merge them
-   * with index entries (deduplicated by URI). Off by default — most
-   * servers don't name skill URIs in their instructions, and enabling
-   * this costs one `resources/read` round-trip per URI mentioned. Turn
-   * on for documentation-server / gateway / template-only servers per
-   * the SEP's third discovery path.
-   *
-   * @default false
-   */
-  instructions?: boolean;
-  /**
-   * Custom extractor used when `instructions: true`. When omitted, the
-   * SDK's built-in regex extractor (`extractSkillUrisFromInstructions`)
-   * is used.
-   */
-  extractor?: InstructionsUriExtractor;
 }
 
 /**
@@ -379,8 +269,8 @@ export interface DiscoverCatalogOptions {
  * Result of discoverAndBuildCatalog().
  */
 export interface DiscoverCatalogResult {
-  /** Discovered skills */
-  skills: SkillSummary[];
+  /** Discovered skill entries */
+  skills: SkillEntry[];
   /** System prompt catalog text (empty string if no skills found) */
   catalog: string;
 }
@@ -391,34 +281,36 @@ export interface DiscoverCatalogResult {
 export interface RegisterSkillResourcesOptions {
   /** Register the resource template for supporting files. Default: true */
   template?: boolean;
-  /**
-   * Register the well-known `skill://index.json` discovery resource. Default:
-   * true. Set to `false` for servers whose skill catalog is large, generated
-   * on demand, or otherwise unenumerable — per SEP-2640 a server MAY decline
-   * to expose the index. Skills remain individually readable via
-   * `resources/read` regardless.
-   */
-  index?: boolean;
   /** Audience annotation for skill resources. Default: ["assistant"] */
   audience?: string[];
   /**
-   * Archive-distributed skills to register and include in `skill://index.json`.
-   * Each declaration's archive file is read from disk and served as a single
-   * resource at `skill://<skillPath>.<format>`.
-   */
-  archives?: SkillArchiveDeclaration[];
-  /**
    * Implement the SEP-2640 `resources/directory/read` method so hosts can
-   * enumerate the files under each individually-served skill directory
-   * (an `ls`-style, metadata-only, paginated listing). Default `false`.
-   *
-   * When `true`, the SDK registers a handler on the server's low-level
-   * request router. The server MUST also advertise the capability by calling
-   * `declareSkillsExtension(server, { directoryRead: true })` before
-   * `connect()` — capabilities are sent during the initialize handshake and
-   * cannot be added by `registerSkillResources` after the fact. Note that
-   * archive-distributed skills are opaque to the server, so directory read
-   * only covers skills served as individual files.
+   * enumerate the files under each skill directory (an `ls`-style,
+   * metadata-only, paginated listing). Default `false` — the method is
+   * optional and gated behind the `directoryRead` capability setting;
+   * clients MUST NOT call it against a server that has not declared it.
    */
   directoryRead?: boolean;
+  /**
+   * Declare `capabilities.extensions["io.modelcontextprotocol/skills"]`
+   * (with `directoryRead` when enabled) as part of registration. Default
+   * `true`. Registration must happen BEFORE `server.connect()` —
+   * capabilities ship in the initialize handshake. Set `false` if you
+   * declare the capability yourself via `declareSkillsExtension()`.
+   */
+  declareCapability?: boolean;
+  /** Entries per `skills/list` page. Default 50. Entries are atomic — a skill's `resources` set is never split across pages. */
+  pageSize?: number;
+  /**
+   * SEP-2549 freshness hint attached to `skills/list` results (protocol
+   * 2026-07-28+). Default 0 (immediately stale — clients re-fetch freely).
+   */
+  ttlMs?: number;
+  /**
+   * SEP-2549 cache scope attached to `skills/list` results. Default
+   * `"private"` (never shared across authorization contexts) — the safe
+   * default; set `"public"` when the skill catalog carries no
+   * user-specific data.
+   */
+  cacheScope?: "public" | "private";
 }

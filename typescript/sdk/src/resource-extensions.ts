@@ -4,7 +4,9 @@
  * Declares the extension capability:
  *   capabilities.extensions["io.modelcontextprotocol/skills"] = { ... }
  *
- * Uses the SDK's native registerCapabilities API (v1.29.0+).
+ * Uses the MCP SDK's native registerCapabilities API (v2: on the low-level
+ * Server, i.e. `mcpServer.server`). Declaring the extension commits the
+ * server to implementing `skills/list` and `skills/get` (SEP-2640 v1).
  */
 
 /** Reverse-domain identifier for the skills extension (SEP-2640). */
@@ -46,7 +48,11 @@ export type ServerInternals = SkillsServer;
  *
  * Pass `{ directoryRead: true }` when the server implements
  * `resources/directory/read` (see `registerSkillResources({ directoryRead:
- * true })`). With no argument an empty capability object is declared.
+ * true })`). With no argument an empty capability object is declared —
+ * which still commits the server to `skills/list` and `skills/get`.
+ *
+ * `registerSkillResources()` declares the capability itself by default
+ * (`declareCapability: true`), so most servers never call this directly.
  *
  * Must be called BEFORE server.connect() — capabilities are sent during the
  * initialize handshake.

@@ -1,49 +1,70 @@
 /**
- * Server-side skill discovery, content loading, and MCP resource registration.
+ * Server-side skill discovery, content loading, MCP resource registration,
+ * and the SEP-2640 v1 protocol methods (`skills/list`, `skills/get`, and the
+ * optional `resources/directory/read`).
  *
  * Discovers Agent Skills by recursively scanning a directory for SKILL.md
  * files at any depth, parses YAML frontmatter for metadata, scans for
- * supplementary documents, and provides secure content loading.
+ * supplementary documents (computing a per-file SHA-256 digest for each),
+ * and provides secure content loading.
  *
- * Multi-segment skill paths are supported (path ≠ name) per SEP-2640;
- * the no-nesting constraint (a SKILL.md cannot be an ancestor of another)
- * is enforced at discovery time.
+ * Multi-segment skill paths are supported (path ≠ name) per SEP-2640, and
+ * skills MAY nest: a SKILL.md in a descendant directory of another skill is
+ * discovered as a skill in its own right, while its files remain ordinary
+ * supporting content of the enclosing skill (the enclosing skill's entry
+ * `resources` lists them too, per the SEP's completeness rule).
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { createHash } from "node:crypto";
 import { parse as parseYaml } from "yaml";
-import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import {
+  ResourceTemplate,
+  ProtocolError,
+  ProtocolErrorCode,
+} from "@modelcontextprotocol/server";
 import type {
   SkillMetadata,
   SkillDocument,
-  SkillIndex,
-  SkillIndexEntry,
-  SkillArchiveDeclaration,
-  ArchiveFormat,
+  SkillEntry,
+  SkillsListResult,
+  SkillsGetResult,
   RegisterSkillResourcesOptions,
 } from "./types.js";
 import { getMimeType, isTextMimeType } from "./mime.js";
+import { buildSkillUri, isValidSkillName } from "./uri.js";
 import {
-  buildSkillUri,
-  INDEX_JSON_URI,
-  SKILL_URI_SCHEME,
-  isValidSkillName,
-} from "./uri.js";
-import { archiveMimeType, archiveSuffix } from "./archive.js";
-import {
-  DirectoryReadRequestSchema,
-  makeDirectoryReadHandler,
+  DIRECTORY_READ_METHOD,
+  DEFAULT_DIRECTORY_PAGE_SIZE,
+  DirectoryReadParamsSchema,
+  DirectoryReadResultSchema,
+  buildDirectoryTree,
+  stripTrailingSlash,
+  type DirectoryReadHandlerOptions,
+  type DirectoryReadResult,
 } from "./directory.js";
+import {
+  SKILLS_LIST_METHOD,
+  SKILLS_GET_METHOD,
+  SkillsListParamsSchema,
+  SkillsListResultSchema,
+  SkillsGetParamsSchema,
+  SkillsGetResultSchema,
+} from "./skills-methods.js";
+import { paginate } from "./cursor.js";
 import { SKILLS_EXTENSION_ID } from "./resource-extensions.js";
 
 /** Maximum file size for skill files (1MB). */
 const MAX_FILE_SIZE = 1 * 1024 * 1024;
 
+/** Default page size for a `skills/list` response. */
+export const DEFAULT_SKILLS_LIST_PAGE_SIZE = 50;
+
 /**
  * Compute a SHA-256 digest of raw bytes, formatted `sha256:{hex}` (64
- * lowercase hex), as required for `skill://index.json` entries by SEP-2640.
+ * lowercase hex), as required for skill entry `resources` manifests by
+ * SEP-2640.
  */
 export function sha256Digest(data: Buffer | string): string {
   return "sha256:" + createHash("sha256").update(data).digest("hex");
@@ -102,7 +123,34 @@ export function isPathWithinBase(
 }
 
 /**
- * Recursively scan a directory for files, returning SkillDocument entries.
+ * Stat and digest one file, returning a SkillDocument, or null when the file
+ * is oversized or unreadable.
+ */
+function describeFile(
+  fullPath: string,
+  relativeTo: string,
+): SkillDocument | null {
+  try {
+    const stat = fs.statSync(fullPath);
+    if (stat.size > MAX_FILE_SIZE) return null;
+    const bytes = fs.readFileSync(fullPath);
+    const relativePath = path
+      .relative(relativeTo, fullPath)
+      .replace(/\\/g, "/");
+    return {
+      path: relativePath,
+      mimeType: getMimeType(path.basename(fullPath)),
+      size: stat.size,
+      digest: sha256Digest(bytes),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Recursively scan a directory for files, returning SkillDocument entries
+ * (each carrying a SHA-256 digest of its raw bytes).
  * Security: applies path traversal checks and file size limits.
  */
 function scanDir(
@@ -128,21 +176,8 @@ function scanDir(
     if (!isPathWithinBase(fullPath, baseDir)) continue;
 
     if (entry.isFile()) {
-      try {
-        const stat = fs.statSync(fullPath);
-        if (stat.size > MAX_FILE_SIZE) continue;
-
-        const relativePath = path
-          .relative(relativeTo, fullPath)
-          .replace(/\\/g, "/");
-        documents.push({
-          path: relativePath,
-          mimeType: getMimeType(entry.name),
-          size: stat.size,
-        });
-      } catch {
-        // Skip files we can't stat
-      }
+      const doc = describeFile(fullPath, relativeTo);
+      if (doc) documents.push(doc);
     } else if (entry.isDirectory()) {
       documents.push(...scanDir(fullPath, relativeTo, baseDir));
     }
@@ -154,7 +189,12 @@ function scanDir(
 /**
  * Scan a skill directory for all supplementary files.
  * Finds all files in the skill directory (including root-level files
- * and subdirectories), excluding SKILL.md / skill.md itself.
+ * and subdirectories), excluding the skill's own SKILL.md / skill.md.
+ *
+ * Files of nested skills — including their SKILL.md — are included: per
+ * SEP-2640, from the enclosing skill's perspective a nested skill's files
+ * are ordinary supporting files, and the entry's `resources` completeness
+ * extends to them.
  */
 export function scanDocuments(
   skillDir: string,
@@ -178,22 +218,8 @@ export function scanDocuments(
       documents.push(...scanDir(fullPath, skillDir, baseDir));
     } else if (entry.isFile() && !skipFiles.has(entry.name)) {
       if (!isPathWithinBase(fullPath, baseDir)) continue;
-
-      try {
-        const stat = fs.statSync(fullPath);
-        if (stat.size > MAX_FILE_SIZE) continue;
-
-        const relativePath = path
-          .relative(skillDir, fullPath)
-          .replace(/\\/g, "/");
-        documents.push({
-          path: relativePath,
-          mimeType: getMimeType(entry.name),
-          size: stat.size,
-        });
-      } catch {
-        // Skip files we can't stat
-      }
+      const doc = describeFile(fullPath, skillDir);
+      if (doc) documents.push(doc);
     }
   }
 
@@ -208,13 +234,13 @@ export function scanDocuments(
  * directory containing SKILL.md, using forward slashes. This becomes the
  * multi-segment URI locator.
  *
- * Enforces the no-nesting constraint: a SKILL.md cannot be an ancestor
- * directory of another SKILL.md.
+ * Skills MAY nest (SEP-2640): a SKILL.md in a descendant directory of
+ * another skill is collected as a skill of its own. The enclosing skill's
+ * path becomes part of the nested skill's organizational prefix.
  */
 function findSkillFiles(
   dir: string,
   skillsDir: string,
-  ancestorHasSkill: boolean,
 ): Array<{ skillMdPath: string; skillDir: string; skillPath: string }> {
   const results: Array<{
     skillMdPath: string;
@@ -241,14 +267,7 @@ function findSkillFiles(
     }
   }
 
-  const hasSkill = skillMdPath !== null;
-
-  if (hasSkill && ancestorHasSkill) {
-    // No-nesting constraint: skip this SKILL.md (ancestor already has one)
-    console.error(
-      `[skills] Skipping nested SKILL.md at ${skillMdPath} — ancestor directory already contains a skill`,
-    );
-  } else if (hasSkill && skillMdPath) {
+  if (skillMdPath) {
     const skillPath = path.relative(skillsDir, dir).replace(/\\/g, "/") || ".";
     results.push({
       skillMdPath,
@@ -257,12 +276,12 @@ function findSkillFiles(
     });
   }
 
-  // Recurse into subdirectories
+  // Recurse into subdirectories (nested skills are collected too).
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const subdir = path.join(dir, entry.name);
     if (!isPathWithinBase(subdir, skillsDir)) continue;
-    results.push(...findSkillFiles(subdir, skillsDir, ancestorHasSkill || hasSkill));
+    results.push(...findSkillFiles(subdir, skillsDir));
   }
 
   return results;
@@ -273,13 +292,15 @@ function findSkillFiles(
  *
  * Recursively scans for SKILL.md files at any depth (not just immediate
  * subdirectories). The relative directory path from skillsDir becomes the
- * multi-segment `skillPath` used in skill:// URIs.
+ * multi-segment `skillPath` used in skill:// URIs. Nested skills are
+ * discovered as skills in their own right, and their files additionally
+ * appear as supporting documents of the enclosing skill.
  *
  * Returns a Map keyed by skillPath (not name), since the path is the
  * unique locator within a server.
  *
  * Security: Skips files larger than MAX_FILE_SIZE, validates frontmatter,
- * enforces path containment and no-nesting constraint.
+ * enforces path containment.
  */
 export function discoverSkills(
   skillsDir: string,
@@ -292,7 +313,7 @@ export function discoverSkills(
     return skillMap;
   }
 
-  const skillFiles = findSkillFiles(resolvedDir, resolvedDir, false);
+  const skillFiles = findSkillFiles(resolvedDir, resolvedDir);
 
   for (const { skillMdPath, skillDir, skillPath } of skillFiles) {
     // Security: check file size before reading
@@ -360,7 +381,7 @@ export function discoverSkills(
         continue;
       }
 
-      // Scan for supplementary documents
+      // Scan for supplementary documents (per-file digests included)
       const documents = scanDocuments(skillDir, resolvedDir);
 
       skillMap.set(skillPath, {
@@ -426,7 +447,7 @@ export function loadDocument(
 ): { text: string } | { blob: string } {
   // Reject `..` as a path *segment* (traversal), not as a substring — a
   // filename like `notes..final.md` is legitimate. `isPathWithinBase` below is
-  // the real containment guard; this matches archive.ts:validateEntryPath.
+  // the real containment guard.
   if (documentPath.split(/[\\/]/).some((s) => s === "..")) {
     throw new Error("Path traversal not allowed");
   }
@@ -456,137 +477,144 @@ export function loadDocument(
 }
 
 /**
- * Options for generateSkillIndex().
+ * Build a skill's entry — the object served by `skills/list` (one array
+ * element) and `skills/get` (the `skill` object) per SEP-2640.
+ *
+ * The `resources` manifest is complete: it lists `SKILL.md` itself (an entry
+ * matching the skill's top-level `uri`) plus every supporting file, each
+ * with the SHA-256 digest computed at discovery time.
  */
-export interface GenerateSkillIndexOptions {
-  /** Archive declarations → per-skill `archives` entries. */
-  archives?: SkillArchiveDeclaration[];
-  /**
-   * Precomputed `sha256:{hex}` digests keyed by archive declaration, for
-   * callers that have already read the archive bytes (e.g.
-   * `registerSkillResources` reads them to serve). Entries without a
-   * precomputed digest fall back to reading the file. Keyed by declaration
-   * identity so two declarations sharing an `archivePath` don't collide.
-   */
-  archiveDigests?: Map<SkillArchiveDeclaration, string>;
-}
-
-/**
- * Resolve an archive declaration's format, defaulting from the file
- * extension when not explicitly set.
- */
-function resolveArchiveFormat(decl: SkillArchiveDeclaration): ArchiveFormat {
-  if (decl.format) return decl.format;
-  const lower = decl.archivePath.toLowerCase();
-  if (lower.endsWith(".tar.gz") || lower.endsWith(".tgz")) return "tar.gz";
-  if (lower.endsWith(".zip")) return "zip";
-  throw new Error(
-    `Cannot infer archive format from path "${decl.archivePath}". Set format: "tar.gz" | "zip" explicitly.`,
-  );
-}
-
-/**
- * Build the resource URI an archive is served under, per SEP-2640
- * (`skill://<skillPath>.<format>`).
- */
-function archiveResourceUri(decl: SkillArchiveDeclaration): string {
-  const format = resolveArchiveFormat(decl);
-  return `${SKILL_URI_SCHEME}${decl.skillPath}${archiveSuffix(format)}`;
-}
-
-/**
- * Validate an archive declaration against the SEP path/name rules and return
- * the index `archives[]` reference for it. Reads the archive bytes to compute
- * the digest unless `precomputedDigest` is supplied (when the caller has
- * already read the same bytes to serve them — avoids a second read and any
- * drift between the served bytes and the advertised digest).
- */
-function archiveIndexRef(
-  decl: SkillArchiveDeclaration,
-  precomputedDigest?: string,
-): {
-  url: string;
-  mimeType: string;
-  digest: string;
-} {
-  // SEP constraint: final segment of skillPath MUST equal frontmatter name.
-  const finalSegment = decl.skillPath.split("/").pop()!;
-  if (finalSegment !== decl.name) {
-    throw new Error(
-      `Archive declaration: skillPath "${decl.skillPath}" final segment "${finalSegment}" does not match name "${decl.name}". Per SEP-2640, the final segment of the skill path MUST equal the frontmatter name.`,
-    );
-  }
-  // SEP constraint: the name MUST satisfy the Agent Skills naming rule.
-  if (!isValidSkillName(decl.name)) {
-    throw new Error(
-      `Archive declaration: name "${decl.name}" violates the Agent Skills naming rule. Names must contain only lowercase letters, digits, and hyphens.`,
-    );
-  }
-  let digest: string;
-  if (precomputedDigest !== undefined) {
-    digest = precomputedDigest;
-  } else {
-    let bytes: Buffer;
-    try {
-      bytes = fs.readFileSync(decl.archivePath);
-    } catch (err) {
-      throw new Error(
-        `Failed to read archive "${decl.archivePath}" for skill "${decl.name}": ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-    digest = sha256Digest(bytes);
-  }
+export function buildSkillEntry(skill: SkillMetadata): SkillEntry {
+  const skillUri = buildSkillUri(skill.skillPath);
   return {
-    url: archiveResourceUri(decl),
-    mimeType: archiveMimeType(resolveArchiveFormat(decl)),
-    digest,
+    uri: skillUri,
+    frontmatter: skill.frontmatter,
+    resources: [
+      { uri: skillUri, digest: skill.digest },
+      ...skill.documents.map((doc) => ({
+        uri: buildSkillUri(skill.skillPath, doc.path),
+        digest: doc.digest,
+      })),
+    ],
+  };
+}
+
+/** Options for the `skills/list` handler. */
+export interface SkillsListHandlerOptions {
+  /** Entries per page. Default {@link DEFAULT_SKILLS_LIST_PAGE_SIZE}. */
+  pageSize?: number;
+  /** SEP-2549 freshness hint (ms). Default 0 (immediately stale). */
+  ttlMs?: number;
+  /** SEP-2549 cache scope. Default `"private"`. */
+  cacheScope?: "public" | "private";
+}
+
+/**
+ * Build a `skills/list` handler backed by an in-memory skill map. Paginates
+ * with the standard `cursor`/`nextCursor` contract; entries are atomic (a
+ * skill's `resources` set is never split across pages). The result carries
+ * the SEP-2549 list-caching attributes (`ttlMs`, `cacheScope`).
+ */
+export function makeSkillsListHandler(
+  skillMap: Map<string, SkillMetadata>,
+  options?: SkillsListHandlerOptions,
+): (params: { cursor?: string }) => Promise<SkillsListResult> {
+  const entries = Array.from(skillMap.values()).map(buildSkillEntry);
+  const pageSize = options?.pageSize ?? DEFAULT_SKILLS_LIST_PAGE_SIZE;
+  const ttlMs = options?.ttlMs ?? 0;
+  const cacheScope = options?.cacheScope ?? "private";
+
+  return async (params) => {
+    const { page, nextCursor } = paginate(entries, params.cursor, pageSize);
+    return {
+      skills: page,
+      ...(nextCursor !== undefined ? { nextCursor } : {}),
+      ttlMs,
+      cacheScope,
+    };
   };
 }
 
 /**
- * Generate the `skill://index.json` discovery index (SEP-2640).
- *
- * Emits one type-less entry per skill in `skillMap` — `{ frontmatter, url,
- * digest }`, where `frontmatter` is the skill's full SKILL.md frontmatter
- * copied verbatim — and one entry per archive declaration —
- * `{ frontmatter, archives: [{ url, mimeType, digest }] }`. The index has no
- * `$schema`/version marker.
+ * Build a `skills/get` handler backed by an in-memory skill map. Answers for
+ * every skill the server serves — whether or not it appears in the listing —
+ * and returns error `-32602` (Invalid params) for URIs it does not serve as
+ * skills, the same code `resources/read` uses for unknown resources.
  */
-export function generateSkillIndex(
+export function makeSkillsGetHandler(
   skillMap: Map<string, SkillMetadata>,
-  options?: GenerateSkillIndexOptions,
-): SkillIndex {
-  const opts = options ?? {};
+): (params: { uri: string }) => Promise<SkillsGetResult> {
+  const byUri = new Map<string, SkillMetadata>();
+  for (const skill of skillMap.values()) {
+    byUri.set(buildSkillUri(skill.skillPath), skill);
+  }
 
-  const skillEntries: SkillIndexEntry[] = Array.from(skillMap.values()).map(
-    (skill) => ({
-      frontmatter: skill.frontmatter,
-      url: buildSkillUri(skill.skillPath),
-      digest: skill.digest,
-    }),
-  );
-
-  const archiveEntries: SkillIndexEntry[] = (opts.archives ?? []).map((a) => ({
-    frontmatter: a.frontmatter ?? { name: a.name, description: a.description },
-    archives: [archiveIndexRef(a, opts.archiveDigests?.get(a))],
-  }));
-
-  return { skills: [...skillEntries, ...archiveEntries] };
+  return async (params) => {
+    const skill = byUri.get(params.uri);
+    if (!skill) {
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        `Not a skill served by this server: ${params.uri}`,
+        { uri: params.uri },
+      );
+    }
+    return { skill: buildSkillEntry(skill) };
+  };
 }
 
 /**
- * Register MCP resources for all discovered skills on an McpServer.
+ * Build a `resources/directory/read` handler backed by an in-memory skill
+ * map. The returned function plugs into the v2 MCP SDK's
+ * `setRequestHandler(DIRECTORY_READ_METHOD, { params, result }, handler)`.
+ *
+ * Throws `ProtocolError` `-32602` (Invalid params) when the requested URI is
+ * not a known directory (i.e. it is a file, or does not exist).
+ */
+export function makeDirectoryReadHandler(
+  skillMap: Map<string, SkillMetadata>,
+  options?: DirectoryReadHandlerOptions,
+): (params: { uri: string; cursor?: string }) => Promise<DirectoryReadResult> {
+  const tree = buildDirectoryTree(skillMap);
+  const pageSize = options?.pageSize ?? DEFAULT_DIRECTORY_PAGE_SIZE;
+
+  return async (params) => {
+    const uri = stripTrailingSlash(params.uri);
+    const children = tree.get(uri);
+    if (children === undefined) {
+      throw new ProtocolError(
+        ProtocolErrorCode.InvalidParams,
+        `Not a directory resource or does not exist: ${params.uri}`,
+        { uri: params.uri },
+      );
+    }
+
+    const { page, nextCursor } = paginate(children, params.cursor, pageSize);
+    return {
+      resources: page,
+      ...(nextCursor !== undefined ? { nextCursor } : {}),
+    };
+  };
+}
+
+/**
+ * Register MCP resources and the SEP-2640 protocol methods for all
+ * discovered skills on an McpServer.
  *
  * Registers per-skill (using multi-segment skill paths):
  *   - skill://{skillPath}/SKILL.md — skill content (listed resource)
  *
- * Always registers:
- *   - skill://index.json — well-known discovery index (SEP enumeration)
+ * Always registers the extension's two required methods:
+ *   - `skills/list` — paginated enumeration of skill entries
+ *   - `skills/get`  — single-skill entry retrieval by URI
  *
  * Optionally registers:
  *   - skill://{+skillFilePath} — catch-all template for supporting files.
- *   - A `resources/directory/read` handler (when `directoryRead: true`) so
- *     hosts can enumerate the files under each individually-served skill.
+ *   - A `resources/directory/read` handler (when `directoryRead: true`).
+ *
+ * Unless `declareCapability: false`, also declares
+ * `capabilities.extensions["io.modelcontextprotocol/skills"]` (with
+ * `directoryRead: true` when enabled). Call this BEFORE `server.connect()` —
+ * capabilities ship in the initialize handshake.
  */
 export function registerSkillResources(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -597,13 +625,19 @@ export function registerSkillResources(
 ): void {
   const {
     template = true,
-    index = true,
     audience = ["assistant"],
-    archives = [],
     directoryRead = false,
+    declareCapability = true,
+    pageSize,
+    ttlMs,
+    cacheScope,
   } = options ?? {};
 
-  // Compute the most recent lastModified across all skills for aggregate resources
+  // McpServer exposes the underlying low-level Server as `.server`; accept a
+  // low-level Server (or structural stand-in) directly too.
+  const lowLevel = server.server ?? server;
+
+  // Compute the most recent lastModified across all skills for the template resource
   const latestModified = skillMap.size > 0
     ? Array.from(skillMap.values())
         .map((s) => s.lastModified)
@@ -611,64 +645,30 @@ export function registerSkillResources(
         .pop()
     : undefined;
 
-  // Register archive resources before the index, so the index can reference them.
-  // The digest of each archive is computed once here, from the same bytes we
-  // serve, and reused for the index — so the advertised digest can't drift from
-  // the served artifact (and the file is read only once).
-  const archiveDigests = new Map<SkillArchiveDeclaration, string>();
-  for (const archive of archives) {
-    const format = resolveArchiveFormat(archive);
-    const uri = archiveResourceUri(archive);
-    const mimeType = archiveMimeType(format);
-
-    let archiveBytes: Buffer;
+  // Declare capabilities.extensions["io.modelcontextprotocol/skills"].
+  // registerCapabilities merges, so this composes with any capabilities the
+  // caller declared; it throws once the server is connected.
+  if (declareCapability) {
     try {
-      archiveBytes = fs.readFileSync(archive.archivePath);
+      lowLevel.registerCapabilities({
+        extensions: {
+          [SKILLS_EXTENSION_ID]: directoryRead ? { directoryRead: true } : {},
+        },
+      });
     } catch (err) {
-      throw new Error(
-        `Failed to read archive "${archive.archivePath}" for skill "${archive.name}": ${err instanceof Error ? err.message : String(err)}`,
+      console.error(
+        `[skills] Could not declare the "${SKILLS_EXTENSION_ID}" extension capability ` +
+          `(is the server already connected? registerSkillResources must run before connect()): ` +
+          `${err instanceof Error ? err.message : String(err)}`,
       );
     }
-    archiveDigests.set(archive, sha256Digest(archiveBytes));
-    const archiveBase64 = archiveBytes.toString("base64");
-    let archiveModified: string;
-    try {
-      archiveModified = fs.statSync(archive.archivePath).mtime.toISOString();
-    } catch {
-      archiveModified = new Date().toISOString();
-    }
-
-    server.resource(
-      `${archive.name}-archive`,
-      uri,
-      {
-        description: `${archive.description} (archive distribution)`,
-        mimeType,
-        size: archiveBytes.length,
-        annotations: {
-          audience,
-          priority: 0.9,
-          lastModified: archiveModified,
-        },
-      },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      async (resourceUri: URL): Promise<any> => ({
-        contents: [
-          {
-            uri: resourceUri.href,
-            mimeType,
-            blob: archiveBase64,
-          },
-        ],
-      }),
-    );
   }
 
   // Register per-skill resources
   for (const [skillPath, skill] of skillMap) {
     const skillAudience = skill.audience ?? audience;
 
-    server.resource(
+    server.registerResource(
       skill.name,
       `skill://${skillPath}/SKILL.md`,
       {
@@ -704,70 +704,37 @@ export function registerSkillResources(
     );
   }
 
-  // Well-known discovery index (SEP enumeration mechanism). Optional —
-  // servers with unenumerable catalogs can pass `index: false`.
-  if (index) {
-    const indexJson = generateSkillIndex(skillMap, { archives, archiveDigests });
-    const indexJsonStr = JSON.stringify(indexJson, null, 2);
-    server.resource(
-      "skills-index",
-      INDEX_JSON_URI,
-      {
-        description:
-          "Discovery index of available skills served by this server (skill://index.json)",
-        mimeType: "application/json",
-        size: Buffer.byteLength(indexJsonStr),
-        annotations: {
-          audience: ["assistant"],
-          priority: 0.8,
-          lastModified: latestModified,
-        },
-      },
-      async (uri: URL) => ({
-        contents: [
-          {
-            uri: uri.href,
-            text: indexJsonStr,
-          },
-        ],
-      }),
-    );
-  }
+  // SEP-2640 required methods: skills/list and skills/get. Every server
+  // declaring the extension implements both.
+  lowLevel.setRequestHandler(
+    SKILLS_LIST_METHOD,
+    { params: SkillsListParamsSchema, result: SkillsListResultSchema },
+    makeSkillsListHandler(skillMap, { pageSize, ttlMs, cacheScope }),
+  );
+  lowLevel.setRequestHandler(
+    SKILLS_GET_METHOD,
+    { params: SkillsGetParamsSchema, result: SkillsGetResultSchema },
+    makeSkillsGetHandler(skillMap),
+  );
 
-  // SEP-2640 `resources/directory/read`: enumerate the files under each
-  // individually-served skill directory. Registered on the low-level request
-  // router (this is an extension method, not part of the high-level resource
-  // API). The server MUST also advertise the capability via
-  // `declareSkillsExtension(server, { directoryRead: true })` before connect.
+  // Optional: resources/directory/read, gated behind the `directoryRead`
+  // capability setting.
   if (directoryRead) {
-    const handler = makeDirectoryReadHandler(skillMap);
-    // McpServer exposes the underlying low-level Server as `.server`.
-    const lowLevel = server.server ?? server;
-
-    // The handler is useless unless the capability was also advertised in the
-    // initialize handshake — well-behaved clients gate on it and will never
-    // call an undeclared method. Warn loudly rather than fail silently.
-    const declared =
-      lowLevel.getCapabilities?.()?.extensions?.[SKILLS_EXTENSION_ID]
-        ?.directoryRead === true;
-    if (!declared) {
-      console.error(
-        `[skills] registerSkillResources({ directoryRead: true }) installed the resources/directory/read handler, but the capability is not declared. ` +
-          `Call declareSkillsExtension(server, { directoryRead: true }) BEFORE server.connect() — otherwise clients will never invoke it.`,
-      );
-    }
-
-    lowLevel.setRequestHandler(DirectoryReadRequestSchema, handler);
+    lowLevel.setRequestHandler(
+      DIRECTORY_READ_METHOD,
+      { params: DirectoryReadParamsSchema, result: DirectoryReadResultSchema },
+      makeDirectoryReadHandler(skillMap),
+    );
   }
 
   // Catch-all resource template for supporting files.
   if (template) {
-    server.resource(
+    server.registerResource(
       "skill-file",
       new ResourceTemplate("skill://{+skillFilePath}", {
         list: undefined,
         complete: {
-          skillFilePath: (value) => {
+          skillFilePath: (value: string) => {
             // Provide completions: all known skill paths + their files
             const completions: string[] = [];
             for (const [sp, skill] of skillMap) {

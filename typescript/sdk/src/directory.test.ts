@@ -5,10 +5,9 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { ProtocolError, ProtocolErrorCode } from "@modelcontextprotocol/server";
 import {
   buildDirectoryTree,
-  makeDirectoryReadHandler,
   INODE_DIRECTORY_MIME,
   DIRECTORY_READ_METHOD,
 } from "./directory.js";
@@ -24,8 +23,10 @@ import {
   readSkillUri,
   type SkillsClient,
 } from "./_client.js";
-import { sha256Digest } from "./_server.js";
+import { sha256Digest, makeDirectoryReadHandler } from "./_server.js";
 import type { SkillMetadata } from "./types.js";
+
+const DIGEST0 = "sha256:" + "0".repeat(64);
 
 function skill(overrides: Partial<SkillMetadata> & {
   name: string;
@@ -39,7 +40,7 @@ function skill(overrides: Partial<SkillMetadata> & {
     size: 42,
     lastModified: "2026-01-01T00:00:00.000Z",
     frontmatter: { name: overrides.name, description: "desc" },
-    digest: "sha256:" + "0".repeat(64),
+    digest: DIGEST0,
     ...overrides,
   };
 }
@@ -60,8 +61,8 @@ describe("buildDirectoryTree", () => {
           name: "code-review",
           skillPath: "code-review",
           documents: [
-            { path: "references/GUIDE.md", mimeType: "text/markdown", size: 10 },
-            { path: "scripts/run.sh", mimeType: "text/x-shellscript", size: 5 },
+            { path: "references/GUIDE.md", mimeType: "text/markdown", size: 10, digest: DIGEST0 },
+            { path: "scripts/run.sh", mimeType: "text/x-shellscript", size: 5, digest: DIGEST0 },
           ],
         }),
       ]),
@@ -84,7 +85,7 @@ describe("buildDirectoryTree", () => {
         skill({
           name: "code-review",
           skillPath: "code-review",
-          documents: [{ path: "references/GUIDE.md", mimeType: "text/markdown", size: 10 }],
+          documents: [{ path: "references/GUIDE.md", mimeType: "text/markdown", size: 10, digest: DIGEST0 }],
         }),
       ]),
     );
@@ -107,6 +108,28 @@ describe("buildDirectoryTree", () => {
     // No synthetic root.
     expect(tree.has("skill://")).toBe(false);
   });
+
+  it("handles nested skills as ordinary paths (enclosing + nested map entries agree)", () => {
+    // A nested skill's files appear both via the enclosing skill's documents
+    // and via its own map entry; the tree must dedupe into one namespace.
+    const tree = buildDirectoryTree(
+      skillMap([
+        skill({
+          name: "outer",
+          skillPath: "outer",
+          documents: [
+            { path: "inner/SKILL.md", mimeType: "text/markdown", size: 5, digest: DIGEST0 },
+          ],
+        }),
+        skill({ name: "inner", skillPath: "outer/inner" }),
+      ]),
+    );
+
+    const outer = tree.get("skill://outer")!;
+    expect(outer.map((c) => c.name).sort()).toEqual(["SKILL.md", "inner"]);
+    expect(outer.find((c) => c.name === "inner")!.mimeType).toBe(INODE_DIRECTORY_MIME);
+    expect(tree.get("skill://outer/inner")!.map((c) => c.name)).toEqual(["SKILL.md"]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -118,16 +141,13 @@ describe("makeDirectoryReadHandler", () => {
     skill({
       name: "code-review",
       skillPath: "code-review",
-      documents: [{ path: "references/GUIDE.md", mimeType: "text/markdown", size: 10 }],
+      documents: [{ path: "references/GUIDE.md", mimeType: "text/markdown", size: 10, digest: DIGEST0 }],
     }),
   ]);
 
   function call(uri: string, cursor?: string, pageSize?: number) {
     const handler = makeDirectoryReadHandler(map, pageSize ? { pageSize } : undefined);
-    return handler({
-      method: DIRECTORY_READ_METHOD,
-      params: { uri, ...(cursor ? { cursor } : {}) },
-    } as never);
+    return handler({ uri, ...(cursor ? { cursor } : {}) });
   }
 
   it("returns direct children, metadata only (no contents)", async () => {
@@ -151,13 +171,13 @@ describe("makeDirectoryReadHandler", () => {
 
   it("throws -32602 for a file URI", async () => {
     await expect(call("skill://code-review/SKILL.md")).rejects.toMatchObject({
-      code: ErrorCode.InvalidParams,
+      code: ProtocolErrorCode.InvalidParams,
     });
   });
 
   it("throws -32602 for a nonexistent URI", async () => {
     const err = await call("skill://does-not-exist").catch((e) => e);
-    expect(err).toBeInstanceOf(McpError);
+    expect(ProtocolError.isInstance(err)).toBe(true);
     expect(err.code).toBe(-32602);
   });
 
@@ -167,25 +187,19 @@ describe("makeDirectoryReadHandler", () => {
         name: "many",
         skillPath: "many",
         documents: [
-          { path: "a.md", mimeType: "text/markdown", size: 1 },
-          { path: "b.md", mimeType: "text/markdown", size: 1 },
-          { path: "c.md", mimeType: "text/markdown", size: 1 },
+          { path: "a.md", mimeType: "text/markdown", size: 1, digest: DIGEST0 },
+          { path: "b.md", mimeType: "text/markdown", size: 1, digest: DIGEST0 },
+          { path: "c.md", mimeType: "text/markdown", size: 1, digest: DIGEST0 },
         ],
       }),
     ]);
     const handler = makeDirectoryReadHandler(refsMap, { pageSize: 2 });
 
-    const page1 = await handler({
-      method: DIRECTORY_READ_METHOD,
-      params: { uri: "skill://many" },
-    } as never);
+    const page1 = await handler({ uri: "skill://many" });
     expect(page1.resources).toHaveLength(2);
     expect(page1.nextCursor).toBeTypeOf("string");
 
-    const page2 = await handler({
-      method: DIRECTORY_READ_METHOD,
-      params: { uri: "skill://many", cursor: page1.nextCursor },
-    } as never);
+    const page2 = await handler({ uri: "skill://many", cursor: page1.nextCursor });
     // Root has SKILL.md + a.md + b.md + c.md = 4 children → 2 + 2, no more.
     expect(page2.resources).toHaveLength(2);
     expect(page2.nextCursor).toBeUndefined();
@@ -264,7 +278,6 @@ describe("client directory helpers", () => {
     request?: SkillsClient["request"],
   ): SkillsClient {
     return {
-      listResources: vi.fn(),
       readResource: vi.fn(),
       getServerCapabilities: () => ({
         extensions: cap ? { [SKILLS_EXTENSION_ID]: cap } : {},
@@ -273,11 +286,11 @@ describe("client directory helpers", () => {
     };
   }
 
-  it("serverSupportsDirectoryRead reflects the declared capability", () => {
+  it("serverSupportsDirectoryRead reflects the declared capability setting", () => {
     expect(serverSupportsDirectoryRead(clientWithCaps({ directoryRead: true }))).toBe(true);
     expect(serverSupportsDirectoryRead(clientWithCaps({ directoryRead: false }))).toBe(false);
     expect(serverSupportsDirectoryRead(clientWithCaps(undefined))).toBe(false);
-    expect(serverSupportsDirectoryRead({ listResources: vi.fn(), readResource: vi.fn() })).toBe(false);
+    expect(serverSupportsDirectoryRead({ readResource: vi.fn() })).toBe(false);
   });
 
   it("readDirectory throws when the capability is absent", async () => {
@@ -379,7 +392,6 @@ describe("client directory helpers", () => {
 describe("readSkillUri", () => {
   function clientReturning(content: unknown): SkillsClient {
     return {
-      listResources: vi.fn(),
       readResource: vi.fn().mockResolvedValue({ contents: [content] }),
     };
   }

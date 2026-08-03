@@ -1,44 +1,41 @@
 #!/usr/bin/env node
 /**
- * Skills Extension SEP — Reference MCP Server
+ * Skills Extension SEP — Reference MCP Server (SEP-2640 v1)
  *
- * Demonstrates the SEP-2640 `skill://index.json` index, whose entries are
- * type-less: each carries the skill's verbatim `frontmatter` plus a `url`
- * (with `digest`) and/or an `archives` array. This server exposes both
- * forms:
+ * Demonstrates the v1 protocol surface:
  *
- *   - individually-served file skills (entry has `url` + `digest`)
- *   - an archive distribution (entry has an `archives` array)
+ *   - `skills/list` — paginated enumeration of skill entries, each carrying
+ *     the skill's verbatim `frontmatter` and a complete per-file `resources`
+ *     manifest (`{uri, digest}` for SKILL.md and every supporting file)
+ *   - `skills/get` — single-skill entry retrieval by URI
+ *   - `resources/directory/read` — optional directory enumeration, gated
+ *     behind the `directoryRead` capability setting
+ *   - capability declaration `io.modelcontextprotocol/skills`
+ *   - multi-segment skill paths (`acme/billing/refunds`)
  *
- * Plus the SEP-2640 capability declaration (`io.modelcontextprotocol/skills`
- * with `directoryRead: true`), the `resources/directory/read` method for
- * enumerating skill directories, and multi-segment skill paths.
+ * A skill is always retrieved as individually addressable resources —
+ * archive distribution was removed from the SEP during core-maintainer
+ * review (see the SEP's "Appendix: Deferred Features").
  *
  * Resource layout:
- *   skill://index.json                                — discovery index
  *   skill://code-review/SKILL.md                      — file skill (single segment)
  *   skill://git-commit-review/SKILL.md                — file skill
+ *   skill://pdf-processing/SKILL.md                   — file skill with references/
  *   skill://acme/onboarding/SKILL.md                  — file skill (multi-segment)
  *   skill://acme/billing/refunds/SKILL.md             — file skill (multi-segment)
- *   skill://pdf-processing.tar.gz                     — archive distribution
  *
  * @license Apache-2.0
  */
 
-import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { McpServer } from "@modelcontextprotocol/server";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import {
   discoverSkills,
   registerSkillResources,
-  declareSkillsExtension,
 } from "@modelcontextprotocol/experimental-ext-skills/server";
-
-import { packTarGz } from "./pack-archive.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -51,98 +48,67 @@ const { positionals } = parseArgs({
 const skillsDir = positionals[0]
   ? path.resolve(positionals[0])
   : path.resolve(__dirname, "../../../sample-skills");
-const archiveSourceDir = path.resolve(
-  __dirname,
-  "../../../sample-archive-source",
-);
 
 // ---------------------------------------------------------------------------
-// Discover individually-served skills
+// Discover skills (per-file digests computed at discovery time)
 // ---------------------------------------------------------------------------
 
 const skillMap = discoverSkills(skillsDir);
 console.error(
-  `[skills-server] Discovered ${skillMap.size} file skill(s) in ${skillsDir}`,
+  `[skills-server] Discovered ${skillMap.size} skill(s) in ${skillsDir}`,
 );
 for (const [skillPath, skill] of skillMap) {
-  console.error(`  - skill://${skillPath}/SKILL.md (name: "${skill.name}")`);
-}
-
-// ---------------------------------------------------------------------------
-// Build the archive-distributed skill (pdf-processing.tar.gz)
-// ---------------------------------------------------------------------------
-
-const pdfSourceDir = path.join(archiveSourceDir, "pdf-processing");
-let archivePath: string | undefined;
-if (fs.existsSync(pdfSourceDir)) {
-  const archiveBytes = await packTarGz(pdfSourceDir);
-  // Write to a tempfile so registerSkillResources() can mmap it via fs.readFileSync().
-  const tmpDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), "skills-sep-example-archive-"),
-  );
-  archivePath = path.join(tmpDir, "pdf-processing.tar.gz");
-  fs.writeFileSync(archivePath, archiveBytes);
   console.error(
-    `[skills-server] Packed pdf-processing → ${archivePath} (${archiveBytes.length} bytes)`,
-  );
-} else {
-  console.error(
-    `[skills-server] (no archive source at ${pdfSourceDir}; skipping archive demo)`,
+    `  - skill://${skillPath}/SKILL.md (name: "${skill.name}", ${
+      1 + skill.documents.length
+    } file(s))`,
   );
 }
 
 // ---------------------------------------------------------------------------
-// Create MCP server and declare the extension (SEP-2640)
+// Create MCP server (SEP-2640 v1)
 // ---------------------------------------------------------------------------
 
-// Server `instructions` is the SEP's third discovery path — a host MAY mine
-// it for skill URIs the server explicitly names (separate from the index).
-// We name git-commit-review here as a demo URI; it would also still appear
-// via the index, which is fine: the client dedups by URI.
+// Server `instructions` may name specific skill URIs — a host confirms each
+// via `skills/get` (the server answers for skills it serves and errors
+// otherwise). git-commit-review also appears in the skills/list result; the
+// client dedups by URI.
 const serverInstructions = [
   "This server exposes Agent Skills under the skill:// scheme.",
   "When reviewing a commit, read skill://git-commit-review/SKILL.md first.",
 ].join("\n");
 
 const server = new McpServer(
-  { name: "skills-sep-example", version: "0.1.0" },
+  { name: "skills-sep-example", version: "0.2.0" },
   { capabilities: { resources: {} }, instructions: serverInstructions },
 );
-// Declare the extension and advertise the directory-read capability. This
-// MUST happen before connect() — capabilities ship in the initialize
-// handshake — and is paired with `directoryRead: true` below.
-declareSkillsExtension(server.server, { directoryRead: true });
 
 // ---------------------------------------------------------------------------
-// Register all resources via the SDK
+// Register resources, the skills/list + skills/get handlers, the optional
+// resources/directory/read handler, and the capability declaration — all in
+// one call, which must run BEFORE connect() (capabilities ship in the
+// initialize handshake).
 // ---------------------------------------------------------------------------
 
 registerSkillResources(server, skillMap, skillsDir, {
   template: true,
-  // Implement resources/directory/read so hosts can enumerate skill dirs.
+  // Implement resources/directory/read so hosts can enumerate skill dirs;
+  // this also flips directoryRead: true in the capability declaration.
   directoryRead: true,
-  // Archive entry — single resource that unpacks to skill://pdf-processing/
-  archives: archivePath
-    ? [
-        {
-          name: "pdf-processing",
-          description:
-            "Extract text and form data from PDFs, fill PDF forms, and merge multi-page documents.",
-          skillPath: "pdf-processing",
-          archivePath,
-          // format inferred from .tar.gz extension
-        },
-      ]
-    : [],
+  // SEP-2549 list-caching attributes on skills/list results: this catalog is
+  // static filesystem content with nothing user-specific, so it may be
+  // cached for a minute and shared across authorization contexts.
+  ttlMs: 60_000,
+  cacheScope: "public",
 });
 
 console.error(
   "[skills-server] Extension: io.modelcontextprotocol/skills (directoryRead: true)",
 );
 console.error(
-  `[skills-server] Index will list: ${skillMap.size} file skill(s) + ${
-    archivePath ? 1 : 0
-  } archive entry`,
+  `[skills-server] skills/list will serve ${skillMap.size} entr${
+    skillMap.size === 1 ? "y" : "ies"
+  }; skills/get answers for each by URI`,
 );
 
 // ---------------------------------------------------------------------------

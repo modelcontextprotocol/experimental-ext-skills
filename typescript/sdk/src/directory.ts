@@ -4,7 +4,10 @@
  *
  * A skill is a directory of files. Hosts that materialize a skill (or walk
  * its contents) need to enumerate the files under a skill root without
- * already knowing every URI. SEP-2640 adds a dedicated method for this:
+ * already knowing every URI. SEP-2640 defines an optional method for this,
+ * gated behind the `directoryRead` setting of the extension's capability
+ * declaration (clients MUST NOT call it against a server that has not
+ * declared `directoryRead: true`):
  *
  *   request:  { method: "resources/directory/read", params: { uri, cursor? } }
  *   result:   { resources: Resource[], nextCursor? }   // same shape as resources/list
@@ -16,13 +19,14 @@
  * trailing slash. Reading a non-directory or nonexistent URI is an error
  * (`-32602` Invalid params).
  *
- * Archive-distributed skills are opaque to the server (the archive isn't
- * unpacked at registration), so directory read only covers skills served as
- * individual files.
+ * This module holds the protocol constants, schemas, and the directory-tree
+ * builder — all dependency-free so the client subpath can import them. The
+ * server-side handler factory (`makeDirectoryReadHandler`) lives in the
+ * server module, which registers it via the v2 MCP SDK's
+ * `setRequestHandler(method, { params, result }, handler)`.
  */
 
 import { z } from "zod";
-import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import type { SkillMetadata } from "./types.js";
 import { getMimeType } from "./mime.js";
 import { SKILL_URI_SCHEME } from "./uri.js";
@@ -37,15 +41,13 @@ export const INODE_DIRECTORY_MIME = "inode/directory";
 export const DEFAULT_DIRECTORY_PAGE_SIZE = 100;
 
 /**
- * Request schema for `resources/directory/read`. The `method` literal is how
- * the MCP SDK's low-level `Server.setRequestHandler` routes the call.
+ * Params schema for `resources/directory/read`: the directory's URI and an
+ * optional pagination cursor. Passed (with the result schema) to the v2 MCP
+ * SDK's `setRequestHandler` for validation before the handler runs.
  */
-export const DirectoryReadRequestSchema = z.object({
-  method: z.literal(DIRECTORY_READ_METHOD),
-  params: z.object({
-    uri: z.string(),
-    cursor: z.string().optional(),
-  }),
+export const DirectoryReadParamsSchema = z.looseObject({
+  uri: z.string(),
+  cursor: z.string().optional(),
 });
 
 /**
@@ -54,23 +56,19 @@ export const DirectoryReadRequestSchema = z.object({
  * client's low-level `request()` so the response is validated. Unknown fields
  * pass through.
  */
-export const DirectoryReadResultSchema = z
-  .object({
-    resources: z.array(
-      z
-        .object({
-          uri: z.string(),
-          name: z.string(),
-          title: z.string().optional(),
-          mimeType: z.string().optional(),
-          description: z.string().optional(),
-          size: z.number().optional(),
-        })
-        .passthrough(),
-    ),
-    nextCursor: z.string().optional(),
-  })
-  .passthrough();
+export const DirectoryReadResultSchema = z.looseObject({
+  resources: z.array(
+    z.looseObject({
+      uri: z.string(),
+      name: z.string(),
+      title: z.string().optional(),
+      mimeType: z.string().optional(),
+      description: z.string().optional(),
+      size: z.number().optional(),
+    }),
+  ),
+  nextCursor: z.string().optional(),
+});
 
 /**
  * A child resource in a directory listing — a structural subset of the MCP
@@ -97,7 +95,7 @@ export interface DirectoryReadHandlerOptions {
 }
 
 /** Strip a single trailing slash (but never reduce the scheme itself). */
-function stripTrailingSlash(uri: string): string {
+export function stripTrailingSlash(uri: string): string {
   if (uri.length > SKILL_URI_SCHEME.length && uri.endsWith("/")) {
     return uri.slice(0, -1);
   }
@@ -112,7 +110,9 @@ function stripTrailingSlash(uri: string): string {
  * (`skill://acme`, `skill://acme/billing`), and any subdirectory holding a
  * supporting document — becomes a key whose value is its **direct** children
  * (files and immediate subdirectories). No synthetic `skill://` root is
- * invented.
+ * invented. Nested skills need no special handling: their files are already
+ * supporting files of the enclosing skill, and their own map entries produce
+ * the same paths.
  *
  * @returns Map keyed by directory URI (no trailing slash) → sorted children.
  */
@@ -184,57 +184,4 @@ export function buildDirectoryTree(
     out.set(`${SKILL_URI_SCHEME}${dirPath}`, list);
   }
   return out;
-}
-
-/** Decode an opaque pagination cursor to a numeric offset. */
-function decodeCursor(cursor: string | undefined): number {
-  if (!cursor) return 0;
-  try {
-    const n = parseInt(Buffer.from(cursor, "base64").toString("utf-8"), 10);
-    return Number.isInteger(n) && n >= 0 ? n : 0;
-  } catch {
-    return 0;
-  }
-}
-
-/** Encode a numeric offset as an opaque pagination cursor. */
-function encodeCursor(offset: number): string {
-  return Buffer.from(String(offset), "utf-8").toString("base64");
-}
-
-/**
- * Build a `resources/directory/read` handler backed by an in-memory skill
- * map. The returned function plugs directly into the MCP SDK's low-level
- * `Server.setRequestHandler(DirectoryReadRequestSchema, handler)`.
- *
- * Throws `McpError(InvalidParams)` (`-32602`) when the requested URI is not a
- * known directory (i.e. it is a file, or does not exist).
- */
-export function makeDirectoryReadHandler(
-  skillMap: Map<string, SkillMetadata>,
-  options?: DirectoryReadHandlerOptions,
-): (request: z.infer<typeof DirectoryReadRequestSchema>) => Promise<DirectoryReadResult> {
-  const tree = buildDirectoryTree(skillMap);
-  const pageSize = options?.pageSize ?? DEFAULT_DIRECTORY_PAGE_SIZE;
-
-  return async (request) => {
-    const uri = stripTrailingSlash(request.params.uri);
-    const children = tree.get(uri);
-    if (children === undefined) {
-      throw new McpError(
-        ErrorCode.InvalidParams,
-        `Not a directory resource or does not exist: ${request.params.uri}`,
-      );
-    }
-
-    const offset = decodeCursor(request.params.cursor);
-    const page = children.slice(offset, offset + pageSize);
-    const nextOffset = offset + page.length;
-    const hasMore = nextOffset < children.length;
-
-    return {
-      resources: page,
-      ...(hasMore ? { nextCursor: encodeCursor(nextOffset) } : {}),
-    };
-  };
 }

@@ -1,6 +1,8 @@
 /**
- * Tests for the third SEP discovery path: mining server `instructions`
- * for skill URIs.
+ * Tests for instructions mining: extracting skill URIs from a server's
+ * `instructions` string and confirming each via `skills/get` (SEP-2640's
+ * skill-identity confirmation — the server answers for skills it serves and
+ * errors otherwise; the URI scheme proves nothing).
  */
 
 import { describe, it, expect, vi } from "vitest";
@@ -9,7 +11,59 @@ import {
   listSkillsFromInstructions,
   discoverSkills,
 } from "./_client.js";
+import {
+  SKILLS_LIST_METHOD,
+  SKILLS_GET_METHOD,
+} from "./skills-methods.js";
+import { SKILLS_EXTENSION_ID } from "./resource-extensions.js";
 import type { SkillsClient } from "./_client.js";
+import type { SkillEntry } from "./types.js";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function entry(uri: string, name: string, description = "desc"): SkillEntry {
+  return {
+    uri,
+    frontmatter: { name, description },
+    resources: [{ uri, digest: "sha256:" + "a".repeat(64) }],
+  };
+}
+
+/**
+ * Client double implementing skills/list + skills/get over a fixed entry
+ * set. `listed` controls what skills/list returns (a server MAY list only a
+ * subset of what it serves); `served` is what skills/get answers for.
+ */
+function skillsClient(options: {
+  listed?: SkillEntry[];
+  served?: SkillEntry[];
+  instructions?: string;
+}): SkillsClient & { request: ReturnType<typeof vi.fn> } {
+  const served = new Map(
+    (options.served ?? options.listed ?? []).map((e) => [e.uri, e]),
+  );
+  const request = vi.fn(
+    async (req: { method: string; params?: { uri?: string } }) => {
+      if (req.method === SKILLS_LIST_METHOD) {
+        return { skills: options.listed ?? [], ttlMs: 0, cacheScope: "private" };
+      }
+      if (req.method === SKILLS_GET_METHOD) {
+        const found = served.get(req.params?.uri ?? "");
+        if (!found) throw new Error(`-32602: not a skill: ${req.params?.uri}`);
+        return { skill: found };
+      }
+      throw new Error(`unexpected method ${req.method}`);
+    },
+  );
+  return {
+    readResource: vi.fn(),
+    request,
+    getInstructions: () => options.instructions,
+    getServerCapabilities: () => ({ extensions: { [SKILLS_EXTENSION_ID]: {} } }),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // extractSkillUrisFromInstructions
@@ -79,56 +133,50 @@ describe("extractSkillUrisFromInstructions", () => {
 // ---------------------------------------------------------------------------
 
 describe("listSkillsFromInstructions", () => {
-  it("reads each URI and parses frontmatter", async () => {
-    const readResource = vi.fn(async ({ uri }: { uri: string }) => {
-      const content =
-        uri === "skill://x/SKILL.md"
-          ? "---\nname: x\ndescription: First skill\n---\n# X"
-          : "---\nname: y\ndescription: Second skill\n---\n# Y";
-      return { contents: [{ text: content }] };
+  it("confirms each URI via skills/get and returns entries", async () => {
+    const client = skillsClient({
+      served: [
+        entry("skill://x/SKILL.md", "x", "First skill"),
+        entry("skill://y/SKILL.md", "y", "Second skill"),
+      ],
     });
-    const client: SkillsClient = { listResources: vi.fn(), readResource };
 
-    const summaries = await listSkillsFromInstructions(
+    const entries = await listSkillsFromInstructions(
       client,
       "Use skill://x/SKILL.md and skill://y/SKILL.md.",
     );
 
-    expect(summaries).toHaveLength(2);
-    expect(summaries[0]).toMatchObject({
-      name: "x",
-      skillPath: "x",
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({
       uri: "skill://x/SKILL.md",
-      description: "First skill",
+      frontmatter: { name: "x", description: "First skill" },
     });
-    expect(summaries[1].name).toBe("y");
+    expect(entries[1].frontmatter.name).toBe("y");
+    expect(
+      client.request.mock.calls.filter(
+        (c) => c[0].method === SKILLS_GET_METHOD,
+      ),
+    ).toHaveLength(2);
   });
 
-  it("silently skips URIs that fail to read", async () => {
-    const readResource = vi.fn(async ({ uri }: { uri: string }) => {
-      if (uri === "skill://broken/SKILL.md")
-        throw new Error("server: not found");
-      return {
-        contents: [{ text: "---\nname: ok\ndescription: ok\n---\n# OK" }],
-      };
+  it("silently drops URIs the server does not serve as skills", async () => {
+    const client = skillsClient({
+      served: [entry("skill://ok/SKILL.md", "ok")],
     });
-    const client: SkillsClient = { listResources: vi.fn(), readResource };
 
-    const summaries = await listSkillsFromInstructions(
+    const entries = await listSkillsFromInstructions(
       client,
       "Try skill://broken/SKILL.md and skill://ok/SKILL.md.",
     );
 
-    expect(summaries).toHaveLength(1);
-    expect(summaries[0].uri).toBe("skill://ok/SKILL.md");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].uri).toBe("skill://ok/SKILL.md");
   });
 
   it("returns empty when instructions name no URIs", async () => {
-    const client: SkillsClient = {
-      listResources: vi.fn(),
-      readResource: vi.fn(),
-    };
+    const client = skillsClient({ served: [] });
     expect(await listSkillsFromInstructions(client, "no URIs here")).toEqual([]);
+    expect(client.request).not.toHaveBeenCalled();
   });
 });
 
@@ -138,164 +186,86 @@ describe("listSkillsFromInstructions", () => {
 
 describe("discoverSkills with server instructions", () => {
   it("does NOT mine instructions by default", async () => {
-    const indexJson = {
-      skills: [
-        {
-          frontmatter: { name: "from-index", description: "Index" },
-          url: "skill://from-index/SKILL.md",
-          digest: "sha256:" + "a".repeat(64),
-        },
+    const client = skillsClient({
+      listed: [entry("skill://from-list/SKILL.md", "from-list")],
+      served: [
+        entry("skill://from-list/SKILL.md", "from-list"),
+        entry("skill://from-instructions/SKILL.md", "from-instructions"),
       ],
-    };
-    const readResource = vi.fn(async ({ uri }: { uri: string }) => {
-      if (uri === "skill://index.json")
-        return { contents: [{ text: JSON.stringify(indexJson) }] };
-      throw new Error("server should not be asked for this URI");
+      instructions: "Read skill://from-instructions/SKILL.md when needed.",
     });
-    const getInstructions = vi.fn(
-      () => "Read skill://from-instructions/SKILL.md when needed.",
-    );
-    const client: SkillsClient = {
-      listResources: vi.fn().mockResolvedValue({ resources: [] }),
-      readResource,
-      getInstructions,
-    };
 
     const skills = await discoverSkills(client);
 
-    expect(skills.map((s) => s.name)).toEqual(["from-index"]);
-    expect(getInstructions).not.toHaveBeenCalled();
+    expect(skills.map((s) => s.frontmatter.name)).toEqual(["from-list"]);
+    expect(
+      client.request.mock.calls.filter((c) => c[0].method === SKILLS_GET_METHOD),
+    ).toHaveLength(0);
   });
 
-  it("merges instructions URIs with index entries when opted in", async () => {
-    const indexJson = {
-      skills: [
-        {
-          frontmatter: { name: "from-index", description: "Index" },
-          url: "skill://from-index/SKILL.md",
-          digest: "sha256:" + "a".repeat(64),
-        },
+  it("merges instructions-confirmed entries with the listing when opted in", async () => {
+    const client = skillsClient({
+      listed: [entry("skill://from-list/SKILL.md", "from-list")],
+      served: [
+        entry("skill://from-list/SKILL.md", "from-list"),
+        entry("skill://from-instructions/SKILL.md", "from-instructions"),
       ],
-    };
-    const readResource = vi.fn(async ({ uri }: { uri: string }) => {
-      if (uri === "skill://index.json")
-        return { contents: [{ text: JSON.stringify(indexJson) }] };
-      if (uri === "skill://from-instructions/SKILL.md")
-        return {
-          contents: [
-            {
-              text: "---\nname: from-instructions\ndescription: From instructions\n---\n# X",
-            },
-          ],
-        };
-      throw new Error("not found");
+      instructions: "Read skill://from-instructions/SKILL.md when needed.",
     });
-    const client: SkillsClient = {
-      listResources: vi.fn().mockResolvedValue({ resources: [] }),
-      readResource,
-      getInstructions: () =>
-        "Read skill://from-instructions/SKILL.md when needed.",
-    };
 
     const skills = await discoverSkills(client, { instructions: true });
 
-    expect(skills.map((s) => s.name).sort()).toEqual([
-      "from-index",
+    expect(skills.map((s) => s.frontmatter.name).sort()).toEqual([
       "from-instructions",
+      "from-list",
     ]);
   });
 
-  it("does not duplicate an instructions URI that's already in the index", async () => {
-    const indexJson = {
-      skills: [
-        {
-          frontmatter: { name: "shared", description: "Shared" },
-          url: "skill://shared/SKILL.md",
-          digest: "sha256:" + "a".repeat(64),
-        },
-      ],
-    };
-    const readResource = vi.fn(async ({ uri }: { uri: string }) => {
-      if (uri === "skill://index.json")
-        return { contents: [{ text: JSON.stringify(indexJson) }] };
-      return {
-        contents: [{ text: "---\nname: shared\ndescription: S\n---\n# S" }],
-      };
+  it("does not duplicate an instructions URI that's already listed", async () => {
+    const client = skillsClient({
+      listed: [entry("skill://shared/SKILL.md", "shared")],
+      instructions: "See skill://shared/SKILL.md.",
     });
-    const client: SkillsClient = {
-      listResources: vi.fn().mockResolvedValue({ resources: [] }),
-      readResource,
-      getInstructions: () => "See skill://shared/SKILL.md.",
-    };
 
     const skills = await discoverSkills(client, { instructions: true });
     expect(skills).toHaveLength(1);
     expect(skills[0].uri).toBe("skill://shared/SKILL.md");
   });
 
-  it("uses instructions when index is unavailable, before resources/list", async () => {
-    const readResource = vi.fn(async ({ uri }: { uri: string }) => {
-      if (uri === "skill://index.json") throw new Error("no index");
-      return {
-        contents: [
-          { text: "---\nname: from-instr\ndescription: I\n---\n# X" },
-        ],
-      };
+  it("surfaces unlisted skills from instructions when the listing is empty", async () => {
+    // A server with an unenumerable catalog: skills/list returns nothing,
+    // but skills/get answers for the URI its instructions name.
+    const client = skillsClient({
+      listed: [],
+      served: [entry("skill://from-instr/SKILL.md", "from-instr")],
+      instructions: "Use skill://from-instr/SKILL.md.",
     });
-    const listResources = vi.fn();
-    const client: SkillsClient = {
-      listResources,
-      readResource,
-      getInstructions: () => "Use skill://from-instr/SKILL.md.",
-    };
 
     const skills = await discoverSkills(client, { instructions: true });
     expect(skills).toHaveLength(1);
     expect(skills[0].uri).toBe("skill://from-instr/SKILL.md");
-    expect(listResources).not.toHaveBeenCalled();
   });
 
-  it("falls through to resources/list when index empty and instructions opted out", async () => {
+  it("returns an empty array when the server declaredly lacks the extension", async () => {
     const client: SkillsClient = {
-      listResources: vi.fn().mockResolvedValue({
-        resources: [
-          {
-            uri: "skill://from-list/SKILL.md",
-            name: "from-list",
-            description: "L",
-          },
-        ],
-      }),
-      readResource: vi.fn().mockRejectedValue(new Error("no index")),
-      getInstructions: () => "Some instructions with skill://x/SKILL.md.",
+      readResource: vi.fn(),
+      request: vi.fn(),
+      getServerCapabilities: () => ({ extensions: {} }),
     };
-
-    const skills = await discoverSkills(client);
-    expect(skills).toHaveLength(1);
-    expect(skills[0].name).toBe("from-list");
+    expect(await discoverSkills(client)).toEqual([]);
   });
 
   it("uses a custom extractor when provided", async () => {
-    const readResource = vi.fn(async ({ uri }: { uri: string }) => {
-      if (uri === "skill://index.json") throw new Error("no index");
-      return {
-        contents: [{ text: "---\nname: custom\ndescription: C\n---\n# C" }],
-      };
+    const client = skillsClient({
+      listed: [],
+      served: [entry("skill://custom/SKILL.md", "custom")],
+      // Instructions list URIs in a non-standard JSON-array form; the custom
+      // extractor takes precedence over the built-in regex.
+      instructions: '{"my-skills":["skill://custom/SKILL.md"]}',
     });
-    const client: SkillsClient = {
-      listResources: vi.fn().mockResolvedValue({ resources: [] }),
-      readResource,
-      getInstructions: () =>
-        // Instructions list URIs in a non-standard JSON-array form that the
-        // built-in regex would still match, but we want to demonstrate the
-        // custom extractor takes precedence and can return whatever it wants.
-        '{"my-skills":["skill://custom/SKILL.md"]}',
-    };
 
     const customExtractor = vi.fn(
-      (text: string) =>
-        // Pretend we parse the JSON and return the array
-        JSON.parse(text)["my-skills"] as string[],
+      (text: string) => JSON.parse(text)["my-skills"] as string[],
     );
 
     const skills = await discoverSkills(client, {
