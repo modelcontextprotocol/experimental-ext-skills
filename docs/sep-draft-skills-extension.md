@@ -8,13 +8,17 @@
 - **Extension Identifier**: `io.modelcontextprotocol/skills`
 - **PR**: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640
 
-> ℹ️ **Synced snapshot of the canonical SEP — not the place to propose changes.**
+> ℹ️ **This is the v1 baseline. Changes beyond v1 are proposed in the [decision log](decisions.md).**
 >
-> The text below is a verbatim copy of the canonical SEP as of commit [`d7490ec`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/d7490ecd1a250f7bc8c3ebb0d65450dfec274bad/seps/2640-skills-extension.md) (2026-07-15) on the [`sep/skills-extension`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/sep/skills-extension/seps/2640-skills-extension.md) branch. It is kept here so Working Group discussion, meeting notes, and design docs have a stable text to quote and link to. The canonical version lives on the main MCP repository as [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640); **review and comments belong on that PR**, not on this copy.
+> The text below is a verbatim copy of the canonical SEP at commit [`d7490ec`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/d7490ecd1a250f7bc8c3ebb0d65450dfec274bad/seps/2640-skills-extension.md) (2026-07-15) on the [`sep/skills-extension`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/sep/skills-extension/seps/2640-skills-extension.md) branch. **Review of v1 belongs on [PR #2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640)**, not on this copy. For what v1 comprises and why, see the 2026-07-16 v1 scope entry in the [decision log](decisions.md).
 >
-> **Anything we want to propose beyond v1 goes in a PR to this repository, not into this file.** Raise it as a design doc under [`docs/`](https://github.com/modelcontextprotocol/experimental-ext-skills/tree/main/docs) and record the outcome in the [decision log](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/decisions.md). Editing this snapshot to describe behavior that has not been proposed upstream is what made the previous copy misleading.
+> **To propose a change beyond v1**, add a dated entry to [`decisions.md`](decisions.md) with **Status: Proposed**, in the ADR-lite format used throughout that file — the PR carrying that entry is the proposal. Once a proposal is accepted, the resulting spec text is applied to this document and its section marked with a pointer to the record:
 >
-> **To re-sync:** overwrite everything below this note from the canonical file, then update the commit reference above. Do not hand-edit the body.
+> ```markdown
+> > **Beyond v1** — [2026-08-04: Batch resource read](decisions.md) · Proposed
+> ```
+>
+> A section without such a marker is v1 as it stands upstream. Re-sync by overwriting the unmarked text from the canonical file and updating the commit reference above.
 >
 > Discussion: [GitHub Issues](https://github.com/modelcontextprotocol/experimental-ext-skills/issues) · [Discord #skills-over-mcp-wg](https://discord.com/channels/1358869848138059966/1464745826629976084)
 
