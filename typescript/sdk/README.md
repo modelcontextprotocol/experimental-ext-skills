@@ -1,26 +1,26 @@
-# @modelcontextprotocol/experimental-ext-skills
+# @olaservo/ext-skills
 
 TypeScript SDK for [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) v1 (Skills Extension) — serves agent skills as `skill://` resources over MCP, with `skills/list` / `skills/get` entry retrieval, per-file digest verification, and optional directory enumeration. Built on the v2 MCP TypeScript SDK (`@modelcontextprotocol/server` / `@modelcontextprotocol/client`).
 
-> **Experimental.** Tracks the draft SEP while it is in review; the protocol surface may change with the SEP.
+> **Experimental.** Published under a personal scope for testing while SEP-2640 is in review; the protocol surface may change with the SEP. In-repo examples consume the same code as `@modelcontextprotocol/experimental-ext-skills` via a `file:` dependency.
 
 ## Install
 
 ```bash
 # Server-side
-npm install @modelcontextprotocol/experimental-ext-skills @modelcontextprotocol/server
+npm install @olaservo/ext-skills @modelcontextprotocol/server
 
 # Client-side
-npm install @modelcontextprotocol/experimental-ext-skills @modelcontextprotocol/client
+npm install @olaservo/ext-skills @modelcontextprotocol/client
 ```
 
 ## Subpath exports
 
 | Import path | Purpose |
 |---|---|
-| `@modelcontextprotocol/experimental-ext-skills` | Shared types, protocol method schemas, URI utilities, constants |
-| `@modelcontextprotocol/experimental-ext-skills/server` | Server-side: discover skills, register resources + `skills/list` / `skills/get` handlers |
-| `@modelcontextprotocol/experimental-ext-skills/client` | Client-side: list/get entries, verified reads, catalogs, directory enumeration |
+| `@olaservo/ext-skills` | Shared types, protocol method schemas, URI utilities, constants |
+| `@olaservo/ext-skills/server` | Server-side: discover skills, register resources + `skills/list` / `skills/get` handlers |
+| `@olaservo/ext-skills/client` | Client-side: list/get entries, verified reads, catalogs, directory enumeration |
 
 ## Protocol surface (SEP-2640 v1)
 
@@ -45,7 +45,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import {
   discoverSkills,
   registerSkillResources,
-} from "@modelcontextprotocol/experimental-ext-skills/server";
+} from "@olaservo/ext-skills/server";
 
 // Recursively scan a directory for SKILL.md files (per-file SHA-256 digests
 // are computed here, once).
@@ -160,7 +160,7 @@ registerSkillResources(server, skillMap, "./skills");
 Discover skills and build a system prompt catalog in one call:
 
 ```typescript
-import { discoverAndBuildCatalog } from "@modelcontextprotocol/experimental-ext-skills/client";
+import { discoverAndBuildCatalog } from "@olaservo/ext-skills/client";
 
 const { skills, catalog } = await discoverAndBuildCatalog(client, {
   serverName: "my-skills-server",
@@ -195,7 +195,7 @@ import {
   buildSkillsSummary,
   verifyDigest,
   READ_RESOURCE_TOOL,
-} from "@modelcontextprotocol/experimental-ext-skills/client";
+} from "@olaservo/ext-skills/client";
 
 // Gate on the extension declaration (clients only issue skills/* calls
 // after seeing it).
@@ -294,7 +294,7 @@ skill://acme/billing/refunds                     # directory resource (inode/dir
 URI utilities are available from the main import:
 
 ```typescript
-import { parseSkillUri, buildSkillUri, isSkillContentUri } from "@modelcontextprotocol/experimental-ext-skills";
+import { parseSkillUri, buildSkillUri, isSkillContentUri } from "@olaservo/ext-skills";
 ```
 
 ## Related
