@@ -4,7 +4,7 @@
 
 | Proposal | Venue | Description |
 | :--- | :--- | :--- |
-| [SEP-2640 (Skills Extension)](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) | MCP Spec | This WG's proposed extension: skills served over MCP using the Resources primitive and `skill://` URI scheme ([working draft](sep-draft-skills-extension.md)) |
+| [SEP-2640 (Skills Extension)](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) | MCP Spec | This WG's proposed extension: skills served over MCP using the Resources primitive and `skill://` URI scheme ([v1 baseline text](sep-draft-skills-extension.md)) |
 | [PR #2527](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2527) | MCP Spec | Recommend clients expose resource read to models — prerequisite for the resources-based skills approach |
 | [skills.json format proposal](https://github.com/modelcontextprotocol/registry/discussions/895) | MCP Registry | Skills metadata in registry schema |
 | ~~[SEP-2093](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093)~~ | MCP Spec | ~~Resource Contents Metadata and Capabilities: scoped `resources/list`, per-resource capabilities, `resources/metadata` endpoint~~ — **rejected** ([labeled upstream](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093)) |
@@ -45,6 +45,7 @@ External projects building on skills patterns or integrating skills into framewo
 | NimbleBrain registry | NimbleBrain | [registry.nimbletools.ai](https://registry.nimbletools.ai/) | Registry with skill metadata support |
 | NimbleBrain skill:// servers | NimbleBrain | [github.com/NimbleBrainInc](https://github.com/NimbleBrainInc) | skill:// resource colocation examples: [mcp-ipinfo](https://github.com/NimbleBrainInc/mcp-ipinfo), [mcp-webfetch](https://github.com/NimbleBrainInc/mcp-webfetch), [mcp-pdfco](https://github.com/NimbleBrainInc/mcp-pdfco), [mcp-folk](https://github.com/NimbleBrainInc/mcp-folk), [mcp-brave-search](https://github.com/NimbleBrainInc/mcp-brave-search) |
 | Kiro powers directory | Kiro | [github.com/kirodotdev/powers](https://github.com/kirodotdev/powers/) | Plugin directory bundling skills + MCP servers; active catalog (AWS, GCP migration, SAM, etc.) |
+| mcpkit (ext/skills) | Sri Panyam | [github.com/panyam/mcpkit](https://github.com/panyam/mcpkit) | Go SDK, server + host: SKILL.md, `skill://` resources, progressive disclosure (`skill://index.json` catalog + host `load_skill` tool); per-supporting-file digests with verified reads, resource-fetch size + per-server byte budget, `resources/directory/read`; no code-execution surface (enforced by a build-failing test); released in v0.3.0 |
 
 ## Related Ecosystem Work
 
