@@ -77,6 +77,34 @@ await server.connect(new StdioServerTransport());
 
 `registerSkillResources` declares the extension capability itself (pass `declareCapability: false` and call `declareSkillsExtension(server.server, …)` yourself if you need manual control). Declaring the extension commits the server to `skills/list` and `skills/get`; clients MUST NOT call `resources/directory/read` unless `directoryRead: true` was declared.
 
+### Protocol versions (2025 eras and 2026-07-28)
+
+The SDK works on every protocol version the v2 MCP SDK speaks; which one a connection uses is decided by the transport entry points, not by this SDK. The `skills/list`, `skills/get`, and `resources/directory/read` methods work identically on both eras. The one version-dependent behavior is SEP-2640's scoping of the SEP-2549 list-caching attributes: `skills/list` results carry `ttlMs`/`cacheScope` only on 2026-07-28+ connections (detected per request from the `_meta` envelope), and omit them on 2025-era connections. On 2026-07-28 connections the extension capability reaches clients via `server/discover` instead of the `initialize` result; `serverSupportsSkills()` / `serverSupportsDirectoryRead()` read it the same way either way.
+
+To serve the 2026-07-28 revision (while still accepting 2025-era clients), build the server in a factory passed to the v2 SDK's era-aware entry points instead of calling `connect()` yourself:
+
+```typescript
+import { createMcpHandler, McpServer } from "@modelcontextprotocol/server"; // HTTP
+import { serveStdio } from "@modelcontextprotocol/server/stdio";            // stdio
+
+serveStdio(() => {
+  const server = new McpServer({ name: "my-server", version: "1.0.0" }, { capabilities: { resources: {} } });
+  registerSkillResources(server, skillMap, "./skills", { directoryRead: true });
+  return server;
+});
+```
+
+Client-side, negotiate the newest revision the server offers with `versionNegotiation: { mode: "auto" }` (or pin with `mode: { pin: "2026-07-28" }`):
+
+```typescript
+const client = new Client(
+  { name: "my-client", version: "1.0.0" },
+  { versionNegotiation: { mode: "auto" } },
+);
+```
+
+See the [reference examples](../../examples/) for a full server/client pair running on 2026-07-28 over stdio.
+
 ### Skill directory structure
 
 ```
