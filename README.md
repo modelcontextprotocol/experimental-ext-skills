@@ -42,6 +42,7 @@ See [problem-statement.md](docs/problem-statement.md) for full details.
 | [Related Work](docs/related-work.md) | SEPs, implementations, and external resources |
 | [Threat Model](docs/threat-model.md) | Threat model for skills served over MCP (SEP-2640), with delivery-model recommendations and an archive appendix |
 | [Decision Log](docs/decisions.md) | Record of key decisions with context and rationale |
+| [Glossary](docs/glossary.md) | Working definitions for key Skills Over MCP terms |
 
 ## Contributing
 
