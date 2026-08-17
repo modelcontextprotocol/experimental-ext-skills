@@ -6,6 +6,16 @@ Agent Plugins 1.0 is a portable *packaging* format — a directory with a `plugi
 
 Where they may end up competing is not the format but the early adoption pattern OpenAI just demonstrated. OpenAI's plugins implement a subset of SEP-2640 as the ingestion pipeline for plugin submission: the submission portal's Scan Tools step has been [observed in practice](https://community.openai.com/t/scan-tools-fetches-mcp-served-skills-sep-2640-but-mcp-inspect-returns-skills-null-skills-never-imported-into-draft/1389064) calling `skills/list` + `skills/get` + `resources/read` and verifying SHA-256 digests, producing a static snapshot. If that pattern becomes the norm, skills-over-MCP serves as a publishing protocol feeding static packages rather than a runtime capability, which is a narrower pitch than the SEP makes as a whole.
 
+## Does Agent Plugins make SEP-2640 unnecessary?
+
+No, because they are solving different problems. 
+
+Agent Plugins defines what an installed plugin package looks like; distribution, integrity, provenance, and trust are all out of scope for the current spec.
+
+Skills over MCP defines how skill bytes move, how a host verifies they arrived intact, and how user approval binds to specific content. As one early example, OpenAI's plugin ingestion consumes SEP-2640 methods to build its snapshots. In theory, anything a plugin delivers could be delivered over MCP.
+
+One use case a snapshot can't serve is enterprise-internal distribution and management: delivering the current version of a skill to the people currently entitled to it. Per-user or per-role catalogs, skills behind auth, and revocation when access changes all require a live channel.
+
 ## What Agent Plugins 1.0 is
 
 - An open spec at [agentplugins/agent-plugins-spec](https://github.com/agentplugins/agent-plugins-spec), published as version 1.0.0.
@@ -17,8 +27,8 @@ Where they may end up competing is not the format but the early adoption pattern
 | Layer | Spec | Concern |
 | :--- | :--- | :--- |
 | Format | [Agent Skills](https://agentskills.io/specification) | What a skill *is* — SKILL.md, frontmatter, progressive disclosure |
-| Wire | [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) | Skills served at runtime — discovery (`skills/list`/`skills/get`), retrieval, integrity, consent binding |
-| Disk | [Agent Plugins](https://github.com/agentplugins/agent-plugins-spec) | Skills + MCP configs packaged for client-side install |
+| Wire | [SEP-2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) | Skills served over the wire — discovery (`skills/list`/`skills/get`), retrieval, integrity, consent binding. Hosts consume this either read-through at runtime or by materializing to disk |
+| Disk | [Agent Plugins](https://github.com/agentplugins/agent-plugins-spec) | Skills + MCP configs packaged for client-side install — a static snapshot; how the package is distributed is out of scope |
 
 ## Where they complement
 
@@ -28,5 +38,5 @@ Where they may end up competing is not the format but the early adoption pattern
 
 ## Where they may compete
 
-1. **The static skills case.** A vendor with a fixed skill set can ship a plugin directory and skip implementing the extension entirely.
+1. **The static skills case.** A vendor with a fixed skill set can ship a plugin directory and skip implementing the extension entirely — provided a distribution channel for the package already exists  and staleness between releases is acceptable.
 2. **The static-subset precedent could become the default by adoption.** The first major implementer (OpenAI plugins) treats live skill delivery as out of scope. Later implementers may follow this route as the default. The SEP's distinctive value — skills that stay in sync with a live server, dynamic per-tenant catalogs, skills behind auth, remote-only servers with no filesystem install channel — needs implementers to actually exercise it.
