@@ -64,6 +64,12 @@ Projects that illustrate the problem space or use adjacent patterns.
 - **Skill dependency declaration:** [agentskills/agentskills#110](https://github.com/agentskills/agentskills/issues/110) — Discusses how skills should declare their tool/server dependencies
 - **Apache Airflow AIP-91** (MCP integration): [cwiki.apache.org/…/AIP-91+-+MCP](https://cwiki.apache.org/confluence/display/AIRFLOW/AIP-91+-+MCP)
 
+## Integrity, Content Addressing, and Attestation
+
+Related work on establishing and verifying the integrity, authenticity, and provenance of skill resources.
+  
+- **skill-set format (draft)** (Harry Martin / flocker.md): [skill-set.md](https://skill-set.md/) — Transport-agnostic manifest specification and CLI for named, versioned collections of skills assembled from disparate sources. Defines deterministic whole-skill content hashes and set-level roll-ups, lockfiles, receipt-time content verification, and optional out-of-band URL-fragment pins. Complementary to SEP-2640: provides prior art for deriving a single content address from a complete `{uri, digest}` resource set and for future whole-skill or multi-skill attestations. See the [reference directory](https://skill-sets.md/sets/skill-authoring/) for an immutable example.
+
 ## Background Reading
 
 - **Anthropic's guidance on progressive disclosure:** [Equipping agents for the real world with agent skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
