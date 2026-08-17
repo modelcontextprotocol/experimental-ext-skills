@@ -1,0 +1,312 @@
+{
+  "scenario": "discovery-and-load",
+  "timestamp": "2026-08-16T18:46:51",
+  "endpoint": "http://localhost:8082/mcp",
+  "server": {
+    "extension_declared": true,
+    "extension_settings": {
+      "directoryRead": true
+    },
+    "skills": [
+      {
+        "name": "address-pr-feedback",
+        "uri": "skill://github/address-pr-feedback/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "browse-discussions",
+        "uri": "skill://github/browse-discussions/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "contribute-oss",
+        "uri": "skill://github/contribute-oss/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "create-issue",
+        "uri": "skill://github/create-issue/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "create-pr",
+        "uri": "skill://github/create-pr/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "debug-ci",
+        "uri": "skill://github/debug-ci/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "delegate-to-copilot",
+        "uri": "skill://github/delegate-to-copilot/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "discover-github",
+        "uri": "skill://github/discover-github/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "discover-mcp-skills",
+        "uri": "skill://github/discover-mcp-skills/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "explore-repo",
+        "uri": "skill://github/explore-repo/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "fix-dependabot",
+        "uri": "skill://github/fix-dependabot/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "get-context",
+        "uri": "skill://github/get-context/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "handle-notifications",
+        "uri": "skill://github/handle-notifications/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "manage-labels",
+        "uri": "skill://github/manage-labels/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "manage-project",
+        "uri": "skill://github/manage-project/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "manage-repo",
+        "uri": "skill://github/manage-repo/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "manage-sub-issues",
+        "uri": "skill://github/manage-sub-issues/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "merge-pr",
+        "uri": "skill://github/merge-pr/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "prepare-release",
+        "uri": "skill://github/prepare-release/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "research-vulnerability",
+        "uri": "skill://github/research-vulnerability/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "review-pr",
+        "uri": "skill://github/review-pr/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "search-code",
+        "uri": "skill://github/search-code/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "security-audit",
+        "uri": "skill://github/security-audit/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "self-review-pr",
+        "uri": "skill://github/self-review-pr/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "share-snippet",
+        "uri": "skill://github/share-snippet/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "trace-history",
+        "uri": "skill://github/trace-history/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "triage-issues",
+        "uri": "skill://github/triage-issues/SKILL.md",
+        "resource_count": 1
+      },
+      {
+        "name": "trigger-workflow",
+        "uri": "skill://github/trigger-workflow/SKILL.md",
+        "resource_count": 1
+      }
+    ]
+  },
+  "run": {
+    "tools_used": [
+      "load_skill"
+    ],
+    "tool_calls": [
+      {
+        "tool": "load_skill",
+        "args": {
+          "name": "create-issue"
+        }
+      }
+    ],
+    "skills_loaded": [
+      "create-issue"
+    ],
+    "resources_read": [],
+    "output_tail": "\n    __( O)>  ● new session · anthropic claude-sonnet-4-6\n   \\____)    20260817_1 · C:\\Users\\johnn\\AppData\\Local\\Temp\\goose-scenario-o0hxqqe5\\wd\n     L L     goose is ready\nI'll answer the first part from my system instructions, then call `load_skill` for the second part.\n  ────────────────────────────────────────\n  ▸ load_skill\n    name: create-issue\n\n---\n\n**First — MCP server skills, exactly as written in system instructions:**\n\n- address-pr-feedback (scenario_server)\n- browse-discussions (scenario_server)\n- contribute-oss (scenario_server)\n- create-issue (scenario_server)\n- create-pr (scenario_server)\n- debug-ci (scenario_server)\n- delegate-to-copilot (scenario_server)\n- discover-github (scenario_server)\n- discover-mcp-skills (scenario_server)\n- explore-repo (scenario_server)\n- fix-dependabot (scenario_server)\n- get-context (scenario_server)\n- handle-notifications (scenario_server)\n- manage-labels (scenario_server)\n- manage-project (scenario_server)\n- manage-repo (scenario_server)\n- manage-sub-issues (scenario_server)\n- merge-pr (scenario_server)\n- prepare-release (scenario_server)\n- research-vulnerability (scenario_server)\n- review-pr (scenario_server)\n- search-code (scenario_server)\n- security-audit (scenario_server)\n- self-review-pr (scenario_server)\n- share-snippet (scenario_server)\n- trace-history (scenario_server)\n- triage-issues (scenario_server)\n- trigger-workflow (scenario_server)\n\n---\n\n**Second — first markdown heading line of the loaded `create-issue` skill:**\n\n`# Create Issue`\n"
+  },
+  "checks": [
+    {
+      "check": "extension_declared",
+      "pass": true,
+      "detail": {
+        "directoryRead": true
+      }
+    },
+    {
+      "check": "discovered on wire: create-issue",
+      "pass": true,
+      "detail": [
+        "address-pr-feedback",
+        "browse-discussions",
+        "contribute-oss",
+        "create-issue",
+        "create-pr",
+        "debug-ci",
+        "delegate-to-copilot",
+        "discover-github",
+        "discover-mcp-skills",
+        "explore-repo",
+        "fix-dependabot",
+        "get-context",
+        "handle-notifications",
+        "manage-labels",
+        "manage-project",
+        "manage-repo",
+        "manage-sub-issues",
+        "merge-pr",
+        "prepare-release",
+        "research-vulnerability",
+        "review-pr",
+        "search-code",
+        "security-audit",
+        "self-review-pr",
+        "share-snippet",
+        "trace-history",
+        "triage-issues",
+        "trigger-workflow"
+      ]
+    },
+    {
+      "check": "enumerated by model: create-issue",
+      "pass": true,
+      "detail": "searched reply text"
+    },
+    {
+      "check": "discovered on wire: create-pr",
+      "pass": true,
+      "detail": [
+        "address-pr-feedback",
+        "browse-discussions",
+        "contribute-oss",
+        "create-issue",
+        "create-pr",
+        "debug-ci",
+        "delegate-to-copilot",
+        "discover-github",
+        "discover-mcp-skills",
+        "explore-repo",
+        "fix-dependabot",
+        "get-context",
+        "handle-notifications",
+        "manage-labels",
+        "manage-project",
+        "manage-repo",
+        "manage-sub-issues",
+        "merge-pr",
+        "prepare-release",
+        "research-vulnerability",
+        "review-pr",
+        "search-code",
+        "security-audit",
+        "self-review-pr",
+        "share-snippet",
+        "trace-history",
+        "triage-issues",
+        "trigger-workflow"
+      ]
+    },
+    {
+      "check": "enumerated by model: create-pr",
+      "pass": true,
+      "detail": "searched reply text"
+    },
+    {
+      "check": "discovered on wire: address-pr-feedback",
+      "pass": true,
+      "detail": [
+        "address-pr-feedback",
+        "browse-discussions",
+        "contribute-oss",
+        "create-issue",
+        "create-pr",
+        "debug-ci",
+        "delegate-to-copilot",
+        "discover-github",
+        "discover-mcp-skills",
+        "explore-repo",
+        "fix-dependabot",
+        "get-context",
+        "handle-notifications",
+        "manage-labels",
+        "manage-project",
+        "manage-repo",
+        "manage-sub-issues",
+        "merge-pr",
+        "prepare-release",
+        "research-vulnerability",
+        "review-pr",
+        "search-code",
+        "security-audit",
+        "self-review-pr",
+        "share-snippet",
+        "trace-history",
+        "triage-issues",
+        "trigger-workflow"
+      ]
+    },
+    {
+      "check": "enumerated by model: address-pr-feedback",
+      "pass": true,
+      "detail": "searched reply text"
+    },
+    {
+      "check": "loaded: create-issue",
+      "pass": true,
+      "detail": [
+        "create-issue"
+      ]
+    },
+    {
+      "check": "tool used: load_skill",
+      "pass": true,
+      "detail": [
+        "load_skill"
+      ]
+    }
+  ],
+  "passed": true
+}
