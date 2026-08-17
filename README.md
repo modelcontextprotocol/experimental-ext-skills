@@ -44,6 +44,7 @@ See [problem-statement.md](docs/problem-statement.md) for full details.
 | [Skills Extension Candidates](docs/skills-extension-candidates.md) | MCP servers, dev tools, SDKs, and skills repositories that are candidates for adopting the skills extension |
 | [Client MCP Support](docs/client-mcp-support.md) | Survey of model-facing MCP resource loading and SEP-2640 support across open-source clients |
 | [Decision Log](docs/decisions.md) | Record of key decisions with context and rationale |
+| [Rationale](docs/rationale.md) | Design rationale for SEP-2640's Resources-based skills extension |
 
 ## Contributing
 
