@@ -12,7 +12,7 @@
 >
 > **The v1 spec text lives on that PR. Review and comments belong there, not on this copy.**
 >
-> This file is the v1 baseline: a verbatim copy of the canonical SEP at commit [`b405ba5`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/b405ba53ab1b8b85140426507e02ca6ce60b266b/seps/2640-skills-extension.md) (2026-08-21) on the [`sep/skills-extension`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/sep/skills-extension/seps/2640-skills-extension.md) branch, kept here so Working Group discussion and decision records can quote and link stable text. It is only as current as that pinned commit. For what v1 comprises and why, see the 2026-07-16 v1 scope entry in the [decision log](decisions.md).
+> This file is the v1 baseline: a verbatim copy of the canonical SEP at commit [`753b9f2`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/753b9f2be43e07fdd070e535d75f190cff14beea/seps/2640-skills-extension.md) (2026-08-22) on the [`sep/skills-extension`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/sep/skills-extension/seps/2640-skills-extension.md) branch, kept here so Working Group discussion and decision records can quote and link stable text. It is only as current as that pinned commit. For what v1 comprises and why, see the 2026-07-16 v1 scope entry in the [decision log](decisions.md).
 >
 > **To propose a change beyond v1**, add a dated entry to [`decisions.md`](decisions.md) with **Status: Proposed**, in the ADR-lite format used throughout that file — the PR carrying that entry is the proposal. Once a proposal is accepted, the resulting spec text is applied to this document and its section marked with a pointer to the record:
 >
@@ -228,15 +228,15 @@ The result carries the skill entries:
 
 Result fields:
 
-| Field                         | Required | Description                                                                                                  |
-| ----------------------------- | -------- | ------------------------------------------------------------------------------------------------------------ |
-| `skills`                      | Yes      | Array of skill entries.                                                                                      |
-| `skills[].frontmatter`        | Yes      | Verbatim copy of the skill's `SKILL.md` YAML frontmatter, rendered as JSON. See [Frontmatter](#frontmatter). |
-| `skills[].uri`                | Yes      | Resource URI of the skill's `SKILL.md`. See [Skill URIs](#skill-uris).                                       |
+| Field                         | Required | Description                                                                                                                  |
+| ----------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `skills`                      | Yes      | Array of skill entries.                                                                                                      |
+| `skills[].frontmatter`        | Yes      | Verbatim copy of the skill's `SKILL.md` YAML frontmatter, rendered as JSON. See [Frontmatter](#frontmatter).                 |
+| `skills[].uri`                | Yes      | Resource URI of the skill's `SKILL.md`. See [Skill URIs](#skill-uris).                                                       |
 | `skills[].resources`          | Yes      | The skill's files: an array enumerating them with digests and sizes, or the string `"dynamic"`. See [Resources](#resources). |
-| `skills[].resources[].uri`    | Yes      | Resource URI of the file.                                                                                    |
-| `skills[].resources[].digest` | Yes      | SHA-256 digest of the file. See [Integrity](#integrity-and-verification).                                    |
-| `skills[].resources[].size`   | Yes      | Length in bytes of the file's raw content. See [Limits](#limits).                                            |
+| `skills[].resources[].uri`    | Yes      | Resource URI of the file.                                                                                                    |
+| `skills[].resources[].digest` | Yes      | SHA-256 digest of the file. See [Integrity](#integrity-and-verification).                                                    |
+| `skills[].resources[].size`   | Yes      | Length in bytes of the file's raw content. See [Limits](#limits).                                                            |
 
 A skill whose content is generated dynamically carries `"resources": "dynamic"` in place of the array. An entry with no `resources` at all is invalid.
 
