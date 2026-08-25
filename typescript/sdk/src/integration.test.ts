@@ -141,6 +141,12 @@ describe("e2e over the v2 SDK", () => {
     ).rejects.toThrow(/not listed in the resources manifest/);
   });
 
+  it("returns -32602 for a resources/read of a file the skill does not have", async () => {
+    await expect(
+      client.readResource({ uri: "skill://acme/billing/refunds/templates/missing.md" }),
+    ).rejects.toMatchObject({ code: -32602 });
+  });
+
   it("enumerates a skill directory via resources/directory/read", async () => {
     const { resources } = await readDirectory(
       client,

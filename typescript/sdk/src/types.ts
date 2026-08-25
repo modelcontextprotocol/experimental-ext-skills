@@ -10,13 +10,15 @@
 
 /**
  * One file of a skill within a skill entry's `resources` manifest —
- * a `{uri, digest}` pair (SEP-2640).
+ * a `{uri, digest, size}` triple (SEP-2640).
  */
 export interface SkillResourceRef {
   /** Resource URI of the file. */
   uri: string;
   /** SHA-256 digest of the file's raw bytes, formatted `sha256:{hex}`. */
   digest: string;
+  /** Length in bytes of the file's raw content — the bytes `digest` covers. */
+  size: number;
 }
 
 /**
@@ -37,16 +39,17 @@ export interface SkillEntry {
    */
   frontmatter: Record<string, unknown>;
   /**
-   * Complete enumeration of the skill's files as `{uri, digest}` pairs,
-   * including an entry matching the skill's top-level `uri` (the digest of
-   * `SKILL.md` itself). This is the unit of content a host verifies and that
-   * a user's approval binds to.
+   * Complete enumeration of the skill's files as `{uri, digest, size}`
+   * triples, including an entry matching the skill's top-level `uri` (the
+   * digest and size of `SKILL.md` itself). This is the unit of content a
+   * host verifies and that a user's approval binds to.
    *
-   * MAY be omitted only for dynamically generated skills whose content
-   * cannot be pre-digested. A skill without `resources` offers no content
+   * The string `"dynamic"` marks a dynamically generated skill whose
+   * content cannot be pre-digested. Such a skill offers no content
    * integrity and cannot be content-bound; hosts MAY decline to load it.
+   * An entry with no `resources` at all is invalid.
    */
-  resources?: SkillResourceRef[];
+  resources: SkillResourceRef[] | "dynamic";
 }
 
 /**
@@ -201,7 +204,7 @@ export interface SkillSummary {
  */
 export interface ReadSkillOptions {
   /**
-   * Permit reading when the skill's entry carries no `resources` manifest
+   * Permit reading when the skill's entry carries `"resources": "dynamic"`
    * (a dynamically generated skill). Default `false`: such a skill offers
    * no content integrity and cannot be content-bound, and SEP-2640 lets
    * hosts decline it. Set `true` to read it unverified anyway.

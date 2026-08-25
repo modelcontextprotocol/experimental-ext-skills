@@ -26,7 +26,7 @@ npm install @olaservo/ext-skills @modelcontextprotocol/client
 
 Every server declaring the `io.modelcontextprotocol/skills` extension implements two methods:
 
-- **`skills/list`** — paginated enumeration of *skill entries*. Each entry carries the skill's `uri`, its **verbatim** `SKILL.md` frontmatter as JSON, and a complete `resources` manifest: `{uri, digest}` for `SKILL.md` and every supporting file. The listing MAY be empty or partial (large/generated/unenumerable catalogs); hosts MUST NOT treat that as proof a server has no skills. In protocol 2026-07-28+ the result also carries the SEP-2549 list-caching attributes (`ttlMs`, `cacheScope`).
+- **`skills/list`** — paginated enumeration of *skill entries*. Each entry carries the skill's `uri`, its **verbatim** `SKILL.md` frontmatter as JSON, and a complete `resources` manifest: `{uri, digest, size}` for `SKILL.md` and every supporting file, or the string `"dynamic"` for a skill whose content is generated on demand. The listing MAY be empty or partial (large/generated/unenumerable catalogs); hosts MUST NOT treat that as proof a server has no skills. In protocol 2026-07-28+ the result also carries the SEP-2549 list-caching attributes (`ttlMs`, `cacheScope`).
 - **`skills/get`** — returns the entry for one skill by the URI of its `SKILL.md`, whether or not it appears in the listing; errors `-32602` for URIs the server does not serve as skills. This is both how unlisted skills get verified and how a host confirms an explicitly referenced URI is a skill (never by inspecting the URI scheme).
 
 One optional method, gated behind the `directoryRead` capability setting:
@@ -145,7 +145,7 @@ The entry served for each skill is built by `buildSkillEntry(skill)` — exporte
 
 ### Snapshot serving
 
-`discoverSkills()` captures every file's bytes (and digest) once, and registered resources serve that snapshot rather than re-reading disk. This is what keeps the server conformant with the SEP's identity requirements: the entry's digests and `frontmatter` always describe exactly the bytes `resources/read` returns, even if a file changes on disk while the server runs. On-disk edits take effect by re-running `discoverSkills()` and re-registering (before `connect()`) — typically a server restart. Files larger than 1MB are skipped with a logged warning: they appear neither in the `resources` manifest nor as readable resources, so the manifest stays complete with respect to what is actually served. Empty subdirectories are tracked too, so `resources/directory/read` lists them as empty rather than erroring.
+`discoverSkills()` captures every file's bytes (and digest) once, and registered resources serve that snapshot rather than re-reading disk. This is what keeps the server conformant with the SEP's identity requirements: the entry's digests and `frontmatter` always describe exactly the bytes `resources/read` returns, even if a file changes on disk while the server runs. On-disk edits take effect by re-running `discoverSkills()` and re-registering (before `connect()`) — typically a server restart. No file is skipped for size, since the manifest must be complete; a skill that exceeds either SEP-2640 per-skill limit (512 resources or 16 MiB total) is served with a logged warning, and conforming hosts are not required to load it. Empty subdirectories are tracked too, so `resources/directory/read` lists them as empty rather than erroring.
 
 ### Partial listings
 
@@ -272,26 +272,31 @@ console.log(READ_RESOURCE_TOOL);
 
 ### Digests: verification and caching
 
-Each entry's `resources` manifest carries a `sha256:{hex}` digest per file, and it serves two distinct purposes:
+Each entry's `resources` manifest carries a `sha256:{hex}` digest and a byte `size` per file. The digest serves two distinct purposes:
 
-**1. Verification** — SEP-2640 makes this a **MUST**: when a host retrieves a file listed in a skill's `resources`, it must verify the content against that entry's digest, treat reads of unlisted files within the skill as verification failures, and (for `SKILL.md`) check the parsed frontmatter is identical to the entry's `frontmatter`. `readSkill()` and `readSkillResource()` do all of this by default. A mismatch means the content is not what the entry promised — corrupted, tampered, or stale because the skill changed; recover by calling `getSkill()` for a fresh entry (which, being different, revokes any content-bound approval) and retrying.
+**1. Verification** — SEP-2640 makes this a **MUST**: when a host retrieves a file listed in a skill's `resources`, it must verify the content against that entry's `size` and digest, treat reads of unlisted files within the skill as verification failures, and (for `SKILL.md`) check the parsed frontmatter is identical to the entry's `frontmatter`. `readSkill()` and `readSkillResource()` do all of this by default. A mismatch means the content is not what the entry promised — corrupted, tampered, or stale because the skill changed; recover by calling `getSkill()` for a fresh entry (which, being different, revokes any content-bound approval) and retrying.
 
 Digests are unsigned and come from the same server as the content: a match proves consistency, not trustworthiness. Hosts MUST NOT treat a digest match as a security boundary.
 
-**2. Caching** — compare a fresh entry's digests against stored ones to decide whether cached content is still current, without re-reading files; or fetch, verify, and cache the entire set at approval time and serve every subsequent read from the verified copy:
+**2. Caching** — compare a fresh entry's digests against stored ones to decide whether cached content is still current, without re-reading files. Files are retrieved only when they are read, never on connection, listing, or approval (SEP-2640 prohibits fetching ahead of need); the cache fills as reads happen:
 
 ```typescript
-// `cache` is your own Map<uri, digest> from a previous run.
+// `cache` is your own Map<uri, {digest, content}> from previous reads.
 const entry = await getSkill(client, skillUri);
-for (const ref of entry.resources ?? []) {
-  if (cache.get(ref.uri) === ref.digest) continue; // unchanged — skip refetch
-  const doc = await readSkillResource(client, entry, ref.uri);
-  cache.set(ref.uri, ref.digest);
-  // ... (re)load content
+const ref = manifestOf(entry)?.find((r) => r.uri === fileUri);
+const cached = ref && cache.get(fileUri);
+if (cached && cached.digest === ref.digest) {
+  // unchanged — serve the cached copy (re-hash it on access unless the
+  // cache is write-isolated; see the SEP's cache-integrity rule)
+} else {
+  const doc = await readSkillResource(client, entry, fileUri); // fetched on read, verified
+  if (ref) cache.set(fileUri, { digest: ref.digest, content: doc });
 }
 ```
 
-**Dynamically generated skills** omit `resources` and are unverifiable by construction. `readSkill()` / `readSkillResource()` throw for them by default; pass `{ allowUnverified: true }` to read anyway. Hosts MAY simply decline such skills.
+**Dynamically generated skills** carry `"resources": "dynamic"` and are unverifiable by construction. An entry with no `resources` at all is invalid and `readSkill()` / `manifestOf()` reject it. `readSkill()` / `readSkillResource()` throw for them by default; pass `{ allowUnverified: true }` to read anyway. Hosts MAY simply decline such skills.
+
+**Limits** — `checkSkillLimits(entry)` counts resources and sums `size` from the entry alone, before any file is fetched, and reports which SEP-2640 limit (512 resources, 16 MiB total) a skill exceeds. Hosts MUST accept skills up to those limits and MAY accept larger ones.
 
 `SKILL.md` is UTF-8, so hashing the received `text` (as UTF-8) matches the server's raw-byte hash exactly. Binary supporting files arrive as base64 `blob`s and are verified over the decoded bytes.
 

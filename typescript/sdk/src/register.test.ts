@@ -5,11 +5,12 @@
  * handler.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { ResourceTemplate } from "@modelcontextprotocol/server";
 import {
   registerSkillResources,
   buildSkillEntry,
+  warnIfOverLimits,
   makeSkillsListHandler,
   makeSkillsGetHandler,
   sha256Digest,
@@ -283,8 +284,8 @@ describe("registerSkillResources — skills methods", () => {
       uri: "skill://code-review/SKILL.md",
       frontmatter: { name: "code-review", description: "desc" },
       resources: [
-        { uri: "skill://code-review/SKILL.md", digest: DIGEST_A },
-        { uri: "skill://code-review/references/GUIDE.md", digest: DIGEST_B },
+        { uri: "skill://code-review/SKILL.md", digest: DIGEST_A, size: 100 },
+        { uri: "skill://code-review/references/GUIDE.md", digest: DIGEST_B, size: 10 },
       ],
     });
   });
@@ -331,7 +332,7 @@ describe("registerSkillResources — skills methods", () => {
     const ok = await handler({ uri: "skill://code-review/SKILL.md" });
     expect(ok.skill.uri).toBe("skill://code-review/SKILL.md");
     expect(ok.skill.resources).toEqual([
-      { uri: "skill://code-review/SKILL.md", digest: DIGEST_A },
+      { uri: "skill://code-review/SKILL.md", digest: DIGEST_A, size: 100 },
     ]);
 
     await expect(handler({ uri: "skill://nope/SKILL.md" })).rejects.toMatchObject({
@@ -357,9 +358,38 @@ describe("buildSkillEntry", () => {
     );
     expect(entry.uri).toBe("skill://acme/billing/refunds/SKILL.md");
     expect(entry.resources).toEqual([
-      { uri: "skill://acme/billing/refunds/SKILL.md", digest: DIGEST_A },
-      { uri: "skill://acme/billing/refunds/examples/email.md", digest: DIGEST_B },
+      { uri: "skill://acme/billing/refunds/SKILL.md", digest: DIGEST_A, size: 100 },
+      { uri: "skill://acme/billing/refunds/examples/email.md", digest: DIGEST_B, size: 5 },
     ]);
+  });
+});
+
+describe("warnIfOverLimits", () => {
+  const doc = (i: number, size: number) => ({
+    path: `f${i}.md`, mimeType: "text/markdown", size, digest: DIGEST_B,
+  });
+
+  it("is silent for a skill within both limits", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(warnIfOverLimits(skill({ name: "a", skillPath: "a" }))).toBe(false);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("warns when the resource count exceeds 512 (SKILL.md included)", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const documents = Array.from({ length: 512 }, (_, i) => doc(i, 1));
+    expect(warnIfOverLimits(skill({ name: "a", skillPath: "a", documents }))).toBe(true);
+    expect(spy.mock.calls[0][0]).toMatch(/513 resources \(limit 512\)/);
+    spy.mockRestore();
+  });
+
+  it("warns when the total size exceeds 16 MiB", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const documents = [doc(0, 16_777_216)];
+    expect(warnIfOverLimits(skill({ name: "a", skillPath: "a", documents }))).toBe(true);
+    expect(spy.mock.calls[0][0]).toMatch(/16777316 bytes total \(limit 16777216\)/);
+    spy.mockRestore();
   });
 });
 

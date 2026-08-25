@@ -51,15 +51,24 @@ import {
   SkillsListResultSchema,
   SkillsGetParamsSchema,
   SkillsGetResultSchema,
+  MAX_RESOURCES_PER_SKILL,
+  MAX_TOTAL_SIZE_PER_SKILL,
 } from "./skills-methods.js";
 import { paginate } from "./cursor.js";
 import { SKILLS_EXTENSION_ID } from "./resource-extensions.js";
 
-/** Maximum file size for skill files (1MB). */
-const MAX_FILE_SIZE = 1 * 1024 * 1024;
+/**
+ * Largest single file the disk-fallback loaders will read. A file this
+ * large already exceeds the SEP's per-skill total, so nothing conformant is
+ * lost by refusing it.
+ */
+const MAX_FILE_SIZE = MAX_TOTAL_SIZE_PER_SKILL;
 
 /** Default page size for a `skills/list` response. */
 export const DEFAULT_SKILLS_LIST_PAGE_SIZE = 50;
+
+/** Agent Skills specification: `description` is at most 1024 characters. */
+const MAX_DESCRIPTION_LENGTH = 1024;
 
 /**
  * Compute a SHA-256 digest of raw bytes, formatted `sha256:{hex}` (64
@@ -124,9 +133,10 @@ export function isPathWithinBase(
 
 /**
  * Stat, read, and digest one file, returning a SkillDocument (bytes
- * retained for snapshot serving), or null when the file is oversized or
- * unreadable. Oversized skips are logged: the file exists on disk but will
- * be neither listed in the entry's `resources` manifest nor served.
+ * retained for snapshot serving), or null when the file is unreadable.
+ * No file is skipped for size: the entry's `resources` must list every
+ * file of the skill, so an oversized skill is reported as a whole by
+ * {@link warnIfOverLimits} rather than silently trimmed.
  */
 function describeFile(
   fullPath: string,
@@ -134,12 +144,6 @@ function describeFile(
 ): SkillDocument | null {
   try {
     const stat = fs.statSync(fullPath);
-    if (stat.size > MAX_FILE_SIZE) {
-      console.error(
-        `[skills] Skipping ${fullPath}: file size ${(stat.size / 1024 / 1024).toFixed(2)}MB exceeds the ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB limit — it will not appear in the skill's resources manifest and will not be served`,
-      );
-      return null;
-    }
     const bytes = fs.readFileSync(fullPath);
     const relativePath = path
       .relative(relativeTo, fullPath)
@@ -159,7 +163,7 @@ function describeFile(
 /**
  * Recursively scan a directory, collecting files into `documents` and every
  * subdirectory's relative path (including empty ones) into `directories`.
- * Security: applies path traversal checks and file size limits.
+ * Security: applies path traversal checks.
  */
 function scanDirInto(
   dirPath: string,
@@ -327,7 +331,7 @@ function findSkillFiles(
  * Returns a Map keyed by skillPath (not name), since the path is the
  * unique locator within a server.
  *
- * Security: Skips files larger than MAX_FILE_SIZE, validates frontmatter,
+ * Security: validates frontmatter,
  * enforces path containment.
  */
 export function discoverSkills(
@@ -344,14 +348,7 @@ export function discoverSkills(
   const skillFiles = findSkillFiles(resolvedDir, resolvedDir);
 
   for (const { skillMdPath, skillDir, skillPath } of skillFiles) {
-    // Security: check file size before reading
     const stat = fs.statSync(skillMdPath);
-    if (stat.size > MAX_FILE_SIZE) {
-      console.error(
-        `Skipping ${skillMdPath}: file size ${(stat.size / 1024 / 1024).toFixed(2)}MB exceeds limit`,
-      );
-      continue;
-    }
 
     // Security: verify path is within skills directory
     if (!isPathWithinBase(skillMdPath, resolvedDir)) {
@@ -398,7 +395,15 @@ export function discoverSkills(
       if (!isValidSkillName(name)) {
         console.error(
           `Skill at ${skillDir}: name "${name}" violates the Agent Skills naming rule. ` +
-            `Names must contain only lowercase letters, digits, and hyphens.`,
+            `Names are 1-64 lowercase letters, digits, and hyphens, with no leading, trailing, or consecutive hyphens.`,
+        );
+        continue;
+      }
+
+      // Agent Skills constraint: description is 1-1024 characters.
+      if (description.length > MAX_DESCRIPTION_LENGTH) {
+        console.error(
+          `Skill at ${skillDir}: description is ${description.length} characters; the Agent Skills specification allows at most ${MAX_DESCRIPTION_LENGTH}.`,
         );
         continue;
       }
@@ -417,7 +422,7 @@ export function discoverSkills(
         resolvedDir,
       );
 
-      skillMap.set(skillPath, {
+      const skill: SkillMetadata = {
         name,
         skillPath,
         description: description.trim(),
@@ -430,7 +435,9 @@ export function discoverSkills(
         documents,
         size: stat.size,
         lastModified: stat.mtime.toISOString(),
-      });
+      };
+      warnIfOverLimits(skill);
+      skillMap.set(skillPath, skill);
     } catch (error) {
       console.error(`Failed to parse skill at ${skillDir}:`, error);
     }
@@ -517,7 +524,7 @@ export function loadDocument(
  *
  * The `resources` manifest is complete: it lists `SKILL.md` itself (an entry
  * matching the skill's top-level `uri`) plus every supporting file, each
- * with the SHA-256 digest computed at discovery time.
+ * with the SHA-256 digest and byte size computed at discovery time.
  */
 export function buildSkillEntry(skill: SkillMetadata): SkillEntry {
   const skillUri = buildSkillUri(skill.skillPath);
@@ -525,13 +532,38 @@ export function buildSkillEntry(skill: SkillMetadata): SkillEntry {
     uri: skillUri,
     frontmatter: skill.frontmatter,
     resources: [
-      { uri: skillUri, digest: skill.digest },
+      { uri: skillUri, digest: skill.digest, size: skill.size },
       ...skill.documents.map((doc) => ({
         uri: buildSkillUri(skill.skillPath, doc.path),
         digest: doc.digest,
+        size: doc.size,
       })),
     ],
   };
+}
+
+/**
+ * Log a warning when a skill exceeds either SEP-2640 per-skill limit (512
+ * resources, 16 MiB total). The skill is still served: the SEP says servers
+ * SHOULD NOT serve such a skill, and that a conforming host is not
+ * guaranteed to load it. Returns `true` when a warning was logged.
+ */
+export function warnIfOverLimits(skill: SkillMetadata): boolean {
+  const count = 1 + skill.documents.length;
+  const total = skill.size + skill.documents.reduce((n, d) => n + d.size, 0);
+  const problems: string[] = [];
+  if (count > MAX_RESOURCES_PER_SKILL) {
+    problems.push(`${count} resources (limit ${MAX_RESOURCES_PER_SKILL})`);
+  }
+  if (total > MAX_TOTAL_SIZE_PER_SKILL) {
+    problems.push(`${total} bytes total (limit ${MAX_TOTAL_SIZE_PER_SKILL})`);
+  }
+  if (problems.length === 0) return false;
+  console.error(
+    `[skills] Skill "${skill.skillPath}" exceeds the SEP-2640 per-skill limits: ${problems.join(", ")}. ` +
+      `Conforming hosts are not required to load it.`,
+  );
+  return true;
 }
 
 /**
@@ -769,14 +801,11 @@ export function registerSkillResources(
         } catch (error) {
           const message =
             error instanceof Error ? error.message : String(error);
-          return {
-            contents: [
-              {
-                uri: uri.href,
-                text: `# Error\n\nFailed to load skill "${skill.name}": ${message}`,
-              },
-            ],
-          };
+          throw new ProtocolError(
+            ProtocolErrorCode.InternalError,
+            `Failed to load skill "${skill.name}": ${message}`,
+            { uri: uri.href },
+          );
         }
       },
     );
@@ -857,29 +886,24 @@ export function registerSkillResources(
           }
         }
 
+        // Unknown resources are -32602, the same code the SEP prescribes
+        // for skills/get and resources/directory/read misses. A successful
+        // result with error prose would read as (unverifiable) content.
         if (!matchedSkill || !filePath) {
-          return {
-            contents: [
-              {
-                uri: uri.href,
-                text: `# Error\n\nCould not resolve skill path from "${skillFilePath}"`,
-              },
-            ],
-          };
+          throw new ProtocolError(
+            ProtocolErrorCode.InvalidParams,
+            `Not a skill file: ${uri.href}`,
+            { uri: uri.href },
+          );
         }
 
         const doc = matchedSkill.documents.find((d) => d.path === filePath);
         if (!doc) {
-          const available =
-            matchedSkill.documents.map((d) => `- ${d.path}`).join("\n");
-          return {
-            contents: [
-              {
-                uri: uri.href,
-                text: `# Error\n\nFile "${filePath}" not found in skill "${matchedSkill.name}".\n\n## Available Files\n\n${available || "No supporting files available."}`,
-              },
-            ],
-          };
+          throw new ProtocolError(
+            ProtocolErrorCode.InvalidParams,
+            `File "${filePath}" not found in skill "${matchedSkill.name}"`,
+            { uri: uri.href },
+          );
         }
 
         try {
@@ -903,14 +927,11 @@ export function registerSkillResources(
         } catch (error) {
           const message =
             error instanceof Error ? error.message : String(error);
-          return {
-            contents: [
-              {
-                uri: uri.href,
-                text: `# Error\n\nFailed to read file: ${message}`,
-              },
-            ],
-          };
+          throw new ProtocolError(
+            ProtocolErrorCode.InternalError,
+            `Failed to read file: ${message}`,
+            { uri: uri.href },
+          );
         }
       },
     );

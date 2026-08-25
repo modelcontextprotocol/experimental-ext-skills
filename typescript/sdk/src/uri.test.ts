@@ -158,6 +158,19 @@ describe("isValidSkillName", () => {
     expect(isValidSkillName("abc123")).toBe(true);
   });
 
+  it("rejects leading, trailing, and consecutive hyphens", () => {
+    expect(isValidSkillName("-pdf")).toBe(false);
+    expect(isValidSkillName("pdf-")).toBe(false);
+    expect(isValidSkillName("pdf--processing")).toBe(false);
+    expect(isValidSkillName("-")).toBe(false);
+  });
+
+  it("enforces the 1-64 character length", () => {
+    expect(isValidSkillName("")).toBe(false);
+    expect(isValidSkillName("a".repeat(64))).toBe(true);
+    expect(isValidSkillName("a".repeat(65))).toBe(false);
+  });
+
   it("rejects uppercase, underscore, dot, slash, space", () => {
     expect(isValidSkillName("MyCoolSkill")).toBe(false);
     expect(isValidSkillName("git_workflow")).toBe(false);

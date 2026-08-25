@@ -27,7 +27,7 @@ function entry(uri: string, name: string, description = "desc"): SkillEntry {
   return {
     uri,
     frontmatter: { name, description },
-    resources: [{ uri, digest: "sha256:" + "a".repeat(64) }],
+    resources: [{ uri, digest: "sha256:" + "a".repeat(64), size: 1 }],
   };
 }
 

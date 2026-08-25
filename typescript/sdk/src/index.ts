@@ -27,6 +27,9 @@ export type {
 export {
   SKILLS_LIST_METHOD,
   SKILLS_GET_METHOD,
+  DYNAMIC_RESOURCES,
+  MAX_RESOURCES_PER_SKILL,
+  MAX_TOTAL_SIZE_PER_SKILL,
   SkillResourceRefSchema,
   SkillEntrySchema,
   SkillsListParamsSchema,

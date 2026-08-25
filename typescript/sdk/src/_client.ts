@@ -10,8 +10,9 @@
  * Per SEP-2640, no URI scheme is privileged: a host learns that a resource
  * is a skill from a `skills/list` entry or a `skills/get` answer, never
  * from the URI scheme. The `resources` manifest on an entry — `{uri,
- * digest}` for every file of the skill — is the unit of content a host
- * verifies and that a user's approval binds to.
+ * digest, size}` for every file of the skill — is the unit of content a
+ * host verifies and that a user's approval binds to. Files are fetched
+ * only when read, never ahead of need.
  *
  * Reading model:
  *   - `listSkills()` / `getSkill()` fetch entries (`skills/list` / `skills/get`)
@@ -56,6 +57,9 @@ import {
   SKILLS_GET_METHOD,
   SkillsListResultSchema,
   SkillsGetResultSchema,
+  DYNAMIC_RESOURCES,
+  MAX_RESOURCES_PER_SKILL,
+  MAX_TOTAL_SIZE_PER_SKILL,
 } from "./skills-methods.js";
 import { SKILLS_EXTENSION_ID } from "./resource-extensions.js";
 
@@ -475,12 +479,99 @@ export function frontmatterMatchesEntry(
   return deepEqual(normalized, entry.frontmatter);
 }
 
+/**
+ * The entry's `resources` array, or `undefined` for a dynamically
+ * generated skill (`"resources": "dynamic"`). Throws for an entry with no
+ * `resources` at all or any other value: SEP-2640 makes such an entry
+ * invalid, and hosts MUST NOT load it.
+ */
+export function manifestOf(entry: SkillEntry): SkillResourceRef[] | undefined {
+  const { resources } = entry as { resources?: unknown };
+  if (resources === DYNAMIC_RESOURCES) return undefined;
+  if (!Array.isArray(resources)) {
+    throw new Error(
+      `Invalid entry for ${entry.uri}: resources must be an array or "dynamic" ` +
+        `(got ${resources === undefined ? "nothing" : JSON.stringify(resources)}). Per SEP-2640 the entry must not be loaded.`,
+    );
+  }
+  // Each uri MUST be the skill's SKILL.md or a file within its directory.
+  const dir = skillDirOf(entry.uri);
+  const outside = (resources as SkillResourceRef[]).find(
+    (r) => r.uri !== entry.uri && !(dir !== undefined && r.uri.startsWith(dir + "/")),
+  );
+  if (outside) {
+    throw new Error(
+      `Invalid entry for ${entry.uri}: resources lists ${outside.uri}, which is outside the skill's directory. Per SEP-2640 the entry must not be loaded.`,
+    );
+  }
+  return resources as SkillResourceRef[];
+}
+
+/** The skill directory URI for a `.../SKILL.md` URI, or undefined if it does not end that way. */
+function skillDirOf(skillUri: string): string | undefined {
+  const idx = skillUri.lastIndexOf("/");
+  if (idx <= 0) return undefined;
+  const last = skillUri.slice(idx + 1);
+  return last.toLowerCase() === "skill.md" ? skillUri.slice(0, idx) : undefined;
+}
+
+/**
+ * Check an entry against the SEP-2640 per-skill limits from the entry
+ * alone — no file is fetched. Hosts MUST support skills up to and including
+ * the limits; this tells a host that chooses to decline larger skills which
+ * limit was exceeded, so it can tell the user why. A dynamically generated
+ * skill has nothing to count and always reports `withinLimits: true`.
+ */
+export function checkSkillLimits(entry: SkillEntry): {
+  withinLimits: boolean;
+  resourceCount?: number;
+  totalSize?: number;
+  exceeded: string[];
+} {
+  const manifest = manifestOf(entry);
+  if (!manifest) return { withinLimits: true, exceeded: [] };
+  const resourceCount = manifest.length;
+  const totalSize = manifest.reduce((n, r) => n + r.size, 0);
+  const exceeded: string[] = [];
+  if (resourceCount > MAX_RESOURCES_PER_SKILL) {
+    exceeded.push(`${resourceCount} resources exceeds the limit of ${MAX_RESOURCES_PER_SKILL}`);
+  }
+  if (totalSize > MAX_TOTAL_SIZE_PER_SKILL) {
+    exceeded.push(`${totalSize} bytes total exceeds the limit of ${MAX_TOTAL_SIZE_PER_SKILL}`);
+  }
+  return { withinLimits: exceeded.length === 0, resourceCount, totalSize, exceeded };
+}
+
 /** Find the `resources` ref for `uri` in an entry, or undefined. */
 function findResourceRef(
   entry: SkillEntry,
   uri: string,
 ): SkillResourceRef | undefined {
-  return entry.resources?.find((r) => r.uri === uri);
+  return manifestOf(entry)?.find((r) => r.uri === uri);
+}
+
+/**
+ * Verify fetched content against a manifest ref: the byte length must equal
+ * the ref's `size` and the SHA-256 digest must match. A length mismatch is
+ * a verification failure in its own right (SEP-2640 "Resources"), reported
+ * before any hashing.
+ */
+function verifyAgainstRef(
+  data: Buffer | string,
+  ref: SkillResourceRef,
+): void {
+  const length = typeof data === "string" ? Buffer.byteLength(data, "utf-8") : data.length;
+  if (length !== ref.size) {
+    throw new Error(
+      `Size mismatch for ${ref.uri}: read ${length} bytes but the entry lists ${ref.size}. ` +
+        `Per SEP-2640 this is a verification failure equivalent to a digest mismatch.`,
+    );
+  }
+  if (!verifyDigest(data, ref.digest)) {
+    throw new Error(
+      `Digest mismatch for ${ref.uri}: content does not match the entry digest ${ref.digest}`,
+    );
+  }
 }
 
 /**
@@ -501,30 +592,33 @@ function findResourceRef(
  * fresh entry (which, being different, revokes any content-bound approval)
  * and retry.
  *
- * If the entry has no `resources` (a dynamically generated skill), the
- * skill cannot be verified: this throws by default; pass
+ * If the entry's `resources` is `"dynamic"` (a dynamically generated
+ * skill), the skill cannot be verified: this throws by default; pass
  * `{ allowUnverified: true }` to read it anyway (the frontmatter identity
- * check still applies).
+ * check still applies). An entry with no `resources` at all is invalid and
+ * always throws.
  */
 export async function readSkill(
   client: SkillsClient,
   entry: SkillEntry,
   options?: ReadSkillOptions,
 ): Promise<string> {
-  const selfRef = findResourceRef(entry, entry.uri);
-  if (entry.resources && !selfRef) {
+  const manifest = manifestOf(entry);
+  const selfRef = manifest?.find((r) => r.uri === entry.uri);
+  if (manifest && !selfRef) {
     throw new Error(
       `Malformed entry for ${entry.uri}: resources does not include an entry matching the skill's top-level uri`,
     );
   }
-  if (!entry.resources && !options?.allowUnverified) {
+  if (!manifest && !options?.allowUnverified) {
     throw new Error(
-      `Cannot verify skill ${entry.uri}: the entry carries no resources manifest ` +
+      `Cannot verify skill ${entry.uri}: the entry's resources is "dynamic" ` +
         `(dynamically generated skill). Pass { allowUnverified: true } to read it without verification.`,
     );
   }
 
-  const text = await readSkillUri(client, entry.uri, selfRef?.digest);
+  const text = await readSkillUri(client, entry.uri);
+  if (selfRef) verifyAgainstRef(text, selfRef);
 
   if (!frontmatterMatchesEntry(text, entry)) {
     throw new Error(
@@ -545,10 +639,10 @@ export async function readSkill(
  * the skill is a verification failure equivalent to a digest mismatch
  * (because `resources` is complete, an unlisted file is a change to the
  * skill). The fetched content (text or binary) is verified against the
- * ref's digest.
+ * ref's size and digest.
  *
- * For entries without `resources` (dynamically generated skills) there is
- * nothing to verify against; this throws unless `allowUnverified` is set.
+ * For entries whose `resources` is `"dynamic"` there is nothing to verify
+ * against; this throws unless `allowUnverified` is set.
  */
 export async function readSkillResource(
   client: SkillsClient,
@@ -556,9 +650,10 @@ export async function readSkillResource(
   uri: string,
   options?: ReadSkillOptions,
 ): Promise<{ text?: string; blob?: string; mimeType?: string }> {
-  const ref = findResourceRef(entry, uri);
+  const manifest = manifestOf(entry);
+  const ref = manifest?.find((r) => r.uri === uri);
   if (!ref) {
-    if (entry.resources) {
+    if (manifest) {
       throw new Error(
         `Verification failure: ${uri} is not listed in the resources manifest of ${entry.uri}. ` +
           `Per SEP-2640, a read of an unlisted file within the skill is equivalent to a digest mismatch.`,
@@ -566,7 +661,7 @@ export async function readSkillResource(
     }
     if (!options?.allowUnverified) {
       throw new Error(
-        `Cannot verify ${uri}: the entry for ${entry.uri} carries no resources manifest. ` +
+        `Cannot verify ${uri}: the entry for ${entry.uri} has "dynamic" resources. ` +
           `Pass { allowUnverified: true } to read it without verification.`,
       );
     }
@@ -586,11 +681,7 @@ export async function readSkillResource(
     if (data === undefined) {
       throw new Error(`Resource ${uri} returned neither text nor blob content`);
     }
-    if (!verifyDigest(data, ref.digest)) {
-      throw new Error(
-        `Digest mismatch for ${uri}: content does not match the entry digest ${ref.digest}`,
-      );
-    }
+    verifyAgainstRef(data, ref);
   }
 
   return {

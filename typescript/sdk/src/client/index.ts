@@ -15,6 +15,8 @@ export {
   extractSkillUrisFromInstructions,
   readSkill,
   readSkillResource,
+  manifestOf,
+  checkSkillLimits,
   readSkillUri,
   readSkillUriVerified,
   readSkillContent,
@@ -47,6 +49,9 @@ export type {
 export {
   SKILLS_LIST_METHOD,
   SKILLS_GET_METHOD,
+  DYNAMIC_RESOURCES,
+  MAX_RESOURCES_PER_SKILL,
+  MAX_TOTAL_SIZE_PER_SKILL,
   SkillsListResultSchema,
   SkillsGetResultSchema,
 } from "../skills-methods.js";

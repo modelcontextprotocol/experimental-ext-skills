@@ -33,23 +33,42 @@ export const SKILLS_LIST_METHOD = "skills/list";
 export const SKILLS_GET_METHOD = "skills/get";
 
 /**
+ * Marker value of `resources` for a dynamically generated skill: the server
+ * cannot publish stable digests, so it says so explicitly rather than
+ * omitting the field (SEP-2640 "Resources").
+ */
+export const DYNAMIC_RESOURCES = "dynamic";
+
+/** Maximum entries in a skill's `resources`, `SKILL.md` included (SEP-2640 "Limits"). */
+export const MAX_RESOURCES_PER_SKILL = 512;
+
+/** Maximum sum of `size` over a skill's `resources`: 16 MiB (SEP-2640 "Limits"). */
+export const MAX_TOTAL_SIZE_PER_SKILL = 16_777_216;
+
+/**
  * One file of a skill within an entry's `resources` manifest.
- * `digest` is `sha256:{hex}` over the file's raw bytes.
+ * `digest` is `sha256:{hex}` over the file's raw bytes; `size` is the byte
+ * length of those same bytes.
  */
 export const SkillResourceRefSchema = z.looseObject({
   uri: z.string(),
   digest: z.string(),
+  size: z.number().int().min(0),
 });
 
 /**
  * A skill entry — shared by `skills/list` (array element) and `skills/get`
  * (the `skill` object). `frontmatter` is the verbatim SKILL.md frontmatter
- * as JSON; `resources`, when present, MUST be complete.
+ * as JSON; `resources` is required and is either a complete file manifest
+ * or the string `"dynamic"`. An entry with no `resources` is invalid.
  */
 export const SkillEntrySchema = z.looseObject({
   uri: z.string(),
   frontmatter: z.record(z.string(), z.unknown()),
-  resources: z.array(SkillResourceRefSchema).optional(),
+  resources: z.union([
+    z.array(SkillResourceRefSchema),
+    z.literal(DYNAMIC_RESOURCES),
+  ]),
 });
 
 /** Params schema for `skills/list` — an optional pagination cursor. */

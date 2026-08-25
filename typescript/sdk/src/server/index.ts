@@ -6,6 +6,7 @@ export {
   discoverSkills,
   registerSkillResources,
   buildSkillEntry,
+  warnIfOverLimits,
   makeSkillsListHandler,
   makeSkillsGetHandler,
   makeDirectoryReadHandler,
@@ -35,6 +36,9 @@ export type {
 export {
   SKILLS_LIST_METHOD,
   SKILLS_GET_METHOD,
+  DYNAMIC_RESOURCES,
+  MAX_RESOURCES_PER_SKILL,
+  MAX_TOTAL_SIZE_PER_SKILL,
   SkillsListParamsSchema,
   SkillsListResultSchema,
   SkillsGetParamsSchema,

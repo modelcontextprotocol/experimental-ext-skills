@@ -19,18 +19,20 @@ export const SKILL_URI_SCHEME = "skill://";
 export const SKILL_FILENAME = "SKILL.md";
 
 /**
- * Agent Skills naming rule: skill names contain only lowercase letters,
- * digits, and hyphens. Per SEP-2640, the final segment of `<skill-path>` —
- * which equals the frontmatter `name` — MUST satisfy this rule.
+ * Agent Skills naming rule: 1–64 characters of lowercase letters, digits,
+ * and hyphens; no leading, trailing, or consecutive hyphens. Per SEP-2640,
+ * the final segment of `<skill-path>` — which equals the frontmatter `name`
+ * — MUST satisfy this rule.
  */
-const SKILL_NAME_REGEX = /^[a-z0-9-]+$/;
+const SKILL_NAME_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const SKILL_NAME_MAX_LENGTH = 64;
 
 /**
  * Check whether a string satisfies the Agent Skills `name` field rule:
  * lowercase letters, digits, and hyphens, non-empty.
  */
 export function isValidSkillName(name: string): boolean {
-  return SKILL_NAME_REGEX.test(name);
+  return name.length <= SKILL_NAME_MAX_LENGTH && SKILL_NAME_REGEX.test(name);
 }
 
 /**
