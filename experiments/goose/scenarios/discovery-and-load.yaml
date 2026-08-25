@@ -7,6 +7,7 @@ prompt: |
   Use no tools other than load_skill.
 expect:
   extension_declared: true
+  resources_sized: true
   discovered: [create-issue, create-pr, address-pr-feedback]
   loaded: [create-issue]
   tools: [load_skill]

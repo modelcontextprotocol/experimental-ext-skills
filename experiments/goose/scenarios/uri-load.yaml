@@ -7,5 +7,6 @@ prompt: |
   Use no tools other than load_skill.
 expect:
   extension_declared: true
+  resources_sized: true
   loaded: ["skill://github/create-pr/SKILL.md"]
   tools: [load_skill]
