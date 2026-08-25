@@ -93,6 +93,8 @@ Multiple community members have independently reported that models do not reliab
 
 ## PHP MCP SDK + Symfony AI Mate: Skills as `skill://` resources
 
+> Written against the pre-v1 draft (June 2026). References to `skill://index.json`, `resource_templates/list`, and `mcp-resource-template` entries describe that draft; v1 replaced the index with `skills/list`/`skills/get` and dropped template entries (decision log, 2026-07-16).
+
 **Server / SDK:** [modelcontextprotocol/php-sdk#372](https://github.com/modelcontextprotocol/php-sdk/pull/372) — adds `io.modelcontextprotocol/skills` support to the official PHP MCP SDK
 **Consumer:** [symfony/ai#2132](https://github.com/symfony/ai/pull/2132) — ships Agent Skills in the Symfony AI "Mate" MCP server
 **Contributor:** Johannes Wachter ([@wachterjohannes](https://github.com/wachterjohannes))
