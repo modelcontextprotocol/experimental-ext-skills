@@ -6,6 +6,8 @@
 
 ## VS Code: MCP-served skills as agent skills (Issue #66)
 
+> Written against the pre-v1 draft (August 2026). The index format, `type: "skill-md"`, archive entries, and resource templates discussed below belong to that draft; v1 replaced the index with `skills/list`/`skills/get`, dropped archives and template entries (decision log, 2026-07-16), and makes digest verification a host MUST.
+
 **Implementation:** [tobi-oye/vscode#1](https://github.com/tobi-oye/vscode/pull/1) — on a [microsoft/vscode](https://github.com/microsoft/vscode) fork (personal exploration, not submitted upstream)
 
 Added `skill://` discovery to VS Code and verified it against the [Hugging Face MCP server](https://github.com/huggingface/hf-mcp-server) (`https://huggingface.co/mcp`). VS Code discovered 8 skills and offered them to the model with no manual attachment.
