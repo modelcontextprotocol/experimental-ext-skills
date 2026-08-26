@@ -1,0 +1,132 @@
+{
+  "scenario": "demo-discovery-and-load",
+  "timestamp": "2026-08-25T20:52:08",
+  "endpoint": "https://olaservo-skills-over-mcp-demo.hf.space/mcp",
+  "server": {
+    "extension_declared": true,
+    "extension_settings": {
+      "directoryRead": true
+    },
+    "protocol_version": "2025-11-25",
+    "result_type": null,
+    "skills": [
+      {
+        "name": "tabletop-dice",
+        "uri": "skill://dice-roller/tabletop-dice/SKILL.md",
+        "resources": 2,
+        "sized": true
+      },
+      {
+        "name": "mcp-glossary",
+        "uri": "skill://mcp-glossary/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "release-notes-writer",
+        "uri": "skill://release-notes-writer/SKILL.md",
+        "resources": 2,
+        "sized": true
+      }
+    ]
+  },
+  "run": {
+    "tools_used": [
+      "load_skill"
+    ],
+    "tool_calls": [
+      {
+        "tool": "load_skill",
+        "args": {
+          "name": "tabletop-dice"
+        }
+      }
+    ],
+    "load_skill_calls": [
+      "tabletop-dice"
+    ],
+    "skills_loaded": [
+      "tabletop-dice"
+    ],
+    "load_failures": [],
+    "resources_read": [],
+    "output_tail": "\n    __( O)>  ● new session · anthropic claude-sonnet-4-6\n   \\____)    20260826_1 · C:\\Users\\johnn\\AppData\\Local\\Temp\\goose-scenario-pkf8edyi\\wd\n     L L     goose is ready\nHere are the skills listed as coming from connected MCP servers in my system instructions:\n\n- mcp-glossary (scenario_server)\n- release-notes-writer (scenario_server)\n- tabletop-dice (scenario_server)\n\n---\n\nNow loading the skill:\n  ────────────────────────────────────────\n  ▸ load_skill\n    name: tabletop-dice\n\nThe first markdown heading line of the loaded content is:\n\n**`# Tabletop Dice`**\n"
+  },
+  "checks": [
+    {
+      "check": "extension_declared",
+      "pass": true,
+      "detail": {
+        "directoryRead": true
+      }
+    },
+    {
+      "check": "resources_sized",
+      "pass": true,
+      "detail": {
+        "manifest_entries": 3,
+        "unsized": []
+      }
+    },
+    {
+      "check": "discovered on wire: tabletop-dice",
+      "pass": true,
+      "detail": [
+        "tabletop-dice",
+        "mcp-glossary",
+        "release-notes-writer"
+      ]
+    },
+    {
+      "check": "enumerated by model: tabletop-dice",
+      "pass": true,
+      "detail": "searched reply text"
+    },
+    {
+      "check": "discovered on wire: mcp-glossary",
+      "pass": true,
+      "detail": [
+        "tabletop-dice",
+        "mcp-glossary",
+        "release-notes-writer"
+      ]
+    },
+    {
+      "check": "enumerated by model: mcp-glossary",
+      "pass": true,
+      "detail": "searched reply text"
+    },
+    {
+      "check": "discovered on wire: release-notes-writer",
+      "pass": true,
+      "detail": [
+        "tabletop-dice",
+        "mcp-glossary",
+        "release-notes-writer"
+      ]
+    },
+    {
+      "check": "enumerated by model: release-notes-writer",
+      "pass": true,
+      "detail": "searched reply text"
+    },
+    {
+      "check": "loaded: tabletop-dice",
+      "pass": true,
+      "detail": {
+        "loaded": [
+          "tabletop-dice"
+        ],
+        "failed": []
+      }
+    },
+    {
+      "check": "tool used: load_skill",
+      "pass": true,
+      "detail": [
+        "load_skill"
+      ]
+    }
+  ],
+  "passed": true
+}

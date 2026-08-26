@@ -1,0 +1,11 @@
+name: demo-supporting-file
+mcp_server:
+  endpoint: https://olaservo-skills-over-mcp-demo.hf.space/mcp
+prompt: |
+  Call the load_skill tool with name 'tabletop-dice'. The loaded content ends with a Supporting Files section that shows exactly how to load its supporting file; load it that way.
+  Reply with the first markdown heading line of the supporting file.
+  Use no tools other than load_skill.
+expect:
+  extension_declared: true
+  loaded: [tabletop-dice, tabletop-dice/references/dice-notation.md]
+  tools: [load_skill]

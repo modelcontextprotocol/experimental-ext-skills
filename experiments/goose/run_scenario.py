@@ -27,15 +27,13 @@ def rpc(endpoint, token, method, params, req_id):
     body = json.dumps(
         {"jsonrpc": "2.0", "id": req_id, "method": method, "params": params}
     ).encode()
-    req = urllib.request.Request(
-        endpoint,
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json, text/event-stream",
-            "Authorization": f"Bearer {token}",
-        },
-    )
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(endpoint, data=body, headers=headers)
     raw = urllib.request.urlopen(req, timeout=30).read().decode("utf-8", "replace")
     for line in raw.splitlines():
         if line.startswith("data: "):
@@ -109,17 +107,21 @@ def write_goose_config(root, scenario, token):
                 "uri": endpoint,
                 "description": "scenario MCP server",
                 "timeout": 300,
-                "headers": {"Authorization": f"Bearer {token}"},
             },
         },
     }
+    if token:
+        config["extensions"]["scenario_server"]["headers"] = {
+            "Authorization": f"Bearer {token}"
+        }
     config_dir = os.path.join(root, "config")
     os.makedirs(config_dir)
     with open(os.path.join(config_dir, "config.yaml"), "w", encoding="utf-8") as f:
         yaml.safe_dump(config, f)
 
 
-TOOL_LINE = re.compile(r"^\s*[▸>]\s+(\S+)\s*$")
+# "▸ load_skill" or "▸ read_resource extensionmanager" (tool, then owning extension)
+TOOL_LINE = re.compile(r"^\s*[▸>]\s+(\S+)(?:\s+\S+)?\s*$")
 ARG_LINE = re.compile(r"^\s{2,}(\w+): (.*)$")
 
 
@@ -196,10 +198,12 @@ def main():
         scenario = yaml.safe_load(f)
     expect = scenario.get("expect", {}) or {}
 
-    bearer_cmd = scenario["mcp_server"].get("bearer_cmd", "gh auth token")
-    token = subprocess.run(
-        bearer_cmd, shell=True, capture_output=True, text=True, check=True
-    ).stdout.strip()
+    bearer_cmd = scenario["mcp_server"].get("bearer_cmd")
+    token = ""
+    if bearer_cmd:
+        token = subprocess.run(
+            bearer_cmd, shell=True, capture_output=True, text=True, check=True
+        ).stdout.strip()
 
     server = probe_server(scenario["mcp_server"]["endpoint"], token)
     wire_names = [s["name"] for s in server["skills"]]
@@ -208,7 +212,7 @@ def main():
     workdir = os.path.join(root, "wd")
     os.makedirs(workdir)
     write_goose_config(root, scenario, token)
-    print(f"goose config root (contains bearer token): {root}")
+    print(f"goose config root{' (contains bearer token)' if token else ''}: {root}")
 
     output = run_goose(args.goose, scenario, root, workdir)
 
@@ -218,13 +222,14 @@ def main():
     load_results = [
         text for tid, (name, text) in tool_results(root).items() if name == "load_skill"
     ]
-    # A load only counts when goose returned framed skill content, not an error.
+    # A load only counts when goose returned framed content, not an error:
+    # "# Loaded Skill:" for a SKILL.md, "# Loaded:" for a supporting file.
     skills_loaded = [
-        n for n, text in zip(load_calls, load_results) if text.startswith("# Loaded Skill:")
+        n for n, text in zip(load_calls, load_results) if text.startswith("# Loaded")
     ]
     load_failures = [
         (n, text[:200]) for n, text in zip(load_calls, load_results)
-        if not text.startswith("# Loaded Skill:")
+        if not text.startswith("# Loaded")
     ]
     resources_read = [a["uri"] for n, a in calls if n == "read_resource" and "uri" in a]
 
@@ -250,6 +255,8 @@ def main():
               {"loaded": skills_loaded, "failed": load_failures})
     for name in expect.get("tools", []):
         check(f"tool used: {name}", name in tools_used, tools_used)
+    for uri in expect.get("resources_read", []):
+        check(f"resource read: {uri}", uri in resources_read, resources_read)
 
     result = {
         "scenario": scenario["name"],

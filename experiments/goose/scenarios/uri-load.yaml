@@ -1,6 +1,7 @@
 name: uri-load
 mcp_server:
   endpoint: http://localhost:8082/mcp
+  bearer_cmd: gh auth token
 prompt: |
   Call the load_skill tool with name 'skill://github/create-pr/SKILL.md' (the full URI, exactly as given).
   Reply with the first markdown heading line of the loaded content and the origin server named in the loaded header.
