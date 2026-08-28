@@ -9,6 +9,16 @@
       "name": "skills-over-mcp-wg",
       "source": "./plugins/skills-over-mcp-wg",
       "description": "Search and brief on Skills Over MCP Working Group activity — decision log, meeting notes, SEP threads, and Discord"
+    },
+    {
+      "name": "agent-plugins",
+      "source": "./plugins/agent-plugins",
+      "description": "Search and brief on Agent Plugins specification activity — spec, schemas, PRs, issues, and discussions"
+    },
+    {
+      "name": "ai-catalog",
+      "source": "./plugins/ai-catalog",
+      "description": "Search and brief on AI Catalog (AI Card) activity — ADRs, specification, PRs, issues, and discussions"
     }
   ]
 }

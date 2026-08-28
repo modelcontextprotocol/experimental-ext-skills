@@ -1,0 +1,11 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "agent-plugins",
+  "version": "0.1.0",
+  "description": "Search and brief on Agent Plugins specification activity — spec, schemas, PRs, issues, and discussions",
+  "author": { "name": "Skills Over MCP Working Group" },
+  "homepage": "https://agent-plugins.org",
+  "repository": "https://github.com/modelcontextprotocol/experimental-ext-skills",
+  "license": "Apache-2.0",
+  "keywords": ["agent-plugins", "plugins", "spec", "github", "research"]
+}

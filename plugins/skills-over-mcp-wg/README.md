@@ -71,3 +71,11 @@ Search the [Agent Skills](https://github.com/agentskills/agentskills) GitHub org
 ```
 /search-agentskills-github frontmatter fields
 ```
+
+## Conformance
+
+This plugin targets [Agent Plugins 1.0.0](https://github.com/agentplugins/agent-plugins-spec/blob/main/spec/1.0.0.md). The portable core is root `plugin.json` and `mcp.json`, both declaring the 1.0.0 canonical `$schema`, with skills under `skills/<name>/SKILL.md`.
+
+A 1.1.0 spec exists upstream on `main`, but its schemas are not yet published at the canonical URL, so plugins target 1.0.0 until that release lands.
+
+`.claude-plugin/plugin.json` and `.mcp.json` are retained as a Claude Code adapter. The portable files are the source of truth; keep the two in sync when either changes.

@@ -1,0 +1,9 @@
+{
+  "name": "ai-catalog",
+  "version": "0.1.0",
+  "description": "Search the AI Catalog (AI Card) org — PRs, issues, discussions, ADRs, and code",
+  "author": { "name": "Skills Over MCP Working Group" },
+  "repository": "https://github.com/modelcontextprotocol/experimental-ext-skills",
+  "license": "Apache-2.0",
+  "keywords": ["ai-catalog", "ai-card", "agent-card", "spec", "github", "research"]
+}
