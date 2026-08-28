@@ -4,7 +4,7 @@
 
 | Proposal | Venue | Description |
 | :--- | :--- | :--- |
-| [SEP-2640 (Skills Extension)](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) | MCP Spec | This WG's proposed extension: skills served over MCP using the Resources primitive and `skill://` URI scheme ([working draft](sep-draft-skills-extension.md)) |
+| [SEP-2640 (Skills Extension)](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) | MCP Spec | This WG's proposed extension: skills served over MCP using the Resources primitive and `skill://` URI scheme ([v1 baseline text](sep-draft-skills-extension.md)) |
 | [PR #2527](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2527) | MCP Spec | Recommend clients expose resource read to models — prerequisite for the resources-based skills approach |
 | [skills.json format proposal](https://github.com/modelcontextprotocol/registry/discussions/895) | MCP Registry | Skills metadata in registry schema |
 | ~~[SEP-2093](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093)~~ | MCP Spec | ~~Resource Contents Metadata and Capabilities: scoped `resources/list`, per-resource capabilities, `resources/metadata` endpoint~~ — **rejected** ([labeled upstream](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2093)) |
@@ -45,6 +45,7 @@ External projects building on skills patterns or integrating skills into framewo
 | NimbleBrain registry | NimbleBrain | [registry.nimbletools.ai](https://registry.nimbletools.ai/) | Registry with skill metadata support |
 | NimbleBrain skill:// servers | NimbleBrain | [github.com/NimbleBrainInc](https://github.com/NimbleBrainInc) | skill:// resource colocation examples: [mcp-ipinfo](https://github.com/NimbleBrainInc/mcp-ipinfo), [mcp-webfetch](https://github.com/NimbleBrainInc/mcp-webfetch), [mcp-pdfco](https://github.com/NimbleBrainInc/mcp-pdfco), [mcp-folk](https://github.com/NimbleBrainInc/mcp-folk), [mcp-brave-search](https://github.com/NimbleBrainInc/mcp-brave-search) |
 | Kiro powers directory | Kiro | [github.com/kirodotdev/powers](https://github.com/kirodotdev/powers/) | Plugin directory bundling skills + MCP servers; active catalog (AWS, GCP migration, SAM, etc.) |
+| mcpkit (ext/skills) | Sri Panyam | [github.com/panyam/mcpkit](https://github.com/panyam/mcpkit) | Go SDK, server + host: SKILL.md, `skill://` resources, progressive disclosure (`skill://index.json` catalog + host `load_skill` tool); per-supporting-file digests with verified reads, resource-fetch size + per-server byte budget, `resources/directory/read`; no code-execution surface (enforced by a build-failing test); released in v0.3.0 |
 
 ## Related Ecosystem Work
 
@@ -62,6 +63,12 @@ Projects that illustrate the problem space or use adjacent patterns.
 - **Agent Skills Discovery RFC v0.2.0** (Matt Silverlock / Cloudflare): [github.com/cloudflare/agent-skills-discovery-rfc](https://github.com/cloudflare/agent-skills-discovery-rfc) — Domain-level skill discovery using `/.well-known/agent-skills/` (RFC 8615). Defines `index.json` with progressive disclosure, `skill-md` and `archive` distribution types, `$schema` versioning, SHA-256 content integrity, and archive safety requirements. Complementary to MCP-level discovery: `.well-known` answers "what skills does this domain publish?" while MCP answers "how does the agent consume them at runtime?"
 - **Skill dependency declaration:** [agentskills/agentskills#110](https://github.com/agentskills/agentskills/issues/110) — Discusses how skills should declare their tool/server dependencies
 - **Apache Airflow AIP-91** (MCP integration): [cwiki.apache.org/…/AIP-91+-+MCP](https://cwiki.apache.org/confluence/display/AIRFLOW/AIP-91+-+MCP)
+
+## Integrity, Content Addressing, and Attestation
+
+Related work on establishing and verifying the integrity, authenticity, and provenance of skill resources.
+  
+- **skill-set format (draft)** (Harry Martin / flocker.md): [skill-set.md](https://skill-set.md/) — Transport-agnostic manifest specification and CLI for named, versioned collections of skills assembled from disparate sources. Defines deterministic whole-skill content hashes and set-level roll-ups, lockfiles, receipt-time content verification, and optional out-of-band URL-fragment pins. Complementary to SEP-2640: provides prior art for deriving a single content address from a complete `{uri, digest}` resource set and for future whole-skill or multi-skill attestations. See the [reference directory](https://skill-sets.md/sets/skill-authoring/) for an immutable example.
 
 ## Background Reading
 
