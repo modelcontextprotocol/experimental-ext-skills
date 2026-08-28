@@ -14,7 +14,7 @@ arguments:
 
 A quick "what's happened lately" read across the AI Catalog (AI Card) org, `Agent-Card`. Defaults to a daily scan but works for any window by passing `since`. Keep it short and link-heavy — this is a scan, not an analysis.
 
-Unlike the WG briefing this is modelled on, there is no local clone and no Discord channel. Everything below comes from the GitHub API.
+Unlike the WG briefing this is modelled on, there is no local clone and no Discord source wired up. Everything below comes from the GitHub API. Do not attempt to read Discord — this plugin configures no server for it.
 
 ## Recipe
 

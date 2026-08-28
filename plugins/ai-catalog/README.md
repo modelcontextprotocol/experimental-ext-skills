@@ -24,7 +24,7 @@ The plugin declares one server:
 
 **Note:** the GitHub MCP server may require authentication. If it isn't available, the skills fall back to the `gh` CLI (`gh search`, `gh api graphql`), which is equivalent for these tasks.
 
-There is no Discord source for this org — everything comes from GitHub.
+This plugin reads GitHub only. No Discord source is wired up — there's no Discord MCP server configured, so nothing in this plugin reads one.
 
 ## Three names for one project
 
