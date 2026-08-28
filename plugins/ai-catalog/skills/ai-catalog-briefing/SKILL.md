@@ -28,7 +28,9 @@ Unlike the WG briefing this is modelled on, there is no local clone and no Disco
      gh api "repos/Agent-Card/ai-catalog/commits?since=<ISO>&path=adr" --jq '.[] | "\(.sha[0:7]) \(.commit.author.date[0:10]) \(.commit.message | split("\n")[0])"'
      ```
 
-     For each hit, report the ADR number and title, and read its `**Status:**` line. A **new** record and a **status change** are both significant: a record moving from `Proposed` to `Accepted` means the group settled a question, and one moving to `Superseded` means an earlier decision was overturned — say what replaced it. Do not describe a record still marked `Proposed` as decided.
+     For each hit, report the ADR number and title, and read its status. **Two status formats are in use and both are current** — an inline `**Status:** Accepted` line, and a `## Status` heading with the value on the next line. The split is not chronological, so check both forms on every record; grepping only the inline form silently misses roughly half the set, including records still marked `Proposed`.
+
+     A **new** record and a **status change** are both significant: a record moving from `Proposed` to `Accepted` means the group settled a question, and one moving to `Superseded` means an earlier decision was overturned — say what replaced it. Do not describe a record still marked `Proposed` as decided.
 
    - **Specification changes** — commits to `specification/`, which holds `ai-catalog.md`, the examples, and `trust-manifest-threat-model.md`:
 

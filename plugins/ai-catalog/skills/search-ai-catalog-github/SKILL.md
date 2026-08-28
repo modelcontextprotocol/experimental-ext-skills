@@ -28,7 +28,9 @@ Also keep protocol-specific cards distinct: an A2A Agent Card and an MCP server 
 
 ## Where to search
 
-- **ADRs (start here for "why")**: `adr/` on `Agent-Card/ai-catalog` holds numbered decision records (`0001-…` onward) in Status / Context / Decision / Rationale form, naming the participants in each discussion. This is the highest-signal source for rationale — check it before reconstructing a decision from PR threads. Note that an ADR may carry `**Status:** Proposed` rather than accepted; read the status line before quoting it as settled.
+- **ADRs (start here for "why")**: `adr/` on `Agent-Card/ai-catalog` holds numbered decision records (`0001-…` onward) in Status / Context / Decision / Rationale form, naming the participants in each discussion. This is the highest-signal source for rationale — check it before reconstructing a decision from PR threads.
+
+  An ADR may carry `Proposed` rather than `Accepted`, so read its status before quoting it as settled. **Two status formats are in use and both are current** — an inline `**Status:** Accepted` line, and a `## Status` heading with the value on the next line. The split is not chronological, so check both forms; grepping only the inline form silently misses roughly half the set.
 - **Spec (authoritative)**: `specification/ai-catalog.md`, with examples under `specification/examples/` and a `specification/trust-manifest-threat-model.md` for trust, signing, and verification questions.
 - **Docs site**: https://agent-card.github.io/ai-catalog/ — the rendered `docs/` tree, including `getting-started.md`, `guides/`, `mappings/` (how the format maps onto other specs), and `implementations.md`.
 - **Process**: `GOVERNANCE.md` and `CONTRIBUTING.md`.
