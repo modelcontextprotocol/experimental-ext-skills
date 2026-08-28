@@ -28,6 +28,8 @@ Also keep protocol-specific cards distinct: an A2A Agent Card and an MCP server 
 
 ## Where to search
 
+The paths below are what the repo held when this skill was written. The project was re-homed into the `Agent-Card` org and was still settling as of August 2026, so confirm the layout before concluding something is missing — `gh api repos/Agent-Card/ai-catalog/contents --jq '.[] | .name'`. A path that no longer exists means the repo moved, not that the topic is undocumented.
+
 - **ADRs (start here for "why")**: `adr/` on `Agent-Card/ai-catalog` holds numbered decision records (`0001-…` onward) in Status / Context / Decision / Rationale form, naming the participants in each discussion. This is the highest-signal source for rationale — check it before reconstructing a decision from PR threads.
 
   An ADR may carry `Proposed` rather than `Accepted`, so read its status before quoting it as settled. **Two status formats are in use and both are current** — an inline `**Status:** Accepted` line, and a `## Status` heading with the value on the next line. The split is not chronological, so check both forms; grepping only the inline form silently misses roughly half the set.
@@ -35,7 +37,7 @@ Also keep protocol-specific cards distinct: an A2A Agent Card and an MCP server 
 - **Docs site**: https://agent-card.github.io/ai-catalog/ — the rendered `docs/` tree, including `getting-started.md`, `guides/`, `mappings/` (how the format maps onto other specs), and `implementations.md`.
 - **Process**: `GOVERNANCE.md` and `CONTRIBUTING.md`.
 - **PRs & Issues**: `gh search prs` / `gh search issues` across `Agent-Card` (searches open and closed by default).
-- **Code & SDKs**: `gh search code` across `Agent-Card` — covers `ai-catalog-rust`, `ai-catalog-go`, and `ai-catalog-cli`. SDK issues often surface where the spec is ambiguous in practice.
+- **Code & SDKs**: `gh search code` across `Agent-Card`, which covers the SDK repos as well as the spec. Derive the repo list rather than assuming it — `gh repo list Agent-Card --limit 30 --json name --jq '.[].name'` — since the org was re-homed and repos were still being renamed as of August 2026. SDK issues often surface where the spec is ambiguous in practice.
 - **Repo Discussions**: https://github.com/Agent-Card/ai-catalog/discussions (requires GraphQL — see below)
 - **Org Discussions**: https://github.com/orgs/Agent-Card/discussions (requires GraphQL — see below)
 

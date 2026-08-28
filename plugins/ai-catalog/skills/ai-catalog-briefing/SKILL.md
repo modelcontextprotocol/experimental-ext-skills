@@ -18,6 +18,15 @@ Unlike the WG briefing this is modelled on, there is no local clone and no Disco
 
 ## Recipe
 
+**Confirm the layout before trusting any path in this skill.** This project was re-homed into the `Agent-Card` org and was still settling as of August 2026 — SDK repos were mid-rename off AGNTCY. Every path below is what the repo held when this was written, not a guarantee:
+
+```bash
+gh api repos/Agent-Card/ai-catalog/contents --jq '.[] | "\(.type) \(.name)"'
+gh repo list Agent-Card --limit 30 --json name --jq '.[].name'
+```
+
+If a directory has moved or been renamed, adapt the calls below to the listing and **say so in the briefing** — a layout or org move is itself the most newsworthy thing that can happen to a spec repo. Never report a source as quiet when the real answer is that its path moved.
+
 1. **Set the window.** Use the `since` argument if given, otherwise default to the last ~24 hours. Convert it once to an ISO cutoff date (e.g. "2 weeks" → the date 14 days ago) and reuse that value for every source below. Absolute dates work too.
 
 2. **Gather only what's new or changed in the window**, in this order:
@@ -71,7 +80,9 @@ Unlike the WG briefing this is modelled on, there is no local clone and no Disco
 
    - **SDKs** — `ai-catalog-rust`, `ai-catalog-go`, and `ai-catalog-cli` are covered by the org-wide PR and issue searches above. Give them their own line only when SDK activity reveals a spec problem — an implementation issue that turns out to be an ambiguity in the format is worth surfacing to the spec side.
 
-3. **If a source has no activity in the window, say so in one line** — don't error, don't pad.
+3. **Before reporting a source as quiet, prove the query works.** An empty result and a broken query look identical, and the broken one is the more common of the two. When a source returns nothing, re-run it once with the date filter removed or widened. If that also comes back empty, the source really is quiet. If it returns rows, the window was simply too narrow — say that instead. Only report "no activity" for a query you have watched return data.
+
+4. **If a source has no activity in the window, say so in one line** — don't error, don't pad.
 
 Falling back to the GitHub MCP server instead of `gh`: PRs → `search_pull_requests`, issues → `search_issues`, PR surfaces → `pull_request_read` with `get_comments` / `get_reviews` / `get_review_comments`, and the GraphQL passthrough for discussions if it has one.
 

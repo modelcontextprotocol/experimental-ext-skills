@@ -64,7 +64,9 @@ Unlike the WG briefing this is modelled on, there is no local clone and no Disco
 
    - **Site & examples** — activity on `agentplugins/agent-plugins-site` and `agentplugins/agent-plugins-example` is already covered by the org-wide PR and issue searches. Call it out separately only when a spec change landed without the example being updated to match — that gap is worth flagging.
 
-3. **If a source has no activity in the window, say so in one line** — don't error, don't pad.
+3. **Before reporting a source as quiet, prove the query works.** An empty result and a broken query look identical, and the broken one is the more common of the two. When a source returns nothing, re-run it once with the date filter removed or widened. If that also comes back empty, the source really is quiet. If it returns rows, the window was simply too narrow — say that instead. Only report "no activity" for a query you have watched return data.
+
+4. **If a source has no activity in the window, say so in one line** — don't error, don't pad.
 
 Falling back to the GitHub MCP server instead of `gh`: PRs → `search_pull_requests`, issues → `search_issues`, PR surfaces → `pull_request_read` with `get_comments` / `get_reviews` / `get_review_comments`, and the GraphQL passthrough for discussions if it has one.
 
