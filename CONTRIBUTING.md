@@ -45,9 +45,11 @@ Outputs include:
 
 When adding experimental findings or new approaches:
 
+- Start from the [experimental findings template](docs/findings-template.md) when adding a finding
 - Include enough detail for others to reproduce or evaluate
 - Note which clients and servers were tested
 - Be explicit about what worked, what didn't, and what remains untested
+- Write "Not documented" for missing historical details instead of inferring them
 - Attribute community input with GitHub handles and link to the source where possible
 
 ### Community Input

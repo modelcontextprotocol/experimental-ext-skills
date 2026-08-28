@@ -2,24 +2,39 @@
 
 > ℹ️ **This document is not actively maintained.** It captures a snapshot of early findings. Current discussion and decisions are tracked in the [meeting notes discussions](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg), [Discord #skills-over-mcp-wg](https://discord.com/channels/1358869848138059966/1464745826629976084), and on the [SEP-2640 PR](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640).
 
-> **Contributing findings?** See [#50](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/50) for the contribution template proposal.
+> **Contributing findings?** Start with the [experimental findings template](findings-template.md).
 
 ## McpGraph: Skills in MCP Server Repo
 
-**Repo:** [TeamSparkAI/mcpGraph](https://github.com/TeamSparkAI/mcpGraph)
-**Skill:** [mcpgraphtoolkit/SKILL.md](https://github.com/TeamSparkAI/mcpGraph/blob/main/skills/mcpgraphtoolkit/SKILL.md) (875+ lines)
+**Date:** Not documented
 
-Bob Dickinson built a standalone SKILL.md file that lives in the same repo as the MCP server, but they weren't formally connected. The skill instructs agents on building directed graphs of MCP nodes to orchestrate tool calls.
+**Implementation:**
 
-**Findings:**
+- **Repository:** [TeamSparkAI/mcpGraph](https://github.com/TeamSparkAI/mcpGraph)
+- **Author:** Bob Dickinson
+- **Relevant artifacts:** [mcpgraphtoolkit/SKILL.md](https://github.com/TeamSparkAI/mcpGraph/blob/main/skills/mcpgraphtoolkit/SKILL.md) (875+ lines)
 
-- Claude ignored the SKILL.md initially, even when the skill and server had similar descriptions
-- Claude would fail at using the server tools a couple times, then read the skill and succeed
-- Expected Claude to start with the skill ("I know how to do X") before the server ("I do X"), but it didn't
+**Approach tested:** Related to [Approach 5: Server Instructions Reference](approaches.md#5-server-instructions-reference). The standalone skill lives beside the MCP server but is not formally connected to it.
 
-**Resolution:** Added a server instruction telling the agent to read the SKILL.md before using the tool. That one change caused Claude to reliably read the skill first.
+**Setup:**
 
-**Remaining concerns:**
+- **Clients tested:** Claude; specific client not documented
+- **Models tested:** Not documented
+- **Configuration notes:** The skill teaches agents to build directed graphs of MCP nodes and orchestrate tool calls
+
+**What was tested:** Whether an agent discovers and follows a colocated skill before attempting to use the server tools.
+
+**Results:**
+
+- **What worked:** Adding a server instruction that told the agent to read the skill before using the tool caused Claude to load it reliably
+- **What didn't:** Claude initially ignored the skill even when the skill and server had similar descriptions, and only read it after failing to use the server tools
+- **What was surprising:** A single server instruction changed the loading order reliably
+
+**Requirements or design questions addressed:** Reliable skill discovery and loading, and whether server instructions can connect an MCP server to colocated skill guidance.
+
+**Evidence and reproduction:** These are community-reported observations; the client version, model version, and runnable reproduction are not documented.
+
+**Limitations:**
 
 - This workaround works for 1:1 skill-to-server case, but doesn't solve discovery — users installing from a registry don't know to also install the skill
 - Distinguishes between "skill required to make the server work at all" vs. "skill that orchestrates tools you could use without it" — potentially different solutions needed
@@ -54,18 +69,39 @@ Introduces support for agent skills with a tools-based approach.
 
 ## NimbleBrain: skill:// Resource Consolidation
 
-[Mat Goldsborough](https://github.com/mgoldsborough) (NimbleBrain) had previously maintained separate components for MCP server code, a skills monorepo, and registry metadata with `server.json`. After community discussion, he consolidated into single atomic repos per server with skills exposed as `skill://` resources directly on the server.
+**Date:** Not documented
 
-**Findings:**
+**Implementation:**
 
-- Collapsing three separate artifacts into one repo simplified build, versioning, and deployment — skills are colocated with the tools they describe and shipped atomically
-- `skill://` resources enable ephemeral/installless availability: skill context is present while the server is installed and disappears when it disconnects, with no git cloning or file system access required on the client side
-- Quick tests showed same or better results compared to the previous approach of injecting skills upstream before the LLM call
-- Validates the skills-as-resources approach documented in [Approach 3](approaches.md#3-skills-as-tools-andor-resources)
+- **Repositories:** [mcp-ipinfo](https://github.com/NimbleBrainInc/mcp-ipinfo), [mcp-webfetch](https://github.com/NimbleBrainInc/mcp-webfetch), [mcp-pdfco](https://github.com/NimbleBrainInc/mcp-pdfco), [mcp-folk](https://github.com/NimbleBrainInc/mcp-folk), and [mcp-brave-search](https://github.com/NimbleBrainInc/mcp-brave-search)
+- **Author:** [Mat Goldsborough](https://github.com/mgoldsborough) (NimbleBrain)
+- **Relevant artifacts:** Atomic MCP server repositories with skills exposed as `skill://` resources
 
-**Reference implementations:** [mcp-ipinfo](https://github.com/NimbleBrainInc/mcp-ipinfo), [mcp-webfetch](https://github.com/NimbleBrainInc/mcp-webfetch), [mcp-pdfco](https://github.com/NimbleBrainInc/mcp-pdfco), [mcp-folk](https://github.com/NimbleBrainInc/mcp-folk), [mcp-brave-search](https://github.com/NimbleBrainInc/mcp-brave-search)
+**Approach tested:** [Approach 3: Skills as Tools and/or Resources](approaches.md#3-skills-as-tools-andor-resources).
 
-**Community input:**
+**Setup:**
+
+- **Clients tested:** Not documented
+- **Models tested:** Not documented
+- **Configuration notes:** Previously separate MCP server code, skills, and `server.json` registry metadata were consolidated into one repository per server
+
+**What was tested:** Whether colocating skills with their MCP servers and exposing them as resources simplifies distribution while preserving or improving agent results.
+
+**Results:**
+
+- **What worked:** Consolidating the artifacts simplified build, versioning, and deployment; skills ship atomically with the tools they describe
+- **What worked:** `skill://` resources provided ephemeral availability without git cloning or client-side file-system access
+- **What worked:** Quick tests produced the same or better results than injecting skills before the LLM call
+- **What didn't:** Not documented
+- **What was surprising:** Not documented
+
+**Requirements or design questions addressed:** Installless skill availability, provenance through colocation, atomic versioning, and reuse of existing MCP resource primitives.
+
+**Evidence and reproduction:** The linked repositories are reference implementations. The comparison with upstream skill injection was reported through community discussion; a test procedure and quantitative results are not documented.
+
+**Limitations:** Client versions, model versions, test cases, and evaluation criteria are not documented, so the result cannot yet be reproduced precisely.
+
+**Sources and attribution:**
 
 > "Skills living as skill:// resources on the server itself was the natural endpoint of that consolidation. The skill context is colocated with the tools it describes, versioned together, shipped together." — [Mat Goldsborough](https://github.com/mgoldsborough) (NimbleBrain), via Discord
 
