@@ -34,7 +34,7 @@ The paths below are what the repo held when this skill was written. The project 
 
   An ADR may carry `Proposed` rather than `Accepted`, so read its status before quoting it as settled. **Two status formats are in use and both are current** — an inline `**Status:** Accepted` line, and a `## Status` heading with the value on the next line. The split is not chronological, so check both forms; grepping only the inline form silently misses roughly half the set.
 - **Spec (authoritative)**: `specification/ai-catalog.md`, with examples under `specification/examples/` and a `specification/trust-manifest-threat-model.md` for trust, signing, and verification questions.
-- **Docs site**: https://agent-card.github.io/ai-catalog/ — the rendered `docs/` tree, including `getting-started.md`, `guides/`, `mappings/` (how the format maps onto other specs), and `implementations.md`.
+- **Docs site**: https://ai-catalog.io/ — the rendered `docs/` tree, including `getting-started.md`, `guides/`, `mappings/` (how the format maps onto other specs), and `implementations.md`.
 - **Process**: `GOVERNANCE.md` and `CONTRIBUTING.md`.
 - **PRs & Issues**: `gh search prs` / `gh search issues` across `Agent-Card` (searches open and closed by default).
 - **Code & SDKs**: `gh search code` across `Agent-Card`, which covers the SDK repos as well as the spec. Derive the repo list rather than assuming it — `gh repo list Agent-Card --limit 30 --json name --jq '.[].name'` — since the org was re-homed and repos were still being renamed as of August 2026. SDK issues often surface where the spec is ambiguous in practice.
@@ -183,7 +183,7 @@ Collect all sources as footnotes at the end. Every quote and claim presented in 
 
 1. Generate search terms and variants — including the AI Card / Catalog Entry / AI Catalog naming split, plus camelCase and space-separated forms
 2. Scan the `adr/` list first for a decision record covering the topic
-3. Check `specification/ai-catalog.md` and https://agent-card.github.io/ai-catalog/ for authoritative content
+3. Check `specification/ai-catalog.md` and https://ai-catalog.io/ for authoritative content
 4. Expand search terms and variants based on new information, including any renames the ADRs reveal
 5. Search GitHub org-wide (use the `gh` CLI if available, otherwise the GitHub MCP server)
 6. Aggregate search results

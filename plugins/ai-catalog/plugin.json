@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Search and brief on AI Catalog (AI Card) activity — ADRs, specification, PRs, issues, and discussions",
   "author": { "name": "Skills Over MCP Working Group" },
-  "homepage": "https://agent-card.github.io/ai-catalog/",
+  "homepage": "https://ai-catalog.io/",
   "repository": "https://github.com/modelcontextprotocol/experimental-ext-skills",
   "license": "Apache-2.0",
   "keywords": ["ai-catalog", "ai-card", "agent-card", "spec", "github", "research"]
