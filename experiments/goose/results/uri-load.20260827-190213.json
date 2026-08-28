@@ -1,6 +1,6 @@
 {
-  "scenario": "discovery-and-load",
-  "timestamp": "2026-08-24T21:27:36",
+  "scenario": "uri-load",
+  "timestamp": "2026-08-27T19:02:13",
   "endpoint": "http://localhost:8082/mcp",
   "server": {
     "extension_declared": true,
@@ -188,19 +188,19 @@
       {
         "tool": "load_skill",
         "args": {
-          "name": "create-issue"
+          "name": "skill://github/create-pr/SKILL.md"
         }
       }
     ],
     "load_skill_calls": [
-      "create-issue"
+      "skill://github/create-pr/SKILL.md"
     ],
     "skills_loaded": [
-      "create-issue"
+      "skill://github/create-pr/SKILL.md"
     ],
     "load_failures": [],
     "resources_read": [],
-    "output_tail": "\n    __( O)>  ● new session · anthropic claude-sonnet-4-6\n   \\____)    20260825_1 · C:\\Users\\johnn\\AppData\\Local\\Temp\\goose-scenario-7g8x1h6y\\wd\n     L L     goose is ready\nHere are the skills from connected MCP servers, exactly as written in my system instructions:\n\n- address-pr-feedback (scenario_server)\n- browse-discussions (scenario_server)\n- contribute-oss (scenario_server)\n- create-issue (scenario_server)\n- create-pr (scenario_server)\n- debug-ci (scenario_server)\n- delegate-to-copilot (scenario_server)\n- discover-github (scenario_server)\n- discover-mcp-skills (scenario_server)\n- explore-repo (scenario_server)\n- fix-dependabot (scenario_server)\n- get-context (scenario_server)\n- handle-notifications (scenario_server)\n- manage-labels (scenario_server)\n- manage-project (scenario_server)\n- manage-repo (scenario_server)\n- manage-sub-issues (scenario_server)\n- merge-pr (scenario_server)\n- prepare-release (scenario_server)\n- research-vulnerability (scenario_server)\n- review-pr (scenario_server)\n- search-code (scenario_server)\n- security-audit (scenario_server)\n- self-review-pr (scenario_server)\n- share-snippet (scenario_server)\n- trace-history (scenario_server)\n- triage-issues (scenario_server)\n- trigger-workflow (scenario_server)\n\nNow loading the `create-issue` skill:\n  ────────────────────────────────────────\n  ▸ load_skill\n    name: create-issue\n\nThe first markdown heading line of the loaded content is:\n\n**`# Create Issue`**\n"
+    "output_tail": "\n    __( O)>  ● new session · anthropic claude-sonnet-4-6\n   \\____)    20260828_1 · C:\\Users\\johnn\\AppData\\Local\\Temp\\goose-scenario-jip200wl\\wd\n     L L     goose is ready\n\n  ────────────────────────────────────────\n  ▸ load_skill\n    name: skill://github/create-pr/SKILL.md\n\nHere are the two pieces of information you asked for:\n\n- **First markdown heading line:** `# Create Pull Request`\n- **Origin server named in the loaded header:** `scenario_server`\n"
   },
   "checks": [
     {
@@ -219,128 +219,11 @@
       }
     },
     {
-      "check": "discovered on wire: create-issue",
-      "pass": true,
-      "detail": [
-        "address-pr-feedback",
-        "browse-discussions",
-        "contribute-oss",
-        "create-issue",
-        "create-pr",
-        "debug-ci",
-        "delegate-to-copilot",
-        "discover-github",
-        "discover-mcp-skills",
-        "explore-repo",
-        "fix-dependabot",
-        "get-context",
-        "handle-notifications",
-        "manage-labels",
-        "manage-project",
-        "manage-repo",
-        "manage-sub-issues",
-        "merge-pr",
-        "prepare-release",
-        "research-vulnerability",
-        "review-pr",
-        "search-code",
-        "security-audit",
-        "self-review-pr",
-        "share-snippet",
-        "trace-history",
-        "triage-issues",
-        "trigger-workflow"
-      ]
-    },
-    {
-      "check": "enumerated by model: create-issue",
-      "pass": true,
-      "detail": "searched reply text"
-    },
-    {
-      "check": "discovered on wire: create-pr",
-      "pass": true,
-      "detail": [
-        "address-pr-feedback",
-        "browse-discussions",
-        "contribute-oss",
-        "create-issue",
-        "create-pr",
-        "debug-ci",
-        "delegate-to-copilot",
-        "discover-github",
-        "discover-mcp-skills",
-        "explore-repo",
-        "fix-dependabot",
-        "get-context",
-        "handle-notifications",
-        "manage-labels",
-        "manage-project",
-        "manage-repo",
-        "manage-sub-issues",
-        "merge-pr",
-        "prepare-release",
-        "research-vulnerability",
-        "review-pr",
-        "search-code",
-        "security-audit",
-        "self-review-pr",
-        "share-snippet",
-        "trace-history",
-        "triage-issues",
-        "trigger-workflow"
-      ]
-    },
-    {
-      "check": "enumerated by model: create-pr",
-      "pass": true,
-      "detail": "searched reply text"
-    },
-    {
-      "check": "discovered on wire: address-pr-feedback",
-      "pass": true,
-      "detail": [
-        "address-pr-feedback",
-        "browse-discussions",
-        "contribute-oss",
-        "create-issue",
-        "create-pr",
-        "debug-ci",
-        "delegate-to-copilot",
-        "discover-github",
-        "discover-mcp-skills",
-        "explore-repo",
-        "fix-dependabot",
-        "get-context",
-        "handle-notifications",
-        "manage-labels",
-        "manage-project",
-        "manage-repo",
-        "manage-sub-issues",
-        "merge-pr",
-        "prepare-release",
-        "research-vulnerability",
-        "review-pr",
-        "search-code",
-        "security-audit",
-        "self-review-pr",
-        "share-snippet",
-        "trace-history",
-        "triage-issues",
-        "trigger-workflow"
-      ]
-    },
-    {
-      "check": "enumerated by model: address-pr-feedback",
-      "pass": true,
-      "detail": "searched reply text"
-    },
-    {
-      "check": "loaded: create-issue",
+      "check": "loaded: skill://github/create-pr/SKILL.md",
       "pass": true,
       "detail": {
         "loaded": [
-          "create-issue"
+          "skill://github/create-pr/SKILL.md"
         ],
         "failed": []
       }
