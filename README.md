@@ -2,12 +2,12 @@
 
 > ⚠️ **Experimental** — This repository is an incubation space for the Skills Over MCP Working Group. Contents are exploratory and do not represent official MCP specifications or recommendations.
 
-**📄 SEP-2640 (Skills Extension):** [modelcontextprotocol#2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) — **the source of truth for the v1 spec text.** Review and comments belong on the PR. The copy in this repo is a synced baseline for discussion; see [`docs/sep-draft-skills-extension.md`](docs/sep-draft-skills-extension.md).
-**Charter:** [modelcontextprotocol.io/community/skills-over-mcp/charter](https://modelcontextprotocol.io/community/skills-over-mcp/charter) — mission, scope, membership, active work items, and success criteria.
-**Project board:** [Skills Over MCP WG](https://github.com/orgs/modelcontextprotocol/projects/38/views/1)
-**Meeting notes:** [Skills Over MCP WG discussions](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg)
-**Discord:** [#skills-over-mcp-wg](https://discord.com/channels/1358869848138059966/1464745826629976084)
-**Open work:** [Pull requests](https://github.com/modelcontextprotocol/experimental-ext-skills/pulls) — proposals, decisions, implementations, and other in-flight contributions welcome.
+- **📄 SEP-2640 (Skills Extension):** [modelcontextprotocol#2640](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) — **the source of truth for the v1 spec text.** Review and comments belong on the PR. The copy in this repo is a synced baseline for discussion; see [`docs/sep-draft-skills-extension.md`](docs/sep-draft-skills-extension.md).
+- **Charter:** [modelcontextprotocol.io/community/skills-over-mcp/charter](https://modelcontextprotocol.io/community/skills-over-mcp/charter) — mission, scope, membership, active work items, and success criteria.
+- **Project board:** [Skills Over MCP WG](https://github.com/orgs/modelcontextprotocol/projects/38/views/1)
+- **Meeting notes:** [Skills Over MCP WG discussions](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg)
+- **Discord:** [#skills-over-mcp-wg](https://discord.com/channels/1358869848138059966/1464745826629976084)
+- **Open work:** [Pull requests](https://github.com/modelcontextprotocol/experimental-ext-skills/pulls) — proposals, decisions, implementations, and other in-flight contributions welcome.
 
 ## Why Skills Over MCP?
 
@@ -37,8 +37,9 @@ See [problem-statement.md](docs/problem-statement.md) for full details.
 | [Use Cases](docs/use-cases.md) | Key use cases driving this work |
 | [Approaches](docs/approaches.md) | Approaches being explored (not mutually exclusive) |
 | [SEP-2640: Skills Extension](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2640) | Proposal to serve skills over MCP via the Resources primitive. The v1 baseline text is kept at [`docs/sep-draft-skills-extension.md`](docs/sep-draft-skills-extension.md), synced from the canonical SEP. Comments and review of v1 happen on the PR; changes beyond v1 are proposed as entries in the [decision log](docs/decisions.md). |
-| [Open Questions](docs/open-questions.md) | Unresolved questions with community input (see also [issues](https://github.com/modelcontextprotocol/experimental-ext-skills/issues) and [meeting notes](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg)) |
-| [Experimental Findings](docs/experimental-findings.md) | Results from implementations and testing |
+| [Roadmap](docs/roadmap.md) | What the WG plans to do next, and which gaps are being carried forward outside the WG |
+| [Open Questions](docs/open-questions.md) | An historical snapshot of questions with community input (see also [issues](https://github.com/modelcontextprotocol/experimental-ext-skills/issues) and [meeting notes](https://github.com/modelcontextprotocol/modelcontextprotocol/discussions/categories/meeting-notes-skills-over-mcp-wg)) |
+| [Experimental Findings](docs/experimental-findings.md) | A snapshot of past results from implementations and testing |
 | [Related Work](docs/related-work.md) | SEPs, implementations, and external resources |
 | [Threat Model](docs/threat-model.md) | Threat model for skills served over MCP (SEP-2640), with delivery-model recommendations and an archive appendix |
 | [Skills Extension Candidates](docs/skills-extension-candidates.md) | MCP servers, dev tools, SDKs, and skills repositories that are candidates for adopting the skills extension |
