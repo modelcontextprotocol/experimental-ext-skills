@@ -321,6 +321,13 @@ describe("manifestOf containment", () => {
     expect(manifestOf(entry)).toHaveLength(2);
   });
 
+  it("rejects a manifest that lists the same file twice", () => {
+    const entry = entryFor({
+      resources: [ref(SKILL_URI, SKILL_MD), ref(GUIDE_URI, GUIDE_TEXT), ref(GUIDE_URI, "y")],
+    });
+    expect(() => manifestOf(entry)).toThrow(/more than once/);
+  });
+
   it("does not let a sibling directory with a shared prefix pass", () => {
     const entry = entryFor({
       resources: [ref(SKILL_URI, SKILL_MD), ref("skill://code-review-extra/x.md", "x")],

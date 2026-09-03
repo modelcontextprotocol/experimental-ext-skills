@@ -93,9 +93,11 @@ export const SkillsGetParamsSchema = z.looseObject({
 });
 
 /**
- * Result schema for `skills/get`: a single entry, no pagination cursor and
- * no list-caching attributes (a single entry is not a list; it is a
- * point-in-time snapshot of the skill as the server holds it).
+ * Result schema for `skills/get`: a single entry and no pagination cursor
+ * (a single entry is not a list; it is a point-in-time snapshot of the skill
+ * as the server holds it). Whether the result also carries the SEP-2549
+ * caching attributes is left open by SEP-2640; the schema passes them
+ * through if present.
  */
 export const SkillsGetResultSchema = z.looseObject({
   skill: SkillEntrySchema,

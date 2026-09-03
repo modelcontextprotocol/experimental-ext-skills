@@ -20,7 +20,7 @@ The extension defines two required methods and one optional method; there is no 
 - `skills/get` (`skills-methods.ts`) — one entry by `SKILL.md` URI, listed or not; `-32602` for non-skill URIs. Doubles as the skill-identity confirmation for explicitly referenced URIs (schemes are non-privileged — never infer skill-ness from `skill://`).
 - `resources/directory/read` (`directory.ts` schemas/tree; handler in `_server.ts`) — optional, gated behind the `directoryRead` capability setting; metadata-only, non-recursive, paginated; directories are `mimeType: "inode/directory"`; `-32602` for non-directories.
 
-`resources` is required. `"dynamic"` marks a dynamically generated skill; such skills are unverifiable and the client read path throws unless `allowUnverified` is passed. An entry with no `resources` (or any other value) is invalid: `manifestOf()` throws and the schema rejects it. Per-skill limits are 512 resources and 16 MiB total (`MAX_RESOURCES_PER_SKILL`, `MAX_TOTAL_SIZE_PER_SKILL`): the server warns via `warnIfOverLimits()` at discovery, the client checks from the entry with `checkSkillLimits()`.
+`resources` is required. `"dynamic"` marks a dynamically generated skill; such skills are unverifiable and the client read path throws unless `allowUnverified` is passed. An entry with no `resources` (or any other value) is invalid: `manifestOf()` throws and the schema rejects it. `manifestOf()` also rejects a manifest that lists a URI twice or outside the skill's directory. Per-skill limits are 512 resources and 16 MiB total (`MAX_RESOURCES_PER_SKILL`, `MAX_TOTAL_SIZE_PER_SKILL`): the server warns via `warnIfOverLimits()` at discovery, the client checks from the entry with `checkSkillLimits()`.
 
 ## Snapshot serving (server)
 
@@ -79,6 +79,7 @@ Behaviors normatively prescribed by SEP-2640 are on by default. Host-narrative b
 | Size + digest verification, frontmatter identity, unlisted-file rule (client) | SEP-2640 MUST | default-on in `readSkill` / `readSkillResource`; `allowUnverified` for `"dynamic"` skills |
 | Per-skill limit warning (server) / check (client) | SEP-2640 Limits | `warnIfOverLimits` runs in `discoverSkills`; `checkSkillLimits` is opt-in |
 | Final-segment-equals-name validation | SEP-2640 | always enforced |
+| Prefix-segment URI-safety warning (first segment RFC 3986 `reg-name`, others path segments) | SEP-2640 SHOULD | `warnIfPrefixNotUriSafe` runs in `discoverSkills`; warns, still serves |
 | Skill name (1-64 chars, `[a-z0-9]` and single hyphens, none leading/trailing) and description (≤1024 chars) validation | SEP-2640 + agentskills.io | always enforced |
 | `-32602` on `resources/read` of an unknown skill file (template) | SEP-2640 (unknown resource code) | always |
 | Nested skill discovery | SEP-2640 | always on (no-nesting rule removed) |

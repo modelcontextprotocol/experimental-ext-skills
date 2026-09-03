@@ -120,6 +120,8 @@ describe("e2e over the v2 SDK", () => {
   it("reads and verifies SKILL.md and a supporting file against the entry", async () => {
     const entry = await getSkill(client, "skill://acme/billing/refunds/SKILL.md");
     const text = await readSkill(client, entry);
+    const raw = await client.readResource({ uri: entry.uri });
+    expect(raw.contents[0]?.mimeType).toBe("text/markdown");
     expect(text).toBe(SKILL_MD);
 
     const template = await readSkillResource(

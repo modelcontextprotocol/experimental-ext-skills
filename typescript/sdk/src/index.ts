@@ -63,6 +63,8 @@ export {
   buildSkillUri,
   isSkillContentUri,
   isValidSkillName,
+  isValidRegName,
+  isValidUriPathSegment,
   extractSkillPathFromUri,
 } from "./uri.js";
 export type { ParsedSkillUri } from "./uri.js";

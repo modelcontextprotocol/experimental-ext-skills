@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -37,6 +37,29 @@ describe("discoverSkills frontmatter parsing", () => {
 
     const map = discoverSkills(tmpDir);
     expect(map.has("padded")).toBe(false);
+  });
+
+  it("warns, but still serves, a skill whose prefix segment is not URI-safe", () => {
+    // SEP-2640: the first <skill-path> segment occupies the URI authority
+    // and SHOULD be a valid reg-name. SHOULD, so the skill is served.
+    const dir = path.join(tmpDir, "acme corp", "spaced");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, "SKILL.md"),
+      "---\nname: spaced\ndescription: Prefix with a space\n---\n# X\n",
+    );
+
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const map = discoverSkills(tmpDir);
+      expect(map.has("acme corp/spaced")).toBe(true);
+      const warned = spy.mock.calls.some(
+        (c) => typeof c[0] === "string" && /not a valid RFC 3986 reg-name/.test(c[0]),
+      );
+      expect(warned).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("captures a content snapshot, per-file digests/bytes, and subdirectories (including empty)", () => {

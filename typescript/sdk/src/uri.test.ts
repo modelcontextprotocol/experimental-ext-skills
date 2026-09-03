@@ -5,6 +5,8 @@ import {
   buildSkillUri,
   isSkillContentUri,
   isValidSkillName,
+  isValidRegName,
+  isValidUriPathSegment,
   extractSkillPathFromUri,
   SKILL_URI_SCHEME,
 } from "./uri.js";
@@ -149,6 +151,29 @@ describe("URI type checks", () => {
 // ---------------------------------------------------------------------------
 // isValidSkillName (Agent Skills naming rule)
 // ---------------------------------------------------------------------------
+
+describe("isValidRegName / isValidUriPathSegment", () => {
+  it("accepts unreserved, sub-delims, and pct-encoded characters", () => {
+    expect(isValidRegName("acme")).toBe(true);
+    expect(isValidRegName("acme-corp.v2~x")).toBe(true);
+    expect(isValidRegName("a%20b")).toBe(true);
+    expect(isValidUriPathSegment("billing")).toBe(true);
+  });
+
+  it("rejects characters outside the RFC 3986 grammar", () => {
+    expect(isValidRegName("acme corp")).toBe(false);
+    expect(isValidRegName("a/b")).toBe(false);
+    expect(isValidRegName("a%2")).toBe(false);
+    expect(isValidUriPathSegment("bil ling")).toBe(false);
+    expect(isValidUriPathSegment("a/b")).toBe(false);
+  });
+
+  it("allows ':' and '@' in path segments but not in the authority", () => {
+    expect(isValidUriPathSegment("v1:beta@x")).toBe(true);
+    expect(isValidRegName("v1:beta")).toBe(false);
+    expect(isValidRegName("user@host")).toBe(false);
+  });
+});
 
 describe("isValidSkillName", () => {
   it("accepts lowercase letters, digits, and hyphens", () => {

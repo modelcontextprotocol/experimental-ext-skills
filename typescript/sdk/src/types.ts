@@ -69,7 +69,7 @@ export interface SkillsListResult {
   cacheScope?: "public" | "private";
 }
 
-/** Result of the `skills/get` method: one entry, no pagination, no caching attributes. */
+/** Result of the `skills/get` method: one entry, no pagination. Whether it carries SEP-2549 caching attributes is left open by SEP-2640. */
 export interface SkillsGetResult {
   /** The skill's entry — same shape and rules as a `skills/list` entry. */
   skill: SkillEntry;

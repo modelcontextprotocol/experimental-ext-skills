@@ -7,6 +7,7 @@ export {
   registerSkillResources,
   buildSkillEntry,
   warnIfOverLimits,
+  warnIfPrefixNotUriSafe,
   makeSkillsListHandler,
   makeSkillsGetHandler,
   makeDirectoryReadHandler,

@@ -125,8 +125,9 @@ export interface ToolDefinition {
  * This tool is general-purpose — it reads any MCP resource — and
  * benefits resource use cases beyond skills.
  *
- * Per the SEP: "Including the server name disambiguates identical
- * skill:// URIs served by different connected servers."
+ * Per the SEP, the signature includes `server` because two connected
+ * servers may both serve `skill://refunds/SKILL.md`; a skill's identity is
+ * the pair of server identity and URI.
  */
 export const READ_RESOURCE_TOOL: ToolDefinition = {
   name: "read_resource",
@@ -494,6 +495,16 @@ export function manifestOf(entry: SkillEntry): SkillResourceRef[] | undefined {
         `(got ${resources === undefined ? "nothing" : JSON.stringify(resources)}). Per SEP-2640 the entry must not be loaded.`,
     );
   }
+  // Each file is listed exactly once.
+  const seen = new Set<string>();
+  for (const r of resources as SkillResourceRef[]) {
+    if (seen.has(r.uri)) {
+      throw new Error(
+        `Invalid entry for ${entry.uri}: resources lists ${r.uri} more than once. Per SEP-2640 the entry must not be loaded.`,
+      );
+    }
+    seen.add(r.uri);
+  }
   // Each uri MUST be the skill's SKILL.md or a file within its directory.
   const dir = skillDirOf(entry.uri);
   const outside = (resources as SkillResourceRef[]).find(
@@ -725,8 +736,11 @@ export async function readDirectory(
 
 /**
  * Walk a directory subtree breadth-first via repeated `resources/directory/read`
- * calls, yielding every descendant file (not directories). Convenience over
- * {@link readDirectory} for hosts that want to materialize a whole skill.
+ * calls, yielding every descendant file's metadata (not directories, and not
+ * contents; nothing is fetched). Reads of a skill's files still go through
+ * {@link readSkillResource} against the held entry: SEP-2640 forbids
+ * fetching a skill's files ahead of need and treating a directory listing
+ * as extending the entry's manifest.
  */
 export async function walkDirectory(
   client: SkillsClient,

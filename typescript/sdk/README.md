@@ -264,6 +264,8 @@ if (serverSupportsSkills(client)) {
 
 // Baseline: a URI alone is always enough to *read* a skill via
 // resources/read, listed or not — pass a digest to verify when you hold one.
+// Per the SEP this is transport only: a read that does not go through the
+// host's skill-loading path (readSkill + approval) does not activate the skill.
 const raw = await readSkillUri(client, "skill://acme/billing/refunds/SKILL.md");
 
 // READ_RESOURCE_TOOL — tool schema for model-driven skill loading.
@@ -281,7 +283,9 @@ Digests are unsigned and come from the same server as the content: a match prove
 **2. Caching** — compare a fresh entry's digests against stored ones to decide whether cached content is still current, without re-reading files. Files are retrieved only when they are read, never on connection, listing, or approval (SEP-2640 prohibits fetching ahead of need); the cache fills as reads happen:
 
 ```typescript
-// `cache` is your own Map<uri, {digest, content}> from previous reads.
+// `cache` is your own Map<uri, {digest, content}> from previous reads,
+// held per server: a skill's identity is (server, uri), and the SEP says a
+// cache MUST NOT be keyed on the uri alone.
 const entry = await getSkill(client, skillUri);
 const ref = manifestOf(entry)?.find((r) => r.uri === fileUri);
 const cached = ref && cache.get(fileUri);

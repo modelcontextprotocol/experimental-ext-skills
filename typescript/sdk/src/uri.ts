@@ -36,6 +36,30 @@ export function isValidSkillName(name: string): boolean {
 }
 
 /**
+ * RFC 3986 `reg-name`: unreserved / pct-encoded / sub-delims. Per SEP-2640
+ * the first `<skill-path>` segment occupies the URI authority component and
+ * SHOULD be a valid `reg-name`.
+ */
+const REG_NAME_REGEX = /^(?:[A-Za-z0-9\-._~!$&'()*+,;=]|%[0-9A-Fa-f]{2})*$/;
+
+/**
+ * RFC 3986 `segment`: `pchar`s, i.e. `reg-name` characters plus `:` and `@`.
+ * Per SEP-2640, prefix segments after the first SHOULD be valid URI path
+ * segments.
+ */
+const PATH_SEGMENT_REGEX = /^(?:[A-Za-z0-9\-._~!$&'()*+,;=:@]|%[0-9A-Fa-f]{2})*$/;
+
+/** Whether a string is a valid RFC 3986 `reg-name` (the URI authority form). */
+export function isValidRegName(segment: string): boolean {
+  return REG_NAME_REGEX.test(segment);
+}
+
+/** Whether a string is a valid RFC 3986 URI path segment. */
+export function isValidUriPathSegment(segment: string): boolean {
+  return PATH_SEGMENT_REGEX.test(segment);
+}
+
+/**
  * Whether a final path segment names a skill's content file. The canonical
  * spelling is `SKILL.md` (the {@link SKILL_FILENAME} sentinel); we also accept
  * any case variant since some filesystems/servers are case-insensitive.
@@ -147,9 +171,9 @@ export function isSkillContentUri(uri: string): boolean {
  * Extract the `<skill-path>` from any-scheme URI ending in `/SKILL.md`.
  *
  * Per SEP-2640, the structural constraints on `<skill-path>` (final segment
- * equals the skill name, `SKILL.md` explicit, no nesting) apply regardless
- * of scheme. So for `github://owner/repo/skills/refunds/SKILL.md` the
- * skill-path is `owner/repo/skills/refunds`.
+ * equals the skill name, `SKILL.md` explicit) apply regardless of scheme.
+ * So for `github://owner/repo/skills/refunds/SKILL.md` the skill-path is
+ * `owner/repo/skills/refunds`.
  *
  * Returns null if the URI doesn't have the form `<scheme>://<path>/SKILL.md`
  * (case-insensitive on the filename).

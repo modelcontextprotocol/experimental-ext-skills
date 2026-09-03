@@ -14,8 +14,9 @@ export const SKILLS_EXTENSION_ID = "io.modelcontextprotocol/skills";
 
 /**
  * The skills extension capability object a server advertises in its
- * `initialize` response. An empty object means "supports the extension with
- * no optional features".
+ * `initialize` response (or `server/discover` result on protocol
+ * 2026-07-28). An empty object means "supports the extension with no
+ * optional features".
  */
 export interface SkillsExtensionCapability {
   /**

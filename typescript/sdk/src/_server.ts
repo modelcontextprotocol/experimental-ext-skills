@@ -33,7 +33,12 @@ import type {
   RegisterSkillResourcesOptions,
 } from "./types.js";
 import { getMimeType, isTextMimeType } from "./mime.js";
-import { buildSkillUri, isValidSkillName } from "./uri.js";
+import {
+  buildSkillUri,
+  isValidSkillName,
+  isValidRegName,
+  isValidUriPathSegment,
+} from "./uri.js";
 import {
   DIRECTORY_READ_METHOD,
   DEFAULT_DIRECTORY_PAGE_SIZE,
@@ -400,6 +405,11 @@ export function discoverSkills(
         continue;
       }
 
+      // SEP-2640: the first <skill-path> segment occupies the URI authority
+      // and SHOULD be a valid RFC 3986 reg-name; other prefix segments
+      // SHOULD be valid URI path segments. SHOULD, so warn and serve.
+      warnIfPrefixNotUriSafe(skillPath, skillDir);
+
       // Agent Skills constraint: description is 1-1024 characters.
       if (description.length > MAX_DESCRIPTION_LENGTH) {
         console.error(
@@ -444,6 +454,37 @@ export function discoverSkills(
   }
 
   return skillMap;
+}
+
+/**
+ * Warn when a skill path's prefix segments are not URI-safe per SEP-2640
+ * (first segment a valid RFC 3986 `reg-name`, later prefix segments valid
+ * path segments). The final segment is the skill name and is validated
+ * separately. Returns `true` when a warning was logged.
+ */
+export function warnIfPrefixNotUriSafe(
+  skillPath: string,
+  skillDir?: string,
+): boolean {
+  const segments = skillPath.split("/");
+  const prefix = segments.slice(0, -1);
+  const problems: string[] = [];
+  prefix.forEach((segment, i) => {
+    const ok = i === 0 ? isValidRegName(segment) : isValidUriPathSegment(segment);
+    if (!ok) {
+      problems.push(
+        i === 0
+          ? `first segment "${segment}" is not a valid RFC 3986 reg-name`
+          : `segment "${segment}" is not a valid RFC 3986 path segment`,
+      );
+    }
+  });
+  if (problems.length === 0) return false;
+  console.error(
+    `[skills] Skill path "${skillPath}"${skillDir ? ` at ${skillDir}` : ""}: ${problems.join("; ")}. ` +
+      `SEP-2640 says prefix segments SHOULD be URI-safe; the skill is still served.`,
+  );
+  return true;
 }
 
 /**
@@ -796,7 +837,7 @@ export function registerSkillResources(
           const content =
             skill.content ?? loadSkillContent(skill.absolutePath, skillsDir);
           return {
-            contents: [{ uri: uri.href, text: content }],
+            contents: [{ uri: uri.href, mimeType: "text/markdown", text: content }],
           };
         } catch (error) {
           const message =
