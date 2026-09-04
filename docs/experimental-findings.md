@@ -233,3 +233,85 @@ does not yet include that sentence — its `_meta` paragraph ends at "…via the
   the `SkillType` enum carries the value for forward-compat, but only `skill-md` entries are
   emitted; the template path is unimplemented and untested.
 - Not yet tested against any client that implements model-driven `skill://` loading.
+
+## OmniRoute Per-Session Virtual Admission Lanes
+
+**Date:** 2026-09-01
+
+**Implementation:**
+- **Repository:** [diegosouzapw/OmniRoute](https://github.com/diegosouzapw/OmniRoute) (50k+ stars, production MCP gateway)
+- **Author:** Brandon Bennett ([@branben](https://github.com/branben))
+- **Relevant artifacts:**
+  - [PR #9654 — Per-connection virtual admission lanes](https://github.com/diegosouzapw/OmniRoute/pull/9654) (merged)
+  - [PR #10039 — Combo-lane awareness + activation UX + MCP visibility (Wave 2)](https://github.com/diegosouzapw/OmniRoute/pull/10039) (open)
+  - [PR #10110 — Pre-auth resource-exhaustion fix](https://github.com/diegosouzapw/OmniRoute/pull/10110) (open)
+  - [Admission controller source](https://github.com/diegosouzapw/OmniRoute/tree/main/open-sse/services/admission)
+  - [Test: virtual lanes isolation](https://github.com/diegosouzapw/OmniRoute/blob/main/tests/unit/admission-virtual-lanes-9654.test.ts)
+  - [Test: per-connection admission](https://github.com/diegosouzapw/OmniRoute/blob/main/tests/unit/per-connection-admission-9654.test.ts)
+
+**Approach tested:** [Approach 6: Official Convention](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/approaches.md#6-official-convention-as-intermediate-step) + runtime capacity gate. This finding tests the *dispatch-layer* complement to the WG's Topic #5 (tool dependencies). While Topic #5 standardizes how skills *declare* required tools in frontmatter, this finding implements the runtime layer that ensures multi-user dispatch of those skills does not cause 503 storms.
+
+**Setup:**
+- **Clients tested:** OmniRoute gateway (Next.js 16 + open-sse). school-core was observed as a production consumer but not part of the formal test suite.
+- **Models tested:** `openai/gpt-4o`, `anthropic/claude-sonnet-4-6`, `gemini/gemini-3-flash-preview`, `deepseek/deepseek-v4-flash-free`, `nousresearch/hermes-3-yi-8b:8b` — routed via OmniRoute combo dispatch with per-model cost tracking.
+- **Configuration notes:**
+  - `virtualLanes: true` in `AdaptiveAdmissionConfig` enables per-session isolation
+  - `ADAPTIVE_ADMISSION_LANE_ENABLED` env var (default: false for backward compat)
+  - `OMNIROUTE_CHAT_VIRTUAL_TTL_MS` controls lane idle eviction (default: 60s)
+  - `OMNIROUTE_CHAT_VIRTUAL_MAX_SESSIONS` caps concurrent lanes (default: 1000)
+  - FairCostQueue bounds: `maxQueueCount` (default: 128), `maxQueueCost` (default: 2000)
+
+**What was tested:** Per-session isolation under concurrent multi-tenant load. When N agents simultaneously dispatch skills that declare `dependencies: [notion-mcp]` (or any shared MCP tool), each agent gets its own admission lane with an independent FairCostQueue. One agent's burst must not 503 another agent's requests.
+
+**Results:**
+
+- **What worked:**
+  - Burst isolation: Session A flooding notion-mcp does not reject Session B's requests (verified by `admission-virtual-lanes-9654.test.ts`: "one burst does not 503 others")
+  - Fair scheduling: Round-robin across tenant buckets prevents any single session from monopolizing shared queue capacity
+  - Idle eviction: Lanes auto-evict after 60s TTL, preventing unbounded memory growth
+  - Backpressure: 503 responses include `Retry-After` header for client-side backoff
+  - Combo-target exhaustion: Lane enqueue is gated to exhaust combo targets first, then queue within the lane
+  - 109 tests passing (88 existing + 21 new for virtual lanes)
+
+- **What didn't:**
+  - Off by default: `virtualLanes: false` preserves old shared-queue behavior. Most users don't get the benefit unless they opt in.
+  - Cost estimation heuristic: Request "cost" is derived from features (model, prompt size, etc.), not actual token consumption. Wrong estimates can cause over- or under-admission.
+  - No cross-lane priority: All lanes are equal. A high-priority agent (e.g., faculty review) cannot preempt a low-priority one (e.g., student batch job).
+
+- **What was surprising:**
+  - The pre-auth resource-exhaustion path (PR #10110) was a separate bug with the same symptom: fake credentials could shard capacity before auth, creating 64 private lanes that exhausted memory. The fix was to validate auth *before* lane creation. This suggests the WG should consider whether `dependencies` declarations in frontmatter could be similarly exploited — a malicious skill declaring 1000 fake dependencies could shard state before the host validates them.
+
+**Requirements or design questions addressed:**
+- [Problem statement](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/problem-statement.md): "Skills are context, and MCP is a context protocol." This finding addresses the *runtime* half: once skills declare their context needs, the dispatch layer must handle concurrent access safely.
+- [Approach 6 (Convention)](https://github.com/modelcontextprotocol/experimental-ext-skills/blob/main/docs/approaches.md#6-official-convention-as-intermediate-step): This finding is the operational complement to convention — the gate that makes conventions safe at scale.
+- [Issue #126 §5 (Tool dependencies)](https://github.com/modelcontextprotocol/experimental-ext-skills/issues/126): This finding does NOT implement the manifest-layer `dependencies` field. It implements the runtime layer that makes those declarations safe under multi-user load.
+
+**Evidence and reproduction:**
+```bash
+# Clone OmniRoute
+git clone https://github.com/diegosouzapw/OmniRoute.git
+cd OmniRoute
+
+# Run the virtual lanes test
+node --import tsx/esm --test tests/unit/admission-virtual-lanes-9654.test.ts
+
+# Expected: all tests pass, including:
+# - "isolates queue capacity across sessions (one burst does not 503 others)"
+# - "routes entries to per-session lane queues, not the shared queue"
+# - "evicts idle lanes after TTL"
+
+# Run the full admission suite
+node --import tsx/esm --test tests/unit/adaptive-admission-*.test.ts
+# Expected: 109 tests passing
+```
+
+**Limitations:**
+- This finding tests the *dispatch layer*, not the *manifest layer*. It does not implement the WG's proposed `dependencies` field in SKILL.md frontmatter. A complete solution requires both: the WG's declarative pre-flight + this runtime capacity gate.
+- OmniRoute is a single-process gateway. The finding does not address distributed deployment (multiple OmniRoute instances behind a load balancer). In that case, per-session isolation requires a shared state store (Redis, etc.) — not implemented here.
+- Cost estimation is heuristic. Actual token consumption is not known until the upstream provider responds.
+- **What remains untested:** 1000+ concurrent lanes (the configured max), distributed deployment across multiple gateway instances, behavior under variable network latency, and long-running lane stability beyond the 60s TTL window.
+
+**Sources and attribution:**
+- WG Issue #126 §5 (Tool dependencies) — the manifest-layer standard this finding complements
+- OmniRoute Discussion #9608 — original design by @Minus-Brain for per-connection virtual admission lanes
+- OmniRoute PR #9654 — implementation by @branben
