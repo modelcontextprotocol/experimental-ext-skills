@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 680" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4b5563"/>
+    </marker>
+  </defs>
+
+  <rect width="980" height="680" fill="#ffffff"/>
+
+  <!-- Agent host -->
+  <rect x="40" y="22" width="900" height="62" rx="8" fill="#f3f4f6" stroke="#9ca3af"/>
+  <text x="490" y="48" text-anchor="middle" font-size="16" font-weight="600" fill="#111827">Agent host (Claude Code, Copilot, gemini-cli, …)</text>
+  <text x="490" y="68" text-anchor="middle" font-size="12" fill="#4b5563">builds one skill registry, loads SKILL.md into model context</text>
+
+  <!-- left path: regular skills straight from checkout -->
+  <line x1="90" y1="84" x2="90" y2="534" stroke="#4b5563" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="102" y="270" font-size="12" fill="#4b5563">regular skills:</text>
+  <text x="102" y="286" font-size="12" fill="#4b5563">scan checkout,</text>
+  <text x="102" y="302" font-size="12" fill="#4b5563">read files</text>
+  <text x="102" y="318" font-size="12" fill="#4b5563">from disk</text>
+
+  <!-- MCP connection -->
+  <line x1="545" y1="84" x2="545" y2="150" stroke="#4b5563" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="556" y="122" font-size="12" fill="#4b5563">MCP (initialize, JSON-RPC)</text>
+
+  <!-- Server -->
+  <rect x="200" y="150" width="740" height="330" rx="8" fill="#ffffff" stroke="#374151" stroke-width="1.5"/>
+  <text x="570" y="176" text-anchor="middle" font-size="15" font-weight="600" fill="#111827">github-mcp-server &#8212; feature/agent-skills-v2</text>
+  <text x="570" y="195" text-anchor="middle" font-size="11.5" fill="#4b5563">declares capabilities.extensions[&#8220;io.modelcontextprotocol/skills&#8221;] = { directoryRead: true }</text>
+
+  <!-- Lane: Tools -->
+  <rect x="218" y="210" width="228" height="250" rx="6" fill="#ffffff" stroke="#93c5fd"/>
+  <rect x="218" y="210" width="228" height="28" rx="6" fill="#dbeafe" stroke="#93c5fd"/>
+  <text x="332" y="229" text-anchor="middle" font-size="13" font-weight="600" fill="#1e3a8a">Tools</text>
+  <text x="332" y="256" text-anchor="middle" font-size="11" fill="#4b5563">tools/list &#183; tools/call</text>
+  <text x="230" y="282" font-size="12" font-weight="600" fill="#111827">GitHub tools</text>
+  <text x="230" y="298" font-size="11.5" fill="#4b5563">issues, PRs, actions, &#8230;</text>
+  <line x1="230" y1="312" x2="434" y2="312" stroke="#e5e7eb"/>
+  <text x="230" y="332" font-size="12" font-weight="600" fill="#111827">list_repo_skills</text>
+  <text x="230" y="348" font-size="11.5" fill="#4b5563">finds SKILL.md dirs in any</text>
+  <text x="230" y="363" font-size="11.5" fill="#4b5563">repo, returns skill:// URIs</text>
+  <text x="230" y="378" font-size="11.5" fill="#4b5563">the model hands to</text>
+  <text x="230" y="393" font-size="11.5" fill="#4b5563">resources/read or skills/get</text>
+
+  <!-- Lane: Resources -->
+  <rect x="458" y="210" width="228" height="250" rx="6" fill="#ffffff" stroke="#86efac"/>
+  <rect x="458" y="210" width="228" height="28" rx="6" fill="#dcfce7" stroke="#86efac"/>
+  <text x="572" y="229" text-anchor="middle" font-size="13" font-weight="600" fill="#14532d">Resources</text>
+  <text x="572" y="256" text-anchor="middle" font-size="11" fill="#4b5563">resources/read &#183; templates</text>
+  <text x="470" y="282" font-size="12" font-weight="600" fill="#111827">repo://&#8230; content</text>
+  <text x="470" y="298" font-size="11.5" fill="#4b5563">branches, commits, tags, PRs</text>
+  <line x1="470" y1="312" x2="674" y2="312" stroke="#e5e7eb"/>
+  <text x="470" y="332" font-size="12" font-weight="600" fill="#111827">skill://github/&lt;name&gt;/&#8230;</text>
+  <text x="470" y="348" font-size="11.5" fill="#4b5563">bundled skill files (embedded)</text>
+  <line x1="470" y1="362" x2="674" y2="362" stroke="#e5e7eb"/>
+  <text x="470" y="382" font-size="12" font-weight="600" fill="#111827">skill://{owner}/{repo}/</text>
+  <text x="470" y="397" font-size="12" font-weight="600" fill="#111827">{skill}/{file}</text>
+  <text x="470" y="413" font-size="11.5" fill="#4b5563">repo-hosted skill files</text>
+
+  <!-- Lane: Skills extension -->
+  <rect x="698" y="210" width="228" height="250" rx="6" fill="#ffffff" stroke="#fcd34d"/>
+  <rect x="698" y="210" width="228" height="28" rx="6" fill="#fef3c7" stroke="#fcd34d"/>
+  <text x="812" y="229" text-anchor="middle" font-size="13" font-weight="600" fill="#78350f">Skills extension (SEP-2640)</text>
+  <text x="710" y="260" font-size="12" font-weight="600" fill="#111827">skills/list</text>
+  <text x="710" y="276" font-size="11.5" fill="#4b5563">bundled catalog: frontmatter +</text>
+  <text x="710" y="291" font-size="11.5" fill="#4b5563">{uri, digest, size} per file</text>
+  <line x1="710" y1="305" x2="914" y2="305" stroke="#e5e7eb"/>
+  <text x="710" y="325" font-size="12" font-weight="600" fill="#111827">skills/get</text>
+  <text x="710" y="341" font-size="11.5" fill="#4b5563">entry by URI &#8212; bundled or</text>
+  <text x="710" y="356" font-size="11.5" fill="#4b5563">repo-hosted, listed or not</text>
+  <line x1="710" y1="370" x2="914" y2="370" stroke="#e5e7eb"/>
+  <text x="710" y="390" font-size="12" font-weight="600" fill="#111827">resources/directory/read</text>
+  <text x="710" y="406" font-size="11.5" fill="#4b5563">ls for any skill directory,</text>
+  <text x="710" y="421" font-size="11.5" fill="#4b5563">both namespaces</text>
+
+  <!-- Sources -->
+  <rect x="40" y="534" width="430" height="118" rx="8" fill="#f9fafb" stroke="#9ca3af"/>
+  <text x="255" y="560" text-anchor="middle" font-size="14" font-weight="600" fill="#111827">skills/ directory in this repo</text>
+  <text x="255" y="582" text-anchor="middle" font-size="12" fill="#4b5563">28 regular Agent Skills &#8212; plain SKILL.md directories,</text>
+  <text x="255" y="598" text-anchor="middle" font-size="12" fill="#4b5563">readable by any agent that scans the checkout;</text>
+  <text x="255" y="614" text-anchor="middle" font-size="12" fill="#4b5563">the same files are embedded into the binary and</text>
+  <text x="255" y="630" text-anchor="middle" font-size="12" fill="#4b5563">served over MCP as skill://github/&lt;name&gt;/&#8230;</text>
+
+  <rect x="510" y="534" width="430" height="118" rx="8" fill="#f9fafb" stroke="#9ca3af"/>
+  <text x="725" y="560" text-anchor="middle" font-size="14" font-weight="600" fill="#111827">Any GitHub repository</text>
+  <text x="725" y="582" text-anchor="middle" font-size="12" fill="#4b5563">skills/*/SKILL.md &#183; skills/{ns}/*/SKILL.md &#183;</text>
+  <text x="725" y="598" text-anchor="middle" font-size="12" fill="#4b5563">plugins/*/skills/*/SKILL.md &#183; */SKILL.md</text>
+  <text x="725" y="614" text-anchor="middle" font-size="12" fill="#4b5563">never in skills/list (unenumerable catalog) &#8212;</text>
+  <text x="725" y="630" text-anchor="middle" font-size="12" fill="#4b5563">reached by URI via skills/get and resources/read</text>
+
+  <!-- source feeds -->
+  <line x1="320" y1="534" x2="320" y2="480" stroke="#4b5563" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="330" y="512" font-size="11.5" fill="#4b5563">go:embed (build time)</text>
+  <line x1="725" y1="534" x2="725" y2="480" stroke="#4b5563" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="735" y="512" font-size="11.5" fill="#4b5563">GitHub API (on demand)</text>
+</svg>

@@ -1,0 +1,102 @@
+{
+  "scenario": "demo-supporting-file",
+  "timestamp": "2026-08-25T20:53:32",
+  "endpoint": "https://olaservo-skills-over-mcp-demo.hf.space/mcp",
+  "server": {
+    "extension_declared": true,
+    "extension_settings": {
+      "directoryRead": true
+    },
+    "protocol_version": "2025-11-25",
+    "result_type": null,
+    "skills": [
+      {
+        "name": "tabletop-dice",
+        "uri": "skill://dice-roller/tabletop-dice/SKILL.md",
+        "resources": 2,
+        "sized": true
+      },
+      {
+        "name": "mcp-glossary",
+        "uri": "skill://mcp-glossary/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "release-notes-writer",
+        "uri": "skill://release-notes-writer/SKILL.md",
+        "resources": 2,
+        "sized": true
+      }
+    ]
+  },
+  "run": {
+    "tools_used": [
+      "load_skill"
+    ],
+    "tool_calls": [
+      {
+        "tool": "load_skill",
+        "args": {
+          "name": "tabletop-dice"
+        }
+      },
+      {
+        "tool": "load_skill",
+        "args": {
+          "name": "tabletop-dice/references/dice-notation.md"
+        }
+      }
+    ],
+    "load_skill_calls": [
+      "tabletop-dice",
+      "tabletop-dice/references/dice-notation.md"
+    ],
+    "skills_loaded": [
+      "tabletop-dice",
+      "tabletop-dice/references/dice-notation.md"
+    ],
+    "load_failures": [],
+    "resources_read": [],
+    "output_tail": "\n    __( O)>  ● new session · anthropic claude-sonnet-4-6\n   \\____)    20260826_1 · C:\\Users\\johnn\\AppData\\Local\\Temp\\goose-scenario-eoa6k3on\\wd\n     L L     goose is ready\nI'll load the tabletop-dice skill first, then follow its instructions for loading the supporting file.\n  ────────────────────────────────────────\n  ▸ load_skill\n    name: tabletop-dice\n\nNow I'll load the supporting file as instructed:\n  ────────────────────────────────────────\n  ▸ load_skill\n    name: tabletop-dice/references/dice-notation.md\n\nThe first markdown heading line of the supporting file is:\n\n```\n# Dice Notation Reference\n```\n"
+  },
+  "checks": [
+    {
+      "check": "extension_declared",
+      "pass": true,
+      "detail": {
+        "directoryRead": true
+      }
+    },
+    {
+      "check": "loaded: tabletop-dice",
+      "pass": true,
+      "detail": {
+        "loaded": [
+          "tabletop-dice",
+          "tabletop-dice/references/dice-notation.md"
+        ],
+        "failed": []
+      }
+    },
+    {
+      "check": "loaded: tabletop-dice/references/dice-notation.md",
+      "pass": true,
+      "detail": {
+        "loaded": [
+          "tabletop-dice",
+          "tabletop-dice/references/dice-notation.md"
+        ],
+        "failed": []
+      }
+    },
+    {
+      "check": "tool used: load_skill",
+      "pass": true,
+      "detail": [
+        "load_skill"
+      ]
+    }
+  ],
+  "passed": true
+}

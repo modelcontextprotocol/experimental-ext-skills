@@ -1,0 +1,240 @@
+{
+  "scenario": "uri-load",
+  "timestamp": "2026-08-27T19:02:13",
+  "endpoint": "http://localhost:8082/mcp",
+  "server": {
+    "extension_declared": true,
+    "extension_settings": {
+      "directoryRead": true
+    },
+    "protocol_version": "2025-11-25",
+    "result_type": null,
+    "skills": [
+      {
+        "name": "address-pr-feedback",
+        "uri": "skill://github/address-pr-feedback/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "browse-discussions",
+        "uri": "skill://github/browse-discussions/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "contribute-oss",
+        "uri": "skill://github/contribute-oss/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "create-issue",
+        "uri": "skill://github/create-issue/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "create-pr",
+        "uri": "skill://github/create-pr/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "debug-ci",
+        "uri": "skill://github/debug-ci/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "delegate-to-copilot",
+        "uri": "skill://github/delegate-to-copilot/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "discover-github",
+        "uri": "skill://github/discover-github/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "discover-mcp-skills",
+        "uri": "skill://github/discover-mcp-skills/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "explore-repo",
+        "uri": "skill://github/explore-repo/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "fix-dependabot",
+        "uri": "skill://github/fix-dependabot/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "get-context",
+        "uri": "skill://github/get-context/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "handle-notifications",
+        "uri": "skill://github/handle-notifications/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "manage-labels",
+        "uri": "skill://github/manage-labels/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "manage-project",
+        "uri": "skill://github/manage-project/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "manage-repo",
+        "uri": "skill://github/manage-repo/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "manage-sub-issues",
+        "uri": "skill://github/manage-sub-issues/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "merge-pr",
+        "uri": "skill://github/merge-pr/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "prepare-release",
+        "uri": "skill://github/prepare-release/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "research-vulnerability",
+        "uri": "skill://github/research-vulnerability/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "review-pr",
+        "uri": "skill://github/review-pr/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "search-code",
+        "uri": "skill://github/search-code/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "security-audit",
+        "uri": "skill://github/security-audit/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "self-review-pr",
+        "uri": "skill://github/self-review-pr/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "share-snippet",
+        "uri": "skill://github/share-snippet/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "trace-history",
+        "uri": "skill://github/trace-history/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "triage-issues",
+        "uri": "skill://github/triage-issues/SKILL.md",
+        "resources": 1,
+        "sized": true
+      },
+      {
+        "name": "trigger-workflow",
+        "uri": "skill://github/trigger-workflow/SKILL.md",
+        "resources": 1,
+        "sized": true
+      }
+    ]
+  },
+  "run": {
+    "tools_used": [
+      "load_skill"
+    ],
+    "tool_calls": [
+      {
+        "tool": "load_skill",
+        "args": {
+          "name": "skill://github/create-pr/SKILL.md"
+        }
+      }
+    ],
+    "load_skill_calls": [
+      "skill://github/create-pr/SKILL.md"
+    ],
+    "skills_loaded": [
+      "skill://github/create-pr/SKILL.md"
+    ],
+    "load_failures": [],
+    "resources_read": [],
+    "output_tail": "\n    __( O)>  ● new session · anthropic claude-sonnet-4-6\n   \\____)    20260828_1 · C:\\Users\\johnn\\AppData\\Local\\Temp\\goose-scenario-jip200wl\\wd\n     L L     goose is ready\n\n  ────────────────────────────────────────\n  ▸ load_skill\n    name: skill://github/create-pr/SKILL.md\n\nHere are the two pieces of information you asked for:\n\n- **First markdown heading line:** `# Create Pull Request`\n- **Origin server named in the loaded header:** `scenario_server`\n"
+  },
+  "checks": [
+    {
+      "check": "extension_declared",
+      "pass": true,
+      "detail": {
+        "directoryRead": true
+      }
+    },
+    {
+      "check": "resources_sized",
+      "pass": true,
+      "detail": {
+        "manifest_entries": 28,
+        "unsized": []
+      }
+    },
+    {
+      "check": "loaded: skill://github/create-pr/SKILL.md",
+      "pass": true,
+      "detail": {
+        "loaded": [
+          "skill://github/create-pr/SKILL.md"
+        ],
+        "failed": []
+      }
+    },
+    {
+      "check": "tool used: load_skill",
+      "pass": true,
+      "detail": [
+        "load_skill"
+      ]
+    }
+  ],
+  "passed": true
+}

@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 700" role="img" aria-label="How filesystem skills, MCP-served skills, MCP resources, and MCP tools flow through goose on the skills-sep-2640-port branch">
+  <title>Skills, MCP skills, resources, and tools in goose (skills-sep-2640-port)</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#57606a"/>
+    </marker>
+    <marker id="arrow-dim" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b949e"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1120" height="700" fill="#ffffff"/>
+
+  <text x="560" y="26" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="15" font-weight="600" fill="#1f2328">Skills, MCP-served skills, MCP resources, and MCP tools in goose (skills-sep-2640-port)</text>
+
+  <!-- Model -->
+  <rect x="120" y="44" width="880" height="76" rx="6" fill="#f6f8fa" stroke="#57606a" stroke-width="1.5"/>
+  <text x="140" y="66" font-family="'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#1f2328">Model</text>
+  <text x="140" y="88" font-family="'Segoe UI', system-ui, sans-serif" font-size="12" fill="#1f2328">skill list in system prompt:  &#8226; git-helper &#8212; local skill   &#8226; deploy (github) &#8212; MCP skill, origin-tagged, gated by per-server skills_enabled</text>
+  <text x="140" y="108" font-family="'Segoe UI', system-ui, sans-serif" font-size="12" fill="#57606a">tools:  load_skill &#183; read_resource &#183; github__create_issue</text>
+
+  <!-- goose host band -->
+  <rect x="120" y="200" width="880" height="210" rx="6" fill="none" stroke="#8b949e" stroke-width="1"/>
+  <text x="132" y="218" font-family="'Segoe UI', system-ui, sans-serif" font-size="12" fill="#8b949e">goose host</text>
+
+  <!-- load_skill -->
+  <rect x="160" y="232" width="420" height="64" rx="6" fill="#f6f8fa" stroke="#57606a" stroke-width="1.5"/>
+  <text x="370" y="252" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#1f2328">load_skill</text>
+  <text x="370" y="269" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#57606a">one tool, routes by origin</text>
+  <text x="370" y="285" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#57606a">FS registry + per-server MCP skill cache</text>
+
+  <!-- read_resource -->
+  <rect x="610" y="232" width="180" height="64" rx="6" fill="#f6f8fa" stroke="#57606a" stroke-width="1.5"/>
+  <text x="700" y="252" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#1f2328">read_resource</text>
+  <text x="700" y="269" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#57606a">any resource,</text>
+  <text x="700" y="285" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#57606a">any connected server</text>
+
+  <!-- prefixed tool -->
+  <rect x="820" y="232" width="160" height="64" rx="6" fill="#f6f8fa" stroke="#57606a" stroke-width="1.5"/>
+  <text x="900" y="252" text-anchor="middle" font-family="Consolas, monospace" font-size="12" font-weight="600" fill="#1f2328">github__create_issue</text>
+  <text x="900" y="269" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#57606a">prefixed MCP tool,</text>
+  <text x="900" y="285" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#57606a">pass-through</text>
+
+  <!-- verification gate (MCP skill path only) -->
+  <rect x="350" y="316" width="200" height="82" rx="6" fill="#ffffff" stroke="#0969da" stroke-width="1.8"/>
+  <text x="450" y="334" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="12.5" font-weight="600" fill="#0969da">verification gate</text>
+  <text x="450" y="350" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#1f2328">sha256 + size per file</text>
+  <text x="450" y="364" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#1f2328">frontmatter == entry</text>
+  <text x="450" y="378" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#1f2328">unlisted file &#8594; refuse</text>
+  <text x="450" y="392" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#1f2328">mismatch &#8594; skills/get, retry once</text>
+
+  <!-- model -> host calls -->
+  <line x1="230" y1="120" x2="230" y2="230" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="230" y="150" text-anchor="middle" font-family="Consolas, monospace" font-size="11" fill="#1f2328">load_skill("git-helper")</text>
+  <line x1="460" y1="120" x2="460" y2="230" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="460" y="150" text-anchor="middle" font-family="Consolas, monospace" font-size="11" fill="#1f2328">load_skill("deploy" | URI)</text>
+  <line x1="700" y1="120" x2="700" y2="230" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="700" y="150" text-anchor="middle" font-family="Consolas, monospace" font-size="11" fill="#1f2328">read_resource(server, uri)</text>
+  <line x1="900" y1="120" x2="900" y2="230" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="900" y="168" text-anchor="middle" font-family="Consolas, monospace" font-size="11" fill="#1f2328">github__create_issue(&#8230;)</text>
+
+  <!-- lane 1: FS skill -->
+  <line x1="230" y1="296" x2="230" y2="527" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="238" y="462" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#1f2328">read SKILL.md</text>
+  <text x="238" y="478" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#1f2328">from disk</text>
+
+  <!-- lane 2: MCP skill through the gate -->
+  <line x1="460" y1="296" x2="460" y2="313" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="460" y1="398" x2="460" y2="527" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="468" y="455" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#1f2328">resources/read,</text>
+  <text x="468" y="471" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#1f2328">origin-bound</text>
+
+  <!-- lane 2b: dynamic-skill fallback, bypasses the gate -->
+  <line x1="575" y1="296" x2="575" y2="527" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow-dim)"/>
+  <text x="583" y="342" font-family="Consolas, monospace" font-size="11" fill="#8b949e">"dynamic" entry:</text>
+  <text x="583" y="357" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#8b949e">no manifest &#8212;</text>
+  <text x="583" y="372" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#8b949e">skip gate; files from</text>
+  <text x="583" y="387" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#8b949e">directory/read walk</text>
+  <text x="583" y="402" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#8b949e">or resources/list;</text>
+  <text x="583" y="417" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#8b949e">reads unverified</text>
+
+  <!-- lane 3: plain resource -->
+  <line x1="700" y1="296" x2="700" y2="527" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="708" y="446" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#1f2328">resources/read &#8212;</text>
+  <text x="708" y="462" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#1f2328">raw content, no verify,</text>
+  <text x="708" y="478" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#1f2328">no skill activation</text>
+
+  <!-- lane 4: tool call -->
+  <line x1="900" y1="296" x2="900" y2="527" stroke="#57606a" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="908" y="462" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#1f2328">tools/call</text>
+
+  <!-- discovery: FS walk (dashed, left gutter) -->
+  <polyline points="140,560 100,560 100,82 116,82" fill="none" stroke="#8b949e" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#arrow-dim)"/>
+  <text x="94" y="300" text-anchor="end" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#8b949e">startup:</text>
+  <text x="94" y="315" text-anchor="end" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#8b949e">walk skill dirs</text>
+  <text x="94" y="330" text-anchor="end" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#8b949e">&#8594; prompt list</text>
+
+  <!-- discovery: skills/list (dashed, right gutter) -->
+  <polyline points="980,560 1040,560 1040,82 1004,82" fill="none" stroke="#8b949e" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#arrow-dim)"/>
+  <text x="1046" y="300" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#8b949e">on connect:</text>
+  <text x="1046" y="315" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#8b949e">skills/list</text>
+  <text x="1046" y="330" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#8b949e">&#8594; cache &#8594;</text>
+  <text x="1046" y="345" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#8b949e">prompt list</text>
+
+  <!-- Local filesystem -->
+  <rect x="140" y="530" width="210" height="110" rx="6" fill="#f6f8fa" stroke="#57606a" stroke-width="1.5"/>
+  <text x="245" y="552" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#1f2328">Local filesystem</text>
+  <text x="245" y="572" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#57606a">~/.goose/skills &#183; project &#183; plugins</text>
+  <text x="245" y="594" text-anchor="middle" font-family="Consolas, monospace" font-size="11" fill="#1f2328">git-helper/SKILL.md</text>
+  <text x="245" y="610" text-anchor="middle" font-family="Consolas, monospace" font-size="11" fill="#1f2328">+ references/&#8230;</text>
+
+  <!-- MCP server -->
+  <rect x="400" y="530" width="580" height="110" rx="6" fill="#f6f8fa" stroke="#57606a" stroke-width="1.5"/>
+  <text x="690" y="552" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#1f2328">MCP server &#8212; declares io.modelcontextprotocol/skills (directoryRead?)</text>
+  <text x="690" y="572" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#57606a">skills/list &#183; skills/get &#183; resources/read &#183; resources/directory/read &#183; tools/call</text>
+  <text x="690" y="594" text-anchor="middle" font-family="Consolas, monospace" font-size="11" fill="#1f2328">skill://deploy/SKILL.md + supporting files, served as resources</text>
+  <text x="690" y="612" text-anchor="middle" font-family="Consolas, monospace" font-size="11" fill="#0969da">entry: {uri, frontmatter, resources: [{uri, digest, size}] | "dynamic"}</text>
+
+  <!-- caption + legend -->
+  <text x="560" y="666" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11.5" fill="#1f2328">Both load_skill origins return the same framing &#8212; &#8220;# Loaded Skill: deploy (mcp skill from github)&#8221; &#8212; so origin stays visible to the model.</text>
+  <text x="560" y="686" text-anchor="middle" font-family="'Segoe UI', system-ui, sans-serif" font-size="11" fill="#8b949e">solid &#8212; model-initiated call &#160;&#183;&#160; dashed &#8212; discovery/metadata &#160;&#183;&#160; blue &#8212; what SEP-2640 adds over plain resources</text>
+</svg>

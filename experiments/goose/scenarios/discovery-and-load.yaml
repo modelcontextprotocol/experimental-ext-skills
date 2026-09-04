@@ -1,0 +1,14 @@
+name: discovery-and-load
+mcp_server:
+  endpoint: http://localhost:8082/mcp
+  bearer_cmd: gh auth token
+prompt: |
+  First: list every skill name that your system instructions say comes from a connected MCP server, one per line, exactly as written.
+  Second: call the load_skill tool with name 'create-issue' and reply with the first markdown heading line of the loaded content.
+  Use no tools other than load_skill.
+expect:
+  extension_declared: true
+  resources_sized: true
+  discovered: [create-issue, create-pr, address-pr-feedback]
+  loaded: [create-issue]
+  tools: [load_skill]

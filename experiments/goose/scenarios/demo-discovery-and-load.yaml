@@ -1,0 +1,13 @@
+name: demo-discovery-and-load
+mcp_server:
+  endpoint: https://olaservo-skills-over-mcp-demo.hf.space/mcp
+prompt: |
+  First: list every skill name that your system instructions say comes from a connected MCP server, one per line, exactly as written.
+  Second: call the load_skill tool with name 'tabletop-dice' and reply with the first markdown heading line of the loaded content.
+  Use no tools other than load_skill.
+expect:
+  extension_declared: true
+  resources_sized: true
+  discovered: [tabletop-dice, mcp-glossary, release-notes-writer]
+  loaded: [tabletop-dice]
+  tools: [load_skill]

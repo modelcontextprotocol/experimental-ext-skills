@@ -1,0 +1,11 @@
+name: demo-unlisted-skill
+mcp_server:
+  endpoint: https://olaservo-skills-over-mcp-demo.hf.space/mcp
+prompt: |
+  A connected MCP server's instructions point to a skill for coffee recommendations that is not in your skill list.
+  Call the load_skill tool with that skill's URI exactly as the instructions give it, and reply with the first markdown heading line of the loaded content.
+  Use no tools other than load_skill.
+expect:
+  extension_declared: true
+  loaded: ["skill://secret-menu/SKILL.md"]
+  tools: [load_skill]
