@@ -1,0 +1,851 @@
+---
+title: Skills
+---
+
+# Skills
+
+<Note>
+**This document is part of the Skills extension (`io.modelcontextprotocol/skills`).**
+
+This extension defines how a server serves [Agent Skills](https://agentskills.io/) over MCP using the existing Resources primitive. Each file in a skill directory is exposed as a resource, conventionally under the `skill://` URI scheme, and is read with the standard `resources/read` method. The extension introduces three methods:
+
+- `skills/list`, which enumerates the skills a server serves.
+- `skills/get`, which returns the entry for a single skill by URI.
+- `resources/directory/read` (optional), which lists the direct children of a directory resource.
+
+It also defines a `Skill` entry shape that carries a skill's verbatim frontmatter and a complete manifest of its files with digests.
+
+The skill format itself (directory structure, YAML frontmatter, naming rules, and the progressive-disclosure model) is delegated entirely to the [Agent Skills specification](https://agentskills.io/specification). This extension defines only the transport binding.
+</Note>
+
+The Model Context Protocol (MCP) Skills extension allows servers to publish **skills** alongside the tools, resources, and prompts they already serve. A skill is a directory of files, minimally a `SKILL.md`, that provides structured workflow instructions to an agent. Skills are addressed by the URI of their `SKILL.md` and may be read directly whether or not the server enumerates them.
+
+Skills are useful for shipping the instructions for using a server together with the server itself, for workflows too large to fit in server instructions, and for orchestration that spans several tools or servers.
+
+## Extension Identifier
+
+This extension is identified as: `io.modelcontextprotocol/skills`.
+
+## Capability Negotiation
+
+Servers declare support for this extension in the `extensions` field of their capabilities:
+
+```jsonc
+// Server capabilities
+{
+  "capabilities": {
+    // Other capabilities...
+    "extensions": {
+      "io.modelcontextprotocol/skills": {
+        "directoryRead": true,
+      },
+    },
+  },
+}
+```
+
+One extension-specific setting is defined:
+
+| Setting         | Type    | Default | Meaning                                                                        |
+| --------------- | ------- | ------- | ------------------------------------------------------------------------------ |
+| `directoryRead` | boolean | `false` | The server implements [`resources/directory/read`](#reading-directories). |
+
+An empty object indicates support for the extension with no optional features.
+
+- A server that declares this extension **MUST** implement [`skills/list`](#listing-skills) and [`skills/get`](#getting-a-skill).
+- A server that additionally declares `directoryRead: true` **MUST** implement [`resources/directory/read`](#reading-directories).
+- Clients **MUST NOT** call `resources/directory/read` against a server that has not declared `directoryRead: true`.
+- This extension depends only on the base protocol's Resources primitive. A server declaring it **MUST** also declare the `resources` capability and serve skill files through `resources/read`.
+
+Clients issue `skills/list` and `skills/get` only after observing the server's declaration. To a client that does not implement this extension, `skill://` resources are ordinary resources.
+
+## Skill Format
+
+A skill served over MCP **MUST** conform to the [Agent Skills specification](https://agentskills.io/specification). In particular:
+
+- A skill is a directory. Its _skill name_ is the value of the `name` field in its `SKILL.md` frontmatter.
+- Every skill **MUST** contain a `SKILL.md` file at its root.
+- `SKILL.md` **MUST** begin with YAML frontmatter containing at minimum the `name` and `description` fields as defined by the Agent Skills specification.
+- A skill **MAY** contain additional files and subdirectories (references, scripts, examples, assets).
+
+This extension does not redefine, constrain, or extend the skill format. Future revisions of the Agent Skills specification apply automatically.
+
+## Resource Mapping
+
+Each file within a skill directory is exposed as an MCP resource. Servers **SHOULD** use the `skill://` URI scheme, under which the resource URI has the form:
+
+```
+skill://<skill-path>/<file-path>
+```
+
+where:
+
+- `<skill-path>` is a `/`-separated path of one or more segments locating the skill directory within the server's skill namespace. It **MAY** be a single segment (`git-workflow`) or nested to arbitrary depth (`acme/billing/refunds`).
+- `<file-path>` is the file's path relative to the skill directory root, using `/` as the separator.
+
+The resource for the skill's required `SKILL.md` is therefore always addressable as `skill://<skill-path>/SKILL.md`. The skill's root directory is `skill://<skill-path>`, that is, the `SKILL.md` URI with the `/SKILL.md` suffix removed and no trailing slash (see [Directory Resources](#directory-resources)).
+
+Constraints on `<skill-path>`:
+
+- The final segment of `<skill-path>` **MUST** equal the skill's `name` as declared in its `SKILL.md` frontmatter. This mirrors the Agent Skills specification's requirement that `name` [match the parent directory name](https://agentskills.io/specification#name-field), and means the skill name is always recoverable from the URI alone, without reading frontmatter.
+- The final segment, being the skill `name`, **MUST** satisfy the Agent Skills specification's naming rules.
+- Preceding segments, if any, are a server-chosen organizational prefix. Servers **MAY** organize skills hierarchically by domain, team, version, or any other axis. In `skill://acme/billing/refunds/SKILL.md` the prefix is `acme/billing` and the skill's `name` is `refunds`. In `skill://git-workflow/SKILL.md` there is no prefix and the `name` is `git-workflow`.
+- The first segment occupies the URI authority component and **SHOULD** be a valid `reg-name` per [RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986). Any other prefix segments **SHOULD** be valid URI path segments. No further constraints are imposed on prefix segments.
+- The authority component carries no special semantics under this extension, and clients **MUST NOT** attempt DNS or network resolution of it.
+- A `SKILL.md` **MAY** appear in a descendant directory of a skill (skills can nest). See [Nested Skills](#nested-skills).
+
+Schemes other than `skill://`:
+
+- A server **MAY** serve skills under another scheme native to its domain (for example, `github://owner/repo/skills/refunds/SKILL.md`). No scheme is privileged. The structural constraints above (`<skill-path>` ending in the skill name, `SKILL.md` explicit in the URI) apply regardless of scheme, and [`skills/list`](#listing-skills) enumerates a server's skills regardless of scheme.
+- Skill identity does not depend on the scheme. A host learns that a resource is a skill in one of two ways: from a [`skills/list`](#listing-skills) entry, which is the authoritative record of the skills a server publishes, or from an explicit reference (in the server's `instructions`, in another skill, or from the user) that the host confirms with [`skills/get`](#getting-a-skill). The server answers `skills/get` for a skill it serves and returns an error otherwise. This applies to `skill://` URIs as well as to any other scheme.
+- A host **MUST NOT** conclude that a resource is a skill merely because its URI carries a particular scheme.
+
+### Examples
+
+| Skill path             | File                  | Resource URI                                     |
+| ---------------------- | --------------------- | ------------------------------------------------ |
+| `git-workflow`         | `SKILL.md`            | `skill://git-workflow/SKILL.md`                  |
+| `pdf-processing`       | `references/FORMS.md` | `skill://pdf-processing/references/FORMS.md`     |
+| `pdf-processing`       | `scripts/extract.py`  | `skill://pdf-processing/scripts/extract.py`      |
+| `acme/billing/refunds` | `SKILL.md`            | `skill://acme/billing/refunds/SKILL.md`          |
+| `acme/billing/refunds` | `examples/email.md`   | `skill://acme/billing/refunds/examples/email.md` |
+
+### Resource Metadata
+
+For each `skill://<skill-path>/SKILL.md` resource:
+
+- `mimeType` **SHOULD** be `text/markdown`.
+- `name` **SHOULD** be set from the `name` field of the `SKILL.md` YAML frontmatter. By the path constraint above, this equals the final segment of `<skill-path>`.
+- `description` **SHOULD** be set from the `description` field of the `SKILL.md` YAML frontmatter.
+- Servers **MAY** expose additional frontmatter fields via the resource's `_meta` object. When `_meta` keys are used for skill resources, implementations **SHOULD** use the `io.modelcontextprotocol.skills/` reverse-domain prefix.
+
+Other files in the skill use the `mimeType` appropriate to their content.
+
+### Nested Skills
+
+A skill directory **MAY** contain further skills in descendant directories. A nested skill is subject to the same rules as any other skill: its directory name is its `name`, and the enclosing skill's path becomes part of its organizational prefix. The following additional semantics apply:
+
+- **Nested content is supporting content.** From the enclosing skill's perspective, a nested skill's directory and files are ordinary supporting files. A nested `SKILL.md` read this way is ordinary markdown, and hosts **MUST NOT** act on its frontmatter.
+- **Activation requires fresh consent.** Approval is per skill. Approving a skill approves that skill alone and not any skill nested within it. Activating a nested skill (loading it as a separate skill, whether through the host's skill-loading machinery or by giving effect to its frontmatter) requires fresh, explicit user consent, and approval of the enclosing skill does not substitute for it. Once activated, a nested skill is an ordinary skill and its frontmatter takes effect under the same rules as any other MCP-served skill, including the approval gate on `allowed-tools` (see [Security Considerations](#security-considerations)).
+- **Publication is flat.** A nested skill is published like any other, through its own [`skills/list`](#listing-skills) entry or by explicit reference. The listing remains flat. An entry for a nested skill is an ordinary entry whose `uri` shares a path prefix with the enclosing skill's `uri`, and nothing in the listing marks nesting.
+
+## Skill Entries
+
+A `Skill` entry describes one skill. It is returned by both `skills/list` and `skills/get`, with identical shape and meaning in each.
+
+```typescript
+/**
+ * A file belonging to a skill, with the digest and size of its content.
+ */
+interface SkillResource {
+  /** Resource URI of the file. */
+  uri: string;
+
+  /**
+   * SHA-256 digest of the file's raw bytes, formatted as `sha256:{hex}`
+   * where {hex} is 64 lowercase hexadecimal characters.
+   */
+  digest: string;
+
+  /**
+   * Length in bytes of the file's raw content (the same bytes that `digest` covers).
+   */
+  size: number;
+}
+
+/**
+ * The entry for a single skill.
+ */
+interface Skill {
+  /** Resource URI of the skill's SKILL.md, readable via resources/read. */
+  uri: string;
+
+  /**
+   * The skill's SKILL.md YAML frontmatter, rendered verbatim as a JSON object.
+   * `name` and `description` are always present; every other field the author
+   * wrote passes through unchanged.
+   */
+  frontmatter: {
+    name: string;
+    description: string;
+    [key: string]: unknown;
+  };
+
+  /**
+   * The skill's files: a complete enumeration of SKILL.md and every supporting
+   * file, or the string "dynamic" when the skill's content is generated such
+   * that stable digests cannot be published.
+   */
+  resources: SkillResource[] | "dynamic";
+}
+```
+
+### Skill URIs
+
+`uri` is the full resource URI of the skill's `SKILL.md`, readable via `resources/read`. Supporting files are individually addressable as sibling resources under the same skill path, per [Resource Mapping](#resource-mapping). A skill is always retrieved as individually addressable resources. This extension defines no packed or bundled retrieval form.
+
+A skill URI is scoped to the server that serves it. Two connected servers can both serve `skill://refunds/SKILL.md`, and those are two unrelated skills. The identity of an MCP-served skill is therefore the pair of the host's identity for the originating server and the skill's `uri`.
+
+- Hosts **MUST** preserve both halves wherever a skill is recorded or addressed, including the registry, persisted approvals, the cache, and any tool or path through which the model reaches the skill.
+- Hosts **MUST NOT** key any of these on the `uri` alone.
+- Any path at which a host materializes skill content, whether a cache directory or a virtual mount, **MUST** encode the server identity as well as the `uri`, so that same-URI skills from different servers land at distinct paths and the originating server is recoverable from the path.
+
+### Frontmatter
+
+`frontmatter` is the skill's `SKILL.md` YAML frontmatter rendered verbatim as a JSON object. It contains every field the author wrote, not a curated subset. Because the Agent Skills specification requires `name` and `description`, those fields are always present. Everything else (`license`, `metadata`, fields added by future revisions of the Agent Skills specification) passes through unchanged. A host can therefore build its skill registry from entries alone, without fetching each `SKILL.md`.
+
+- The `frontmatter` object **MUST** be identical in content to the frontmatter of the `SKILL.md` it describes.
+- The final `<skill-path>` segment of the entry's `uri` **MUST** equal `frontmatter.name`, per [Resource Mapping](#resource-mapping).
+- Within the frontmatter `metadata` object, keys prefixed with `io.modelcontextprotocol/` are reserved for metadata defined by MCP extensions. This extension currently defines no such keys. Implementations **SHOULD** ignore keys under this prefix that they do not recognize.
+
+### Names
+
+A skill's `name` is a label, not an identifier. A skill is identified by its `uri` within a server, and by the pair of server identity and `uri` across servers ([Skill URIs](#skill-uris)). Two skills at different paths may share a final segment (`acme/billing/refunds` and `acme/support/refunds` are both named `refunds`), and a nested skill may share its name with a top-level one.
+
+- Within a server's listing, names **SHOULD** be unique, but they are not guaranteed to be. Hosts **MUST NOT** assume name uniqueness.
+- When two entries in one listing collide on `name`, hosts **MUST** disambiguate them (for example by their distinguishing path segments) rather than silently discarding or preferring one.
+- When skills from different origins collide on `name`, hosts **MUST** resolve the name within a per-origin namespace, identifying servers by a host-assigned label.
+- An MCP-served skill **MUST NOT** silently shadow, or be silently substituted for, a same-named skill from any other origin, whether another server or the host's own filesystem skills. See [Security Considerations](#security-considerations).
+
+### Resources
+
+`resources` is **REQUIRED** on every skill entry and takes one of two forms: an array of `SkillResource` objects enumerating the skill's files (`SKILL.md` and every supporting file), or the string `"dynamic"`. The array is the unit of content that a host verifies and that a user's approval binds to.
+
+- When `resources` is an array, it **MUST** be complete. It lists every file of the skill, each exactly once, including an entry whose `uri` equals the skill's top-level `uri`. That entry carries the digest and size of `SKILL.md` itself.
+- Each `uri` **MUST** be the skill's `SKILL.md` or a file within the skill's directory.
+- Each entry **MUST** carry `size`, the length in bytes of the file's raw content (the same bytes the `digest` covers). A read whose byte length differs from the entry's `size` is a verification failure equivalent to a digest mismatch ([Integrity and Verification](#integrity-and-verification)), whether or not the host goes on to compute the digest.
+- Completeness extends to nested skills. From the enclosing skill's perspective their files are supporting files ([Nested Skills](#nested-skills)), so the enclosing skill's `resources` lists them too, and the same file may appear in both the enclosing and the nested skill's entries. A change to a nested skill is therefore a change to the enclosing skill's set.
+- When a skill's content is generated dynamically, such that stable digests cannot be published, the server **MUST** set `resources` to the string `"dynamic"` instead of an array. An entry with no `resources` at all, or with any value other than an array or `"dynamic"`, is invalid, and hosts **MUST NOT** load it. A skill whose `resources` is `"dynamic"` offers no content integrity and cannot be content-bound ([Security Considerations](#security-considerations)). Hosts **MAY** decline to load such skills, and server authors **SHOULD** expect that some hosts will.
+
+### Limits
+
+This extension fixes two per-skill limits so that servers know what every conforming host will accept and hosts know what they must be prepared to handle:
+
+| Limit                     | Value                     | Counted over                                                |
+| ------------------------- | ------------------------- | ----------------------------------------------------------- |
+| Resources per skill       | 512 entries               | The entries of the skill's `resources`, `SKILL.md` included |
+| Total file size per skill | 16 MiB (16,777,216 bytes) | The sum of `size` over the skill's `resources`              |
+
+- Hosts **MUST** support skills up to and including these limits, and **MAY** support larger ones.
+- Servers **SHOULD NOT** serve a skill that exceeds either limit. A skill that does is not guaranteed to be loadable by any conforming host.
+- Because `resources` is complete, both limits are checkable from the entry alone before the host retrieves any file. A host that declines a skill on this basis **SHOULD** tell the user why rather than fail silently on a later read.
+- For a skill whose `resources` is `"dynamic"`, the entry offers nothing to count. A host that chooses to load such a skill applies the total-size limit to what it actually retrieves and **MAY** stop loading the skill once that limit is reached.
+
+These limits bound a host's exposure to a single skill. They do not limit how many skills a server may serve or a host must accept, and a listing may be arbitrarily large.
+
+## Listing Skills
+
+A server declaring this extension **MUST** implement the `skills/list` method, which returns entries for the skills it serves. This operation supports [pagination](https://modelcontextprotocol.io/specification/draft/basic/utilities/pagination).
+
+### Request
+
+```typescript
+interface ListSkillsRequest extends PaginatedRequest {
+  method: "skills/list";
+}
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "skills/list",
+  "params": {}
+}
+```
+
+### Response
+
+```typescript
+interface ListSkillsResult extends PaginatedResult {
+  skills: Skill[];
+}
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "result": {
+    "resultType": "complete",
+    "skills": [
+      {
+        "uri": "skill://git-workflow/SKILL.md",
+        "frontmatter": {
+          "name": "git-workflow",
+          "description": "Follow this team's Git conventions for branching and commits"
+        },
+        "resources": [
+          {
+            "uri": "skill://git-workflow/SKILL.md",
+            "digest": "sha256:a1b2c3d4...",
+            "size": 2314
+          }
+        ]
+      },
+      {
+        "uri": "skill://acme/billing/refunds/SKILL.md",
+        "frontmatter": {
+          "name": "refunds",
+          "description": "Process customer refund requests per company policy",
+          "license": "Apache-2.0"
+        },
+        "resources": [
+          {
+            "uri": "skill://acme/billing/refunds/SKILL.md",
+            "digest": "sha256:b2c3d4e5...",
+            "size": 3871
+          },
+          {
+            "uri": "skill://acme/billing/refunds/examples/email.md",
+            "digest": "sha256:c3d4e5f6...",
+            "size": 962
+          }
+        ]
+      },
+      {
+        "uri": "skill://reports/daily/SKILL.md",
+        "frontmatter": {
+          "name": "daily",
+          "description": "Assemble today's operational report from live data"
+        },
+        "resources": "dynamic"
+      }
+    ]
+  }
+}
+```
+
+Semantics:
+
+- The `resultType` field **MUST** be set to `"complete"` on `ListSkillsResult`, as it is the standard result shape for the `skills/list` request.
+- The result **MAY** be empty. A server whose skill catalog is large, generated on demand, or otherwise unenumerable **MAY** return an empty or partial listing.
+- Hosts **MUST NOT** treat an empty or partial listing as proof that a server has no skills, and **MUST** support loading a skill given only its URI ([Getting a Skill](#getting-a-skill)).
+- Pagination mirrors the base protocol's list methods: the request accepts an optional `cursor`, and when the result includes `nextCursor` the client passes it back to retrieve the next page. An entry is atomic, and a skill's `resources` set is never split across pages.
+- `ListSkillsResult` also carries the base protocol's list-caching attributes, `ttlMs` and `cacheScope`, as defined for `tools/list` and `resources/list`, with the same semantics. They are a freshness hint and a cache-scope marker for the listing, not an integrity property. [Integrity and Verification](#integrity-and-verification) governs content regardless of how fresh a cached listing is.
+- The method serves entries for a server's skills regardless of URI scheme.
+
+A `skills/list` entry is a complete manifest of the skill rather than a summary. After paging through the listing, a host has everything it needs to build its registry, present a skill for approval, bind the approval to content, and verify every file it later reads. A host does not need to call `skills/get` to complete a listed entry.
+
+## Getting a Skill
+
+A server declaring this extension **MUST** implement the `skills/get` method, which returns the entry for a single skill named by the URI of its `SKILL.md`.
+
+### Request
+
+```typescript
+interface GetSkillRequest extends Request {
+  method: "skills/get";
+  params: {
+    /** URI of the skill's SKILL.md. */
+    uri: string;
+  };
+}
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "method": "skills/get",
+  "params": {
+    "uri": "skill://pdf-processing/SKILL.md"
+  }
+}
+```
+
+### Response
+
+```typescript
+interface GetSkillResult extends Result {
+  skill: Skill;
+}
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "result": {
+    "resultType": "complete",
+    "skill": {
+      "uri": "skill://pdf-processing/SKILL.md",
+      "frontmatter": {
+        "name": "pdf-processing",
+        "description": "Extract, fill, and assemble PDF documents",
+        "metadata": { "version": "2.1.0" }
+      },
+      "resources": [
+        {
+          "uri": "skill://pdf-processing/SKILL.md",
+          "digest": "sha256:d5e6f7a8...",
+          "size": 5120
+        },
+        {
+          "uri": "skill://pdf-processing/references/FORMS.md",
+          "digest": "sha256:e6f7a8b9...",
+          "size": 18433
+        },
+        {
+          "uri": "skill://pdf-processing/scripts/extract.py",
+          "digest": "sha256:f7a8b9c0...",
+          "size": 4096
+        },
+        {
+          "uri": "skill://pdf-processing/templates/invoice.md",
+          "digest": "sha256:a8b9c0d1...",
+          "size": 1210
+        },
+        {
+          "uri": "skill://pdf-processing/templates/purchase-order.md",
+          "digest": "sha256:b9c0d1e2...",
+          "size": 1388
+        },
+        {
+          "uri": "skill://pdf-processing/templates/regional/eu-invoice.md",
+          "digest": "sha256:c0d1e2f3...",
+          "size": 1472
+        }
+      ]
+    }
+  }
+}
+```
+
+The `skill` object is a `Skill` entry, identical in shape and meaning to an entry of `skills/list`, under the same rules.
+
+Semantics:
+
+- The `resultType` field **MUST** be set to `"complete"` on `GetSkillResult`, as it is the standard result shape for the `skills/get` request.
+- `params.uri` **MUST** be the URI of a skill's `SKILL.md`.
+- If the URI does not identify a skill the server serves, the server **MUST** return error `-32602` (Invalid params), the same code `resources/read` uses for unknown resources.
+- A server **MUST** answer for every skill it serves, whether or not that skill appears in its `skills/list` result. A skill absent from a partial listing is still retrievable by URI.
+- The result is a point-in-time snapshot, as a listing entry is. A host re-calls the method to refresh one skill's digests without re-enumerating the catalog.
+- A skill whose content is generated dynamically carries `"resources": "dynamic"`, per [Resources](#resources), whether it is reached through `skills/list` or `skills/get`.
+- The result carries no pagination cursor.
+
+`skills/get` complements direct reading. A URI alone is enough to read a skill via `resources/read`, and `skills/get` returns the metadata and digests for that same URI, so a skill that never appeared in a listing can still be verified and content-bound ([Security Considerations](#security-considerations)).
+
+### Pointer from Server Instructions
+
+A server **MAY** direct the agent to specific skill URIs from its `instructions`. This requires no discovery machinery on the host. The URI is present in the model's context, and the host can confirm it with `skills/get` and read it with `resources/read`.
+
+## Reading Skill Content
+
+Skill files are read via the standard `resources/read` method. No skill-specific read semantics are defined.
+
+Reading a `SKILL.md` via `resources/read` does not by itself activate the skill. `resources/read` is transport. It returns bytes to whatever asked for them, whether a generic resource-reading tool, a resource browser, or a user inspecting the server. A skill is activated only by the host's own skill-loading path, which verifies the content against the skill's entry ([Integrity and Verification](#integrity-and-verification)), applies any required user approval ([Security Considerations](#security-considerations)), and opens the window in which the host is acting on the skill.
+
+- Hosts **MUST NOT** treat a `resources/read` of a `SKILL.md` that arrives by any other route as a load. Such a read grants no approval, opens no acting window, and confers no standing on the skill's supporting files.
+- Content obtained that way is ordinary resource content, and a host that returns it to the model **SHOULD** do so as it would any other resource read, not as a loaded skill.
+- A host that wants such a read to load the skill routes it through the skill-loading path instead.
+
+### Relative References
+
+Internal references within a skill (for example, `SKILL.md` linking to `references/GUIDE.md`) are relative paths, as in the filesystem form of the Agent Skills specification. A client resolves a relative reference against the skill's root, as a filesystem path would resolve. For example, `references/GUIDE.md` in `skill://acme/billing/refunds/SKILL.md` resolves to `skill://acme/billing/refunds/references/GUIDE.md`. The skill's root is the directory containing `SKILL.md`, not the scheme root. When skills nest, each `SKILL.md`'s references resolve against its own directory, so a relative reference in a nested skill's `SKILL.md` resolves against the nested skill's root regardless of how the file was reached.
+
+## Integrity and Verification
+
+Digests are SHA-256 hashes of a file's raw bytes, formatted as `sha256:{hex}` where `{hex}` is 64 lowercase hexadecimal characters. Each `SkillResource` in a skill's `resources` carries the digest of the file at its `uri`.
+
+### Verification on Read
+
+- When a host retrieves a file listed in a skill's `resources`, it **MUST** verify the content against that entry's `digest` and `size`.
+- A mismatch means the content is not what the entry described. It may be corrupted, tampered with, or stale because the skill was updated after the entry was fetched. In all cases, hosts **MUST NOT** use the unverified content.
+- To recover from staleness, the host calls [`skills/get`](#getting-a-skill) for that skill (or `skills/list` to refresh the catalog) and proceeds from the current `resources` set. Because that set differs, any content-bound approval is revoked ([Security Considerations](#security-considerations)).
+
+### The Acting Window and the Held Entry
+
+A host is _acting on_ a skill from the moment it loads the skill's `SKILL.md` into the model's context until, at the earliest, that `SKILL.md` leaves context. Throughout that window the host holds the entry from which it loaded the skill.
+
+- Hosts **MAY** hold the window open longer but not shorter.
+- Because `resources` is complete, an unlisted file is a change to the skill. While acting on a skill, a host **MUST** resolve reads of the skill's files only to URIs listed in the held entry's `resources`.
+- A host **MUST** treat a read of an unlisted file within the skill as a verification failure equivalent to a digest mismatch.
+
+### Frontmatter Verification
+
+- After fetching a `SKILL.md` for which the host holds an entry (digest-verified when the entry's `resources` is an array, unverifiable when it is `"dynamic"`), hosts **MUST** parse its YAML frontmatter and compare it field-by-field against the entry's `frontmatter`.
+- Any discrepancy **MUST** be treated as a verification failure equivalent to a digest mismatch, and the skill **MUST NOT** be loaded.
+
+This enforces the [Frontmatter](#frontmatter) identity requirement on the host side, so that what a user approves from the entry is what the model receives.
+
+### Lazy Retrieval
+
+- Hosts **MUST NOT** retrieve a skill's files ahead of need, whether on connection, on listing, or at approval. A `SKILL.md` is fetched when the skill is loaded, and a supporting file when it is read.
+- Hosts **SHOULD** cache what they do retrieve. A cached file whose digest matches the current entry can be served without fetching it again, and one whose digest does not match must be fetched again. The requirements on a disk cache are in [Security Considerations](#security-considerations).
+
+Lazy retrieval is compatible with content-bound approval, which binds to the entry's `resources` set rather than to retrieved bytes. A file fetched long after approval is verified against that set when it is read.
+
+### Digests Are Not a Trust Anchor
+
+Digests are unsigned and supplied by the same server that supplies the content. A match proves the two are consistent, not that either is trustworthy. Any intermediary on the path, such as a gateway, can rewrite both the entry and the content together.
+
+- Hosts **MUST NOT** treat a digest match as a security boundary.
+
+## Reading Directories
+
+A skill's instructions frequently reference a directory rather than a file, for example "pick the appropriate template from `templates/`" or "run the matching script in `scripts/`". To act on this, the agent must learn what the directory contains. `resources/list` enumerates the server's entire resource space rather than a subtree, and servers with large or generated catalogs may not implement meaningful global listing at all. This extension therefore defines the `resources/directory/read` method, gated behind the `directoryRead` capability setting.
+
+### Directory Resources
+
+A _directory resource_ is a resource whose `mimeType` is `inode/directory`. In a skill namespace served as individual files, every directory level is a directory resource: the skill root (`skill://pdf-processing`) and each subdirectory (`skill://pdf-processing/templates`). Directory URIs are written without a trailing slash. Directory resources need not appear in `resources/list`, and are addressable whether listed or not.
+
+### Request
+
+```typescript
+interface ReadResourceDirectoryRequest extends PaginatedRequest {
+  method: "resources/directory/read";
+  params: {
+    /** URI of the directory resource to read. */
+    uri: string;
+    cursor?: Cursor;
+  };
+}
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "method": "resources/directory/read",
+  "params": {
+    "uri": "skill://pdf-processing/templates"
+  }
+}
+```
+
+### Response
+
+```typescript
+interface ReadResourceDirectoryResult extends PaginatedResult {
+  /** Resource metadata of the directory's direct children. */
+  resources: Resource[];
+}
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "result": {
+    "resultType": "complete",
+    "resources": [
+      {
+        "uri": "skill://pdf-processing/templates/invoice.md",
+        "name": "invoice.md",
+        "mimeType": "text/markdown"
+      },
+      {
+        "uri": "skill://pdf-processing/templates/purchase-order.md",
+        "name": "purchase-order.md",
+        "mimeType": "text/markdown"
+      },
+      {
+        "uri": "skill://pdf-processing/templates/regional",
+        "name": "regional",
+        "mimeType": "inode/directory"
+      }
+    ]
+  }
+}
+```
+
+The `resultType` field **MUST** be set to `"complete"` on `ReadResourceDirectoryResult`, as it is the standard result shape for the `resources/directory/read` request.
+
+Semantics:
+
+- The method applies only to directory resources. If the URI does not exist, or exists but is not a directory resource, the server **MUST** return error `-32602` (Invalid params).
+- The result contains every direct child of the directory. Files carry their ordinary `Resource` metadata and subdirectories are listed as directory resources (`mimeType: "inode/directory"`). The listing is not recursive, and clients descend by calling the method again on a child directory.
+- An empty directory yields an empty `resources` array.
+- Pagination mirrors `resources/list`. When the result includes `nextCursor`, the client passes it back as `cursor` to retrieve the next page.
+- A server that declares `directoryRead` **MUST** support the method for every directory within the skill namespaces it serves as individual files.
+- The method itself is not skill-specific, and a server **MAY** support it on any directory resource it serves, under any scheme.
+
+### Directory Reads and the Held Entry
+
+For a skill whose entry carries a `resources` array, the host already holds a complete manifest of the skill's files, and a directory read adds nothing about that skill's contents. When a host acting on such a skill wants to know what `templates/` contains, it **MAY** answer from the entry alone. Directory reading is useful for dynamically generated skills (whose `resources` is `"dynamic"`), for resource trees that are not skills at all, and for obtaining the server's current view of a directory without first refreshing the entry.
+
+The two views can disagree. If the server adds a file to a skill after the host obtained its entry, a directory read may list that file while the held manifest does not. This is the stale-snapshot case that [Integrity and Verification](#integrity-and-verification) governs:
+
+- While acting on the skill under the held entry, the host **MUST NOT** read the newly listed child (an unlisted file is a verification failure) and **MUST NOT** surface it to the model as a file of the skill.
+- To reach it, the host refreshes the entry with `skills/get`, at which point the `resources` set has changed and any persisted content-bound approval is revoked and must be obtained again.
+- Hosts **SHOULD** present this sequence as a skill that has changed and needs re-approval, rather than as a read error.
+- Conversely, a child present in the manifest but absent from a directory read is a file the server no longer serves. A read of it will fail, and the same refresh applies.
+- Hosts **MUST NOT** treat the directory result as extending the manifest. This extension defines no shared version or cache token that would let a host determine whether a directory result and an entry describe the same snapshot of the server. The manifest is authoritative for what the host may read under its current approval. A directory read is a live observation that may be ahead of or behind it.
+
+For a dynamically generated skill, a directory read is the only way to discover the skill's files, but it does not provide the content integrity that the entry lacks.
+
+## Example Message Flow
+
+Consider a host connected to a server it labels `docs-server`, which declares the extension with `directoryRead: true`. The host builds its skill registry by listing:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "skills/list",
+  "params": {}
+}
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "resultType": "complete",
+    "skills": [
+      {
+        "uri": "skill://pdf-processing/SKILL.md",
+        "frontmatter": {
+          "name": "pdf-processing",
+          "description": "Extract, fill, and assemble PDF documents"
+        },
+        "resources": [
+          {
+            "uri": "skill://pdf-processing/SKILL.md",
+            "digest": "sha256:d5e6f7a8...",
+            "size": 5120
+          },
+          {
+            "uri": "skill://pdf-processing/templates/invoice.md",
+            "digest": "sha256:a8b9c0d1...",
+            "size": 1210
+          },
+          {
+            "uri": "skill://pdf-processing/templates/purchase-order.md",
+            "digest": "sha256:b9c0d1e2...",
+            "size": 1388
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The host records the entry under the identity (`docs-server`, `skill://pdf-processing/SKILL.md`), surfaces the skill's name, description, and origin to the model and the user, and fetches nothing further.
+
+Later the model asks to load the skill. The host obtains user approval, binding it to the three `{uri, digest}` pairs above, then reads `SKILL.md` from `docs-server`:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "resources/read",
+  "params": {
+    "uri": "skill://pdf-processing/SKILL.md"
+  }
+}
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "result": {
+    "resultType": "complete",
+    "contents": [
+      {
+        "uri": "skill://pdf-processing/SKILL.md",
+        "mimeType": "text/markdown",
+        "text": "---\nname: pdf-processing\ndescription: Extract, fill, and assemble PDF documents\n---\n\n# PDF processing\n\nChoose the matching template from `templates/` ..."
+      }
+    ]
+  }
+}
+```
+
+The host checks that the content is 5120 bytes and hashes to `sha256:d5e6f7a8...`, parses the frontmatter and confirms it equals the entry's `frontmatter`, then places the content in the model's context tagged as originating from `docs-server`. The host is now acting on the skill and holds this entry.
+
+The instructions reference `templates/`. The model lists the directory, and the host routes this to `docs-server`:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "resources/directory/read",
+  "params": {
+    "uri": "skill://pdf-processing/templates"
+  }
+}
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "result": {
+    "resultType": "complete",
+    "resources": [
+      {
+        "uri": "skill://pdf-processing/templates/invoice.md",
+        "name": "invoice.md",
+        "mimeType": "text/markdown"
+      },
+      {
+        "uri": "skill://pdf-processing/templates/purchase-order.md",
+        "name": "purchase-order.md",
+        "mimeType": "text/markdown"
+      },
+      {
+        "uri": "skill://pdf-processing/templates/credit-note.md",
+        "name": "credit-note.md",
+        "mimeType": "text/markdown"
+      }
+    ]
+  }
+}
+```
+
+`credit-note.md` is not in the held entry's `resources`, because the server added it after the listing. The host does not surface it as a file of the skill and would treat a read of it as a verification failure. The model reads `invoice.md`, which is listed. The host issues `resources/read`, verifies size and digest against the held entry, and returns the content.
+
+To make `credit-note.md` available, the host refreshes the entry:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "method": "skills/get",
+  "params": {
+    "uri": "skill://pdf-processing/SKILL.md"
+  }
+}
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "result": {
+    "resultType": "complete",
+    "skill": {
+      "uri": "skill://pdf-processing/SKILL.md",
+      "frontmatter": {
+        "name": "pdf-processing",
+        "description": "Extract, fill, and assemble PDF documents"
+      },
+      "resources": [
+        {
+          "uri": "skill://pdf-processing/SKILL.md",
+          "digest": "sha256:d5e6f7a8...",
+          "size": 5120
+        },
+        {
+          "uri": "skill://pdf-processing/templates/invoice.md",
+          "digest": "sha256:a8b9c0d1...",
+          "size": 1210
+        },
+        {
+          "uri": "skill://pdf-processing/templates/purchase-order.md",
+          "digest": "sha256:b9c0d1e2...",
+          "size": 1388
+        },
+        {
+          "uri": "skill://pdf-processing/templates/credit-note.md",
+          "digest": "sha256:e2f3a4b5...",
+          "size": 1104
+        }
+      ]
+    }
+  }
+}
+```
+
+The `resources` set differs from the one the user approved, so the prior approval is revoked. The host presents the skill as changed, obtains fresh approval bound to the new set, and only then reads `credit-note.md` under the refreshed entry.
+
+## Error Handling
+
+Servers **MUST** return standard JSON-RPC errors for the following protocol error cases:
+
+- `skills/get` with a `uri` that does not identify a skill the server serves: `-32602` (Invalid params).
+- `resources/directory/read` with a `uri` that does not exist or is not a directory resource: `-32602` (Invalid params).
+- `resources/read` of a skill file the server does not serve: `-32602` (Invalid params), per the base Resources specification.
+- Internal errors: `-32603` (Internal error).
+
+A server that has not declared `directoryRead: true` is not required to recognize `resources/directory/read` and responds as the base protocol specifies for an unknown method.
+
+Servers **SHOULD** provide informative error messages to describe the cause of errors.
+
+**Example: unknown skill**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "error": {
+    "code": -32602,
+    "message": "No skill is served at skill://acme/billing/chargebacks/SKILL.md"
+  }
+}
+```
+
+**Example: not a directory**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "error": {
+    "code": -32602,
+    "message": "skill://pdf-processing/SKILL.md is not a directory resource"
+  }
+}
+```
+
+Verification failures (a digest or size mismatch, a frontmatter discrepancy, or a read of an unlisted file while acting on a skill) are host-side conditions rather than protocol errors. They are governed by [Integrity and Verification](#integrity-and-verification). The only resulting wire traffic is the `skills/get` or `skills/list` call a host makes to refresh the entry.
+
+## Reservations
+
+- The `skills/` method prefix is reserved for this extension.
+- The method name `resources/directory/read` is defined by this extension.
+- The label `io.modelcontextprotocol/skills` is reserved for this extension.
+- The `_meta` key prefix `io.modelcontextprotocol.skills/` is reserved for this extension on skill resources.
+- Within `SKILL.md` frontmatter `metadata`, keys prefixed `io.modelcontextprotocol/` are reserved for metadata defined by MCP extensions.
+
+## Security Considerations
+
+Skill content is instructional text delivered to a model, which makes it a prompt-injection surface. Unlike a remote tool call, an MCP-served skill can place server-authored bytes on the host and direct the model to execute them with host-side tools. This extension imposes the following requirements.
+
+- **Skill content is untrusted input.**
+  - Hosts **MUST** treat MCP-served skill content as untrusted model input, subject to the same prompt-injection defenses applied to any server-provided text. A server being connected does not make its skill content authoritative.
+  - Hosts **MUST** treat MCP-served skills as a higher-risk surface than remote tool invocation.
+- **Origin is visible to the model.**
+  - Hosts **MUST** tag MCP-served skill content with its originating server identity at the point it enters model context.
+  - Hosts **MUST NOT** present an MCP-served skill to the model as indistinguishable from a local filesystem skill.
+- **No implicit local execution.** Hosts **MUST NOT** allow MCP-served skill content to cause host-side code execution without explicit per-skill user approval. This covers (a) declarative fields the host parses (hooks, frontmatter scripts) and (b) instructions in the skill body that direct the model to invoke any host code-execution tool, whether to run a script bundled in the skill or to run an arbitrary command the skill specifies.
+  - Hosts **MUST** ignore or approval-gate (a).
+  - Hosts **MUST** apply the same approval gate to code-execution tool calls issued while the model is acting on an MCP-served skill.
+- **Origin-scoped resource reads.** A model-callable resource-read surface is a cross-server confused-deputy vector when driven by untrusted skill content.
+  - Hosts **MUST** bind such reads to the skill's originating server. A skill served by server A **MUST NOT** cause a `resources/read` against server B.
+  - Hosts **MUST** identify servers by a host-assigned label, not the server's self-reported `serverInfo.name`.
+  - Any cross-origin read **MUST** be gated behind explicit per-call user approval naming both servers.
+- **Name collisions are an impersonation surface.** Skill names are not unique across origins, and a malicious server can publish a skill under the name of a popular one. A name binds to whatever bytes its origin currently serves and carries no authorship or endorsement.
+  - Hosts **MUST** resolve skill names within a per-origin namespace, identifying servers by a host-assigned label.
+  - Hosts **MUST NOT** let an MCP-served skill silently shadow, replace, or intercept invocations of a same-named skill from any other origin, including the host's filesystem skills.
+  - Hosts **SHOULD** surface collisions to the user.
+  - Intermediaries **MAY** attach provenance or verification annotations via `_meta` under their own reverse-domain prefix, not the `io.modelcontextprotocol.skills/` prefix reserved for this extension. This extension assigns such annotations no semantics.
+- **No implicit permission grants.** A remote server populating `allowed-tools` is requesting elevated access on the host, not declaring a property of its own environment.
+  - Hosts **MUST NOT** honor frontmatter fields that widen the model's tool or filesystem permissions when the skill arrives over MCP.
+  - In particular, the Agent Skills `allowed-tools` field **MUST** be ignored for MCP-origin skills unless the user has explicitly approved that grant for that skill.
+  - Approval of a skill never extends to the frontmatter of any other `SKILL.md` within its file space. A nested skill's `allowed-tools` has no effect unless that nested skill is itself activated under its own approval ([Nested Skills](#nested-skills)).
+- **Skills are data, not directives.** Hosts **MUST NOT** treat skill resources as higher-authority than other context. Explicit user policy governs whether a skill is loaded at all.
+- **Nested skill consent.** Approval is per skill. Approving a skill does not approve skills nested within it. Activating a nested `SKILL.md` requires fresh, explicit user consent, per [Nested Skills](#nested-skills).
+- **Provenance and inspection.**
+  - Hosts **SHOULD** indicate which server a skill originates from when presenting it.
+  - Hosts **SHOULD** let users inspect a skill's content before it is loaded into model context.
+  - Hosts **MAY** gate loading behind per-skill or per-server user approval.
+- **Digests are not a security boundary.** Entry digests are unsigned and come from the same server as the content. They confirm consistency between the entry and what was fetched, as described in [Integrity and Verification](#integrity-and-verification), but they cannot establish trust in the content, defend against the server itself, or detect an intermediary that rewrites both together.
+- **Content-bound approval.**
+  - When a host persists any per-skill user approval, it **MUST** be bound to the entry's `resources` set (every `uri` and `digest`) observed at the moment of approval.
+  - If a subsequent entry for that skill, from `skills/list` or `skills/get`, advertises a different set, whether a file was rotated, added, or removed, the host **MUST** treat the prior approval as revoked and re-prompt before loading or executing.
+  - A host need not poll for changes. While it is acting on the skill, content that has changed fails verification when read, and if it fetches a fresh entry, the rule above revokes the approval.
+  - A skill whose `resources` is `"dynamic"` cannot be content-bound. Hosts **MAY** decline to load it, and **MUST NOT** treat a persisted approval as covering whatever content the server currently serves.
+- **Cache integrity, cache isolation, and durable origin.** A cache is a second copy of content that was verified once, and the verification does not carry over to bytes that may have changed since. Cached bytes do not acquire filesystem-skill trust by being stored locally.
+  - Hosts **SHOULD** cache verified skill content locally, populated on demand as files are read rather than in bulk.
+  - Hosts that cache skill content on disk **MUST** do one of the following for every file served from the cache. Comparing a stored digest label or a modification time is not verification.
+    - Keep the cache where only the host can write to it (not the model, scripts or tools the model runs, or other users of the machine) and never modify a cached file in place.
+    - Recompute the file's SHA-256 digest from the cached bytes on each access and compare it against the entry's digest, treating a mismatch as a mismatch on a fresh read.
+  - Hosts that cache MCP-served skill content on disk **MUST** do so in a location excluded from every filesystem-skill discovery path.
+  - Hosts **MUST** treat content loaded from that location as having arrived over MCP for all purposes of the no-implicit-local-execution rule above, including after host restart and after the originating server is disconnected.
+  - Hosts **SHOULD** remove a server's cached skill content when the user removes that server.
